@@ -31,6 +31,7 @@
         <snapshotName>-SNAPSHOT</snapshotName>
         <!-- revision will be the global version string -->
         <revision>${versionCode}${snapshotName}</revision>
+        <forge.client.version>2.0.15-SNAPSHOT-09.05</forge.client.version>
     </properties>
 
     <licenses>
@@ -369,6 +370,18 @@
     </dependencyManagement>
 
     <profiles>
+        <profile>
+            <id>dedicated</id>
+            <modules>
+                <module>forge-server</module>
+            </modules>
+            <build><plugins><plugin>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration><archive><manifestEntries>
+                    <Implementation-Version>${forge.client.version}</Implementation-Version>
+                </manifestEntries></archive></configuration>
+            </plugin></plugins></build>
+        </profile>
         <!--
           The iOS module is intentionally NOT in the default <modules> reactor.
           It depends on artifacts that are generated locally by the iOS build

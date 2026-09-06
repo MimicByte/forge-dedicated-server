@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+SERVER_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+exec java -Djava.awt.headless=true -Dforge.server.assets="$SERVER_ROOT" \
+  -Dforge.server.config="${FORGE_SERVER_CONFIG_DIR:-/config}" \
+  --add-opens java.base/java.util=ALL-UNNAMED \
+  --add-opens java.base/java.lang=ALL-UNNAMED \
+  --add-opens java.base/java.lang.reflect=ALL-UNNAMED \
+  --add-opens java.base/java.text=ALL-UNNAMED \
+  --add-opens java.base/java.time=ALL-UNNAMED \
+  --add-opens java.base/java.util.regex=ALL-UNNAMED \
+  --add-opens java.base/java.util.stream=ALL-UNNAMED \
+  -cp "$SERVER_ROOT/lib/*" forge.server.DedicatedServerMain "$@"

@@ -24,6 +24,13 @@
     <build>
         <plugins>
             <plugin>
+                <artifactId>maven-jar-plugin</artifactId>
+                <executions><execution><id>network-test-fixtures</id><phase>test-compile</phase>
+                    <goals><goal>test-jar</goal></goals>
+                    <configuration><includes><include>forge/net/HeadlessNetwork*.class</include></includes></configuration>
+                </execution></executions>
+            </plugin>
+            <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>build-helper-maven-plugin</artifactId>
                 <version>3.6.0</version>

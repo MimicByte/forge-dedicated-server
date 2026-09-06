@@ -1,0 +1,22 @@
+services:
+  forge:
+    build:
+      context: ..
+      dockerfile: forge-server/Dockerfile
+    platform: linux/amd64
+    image: forge-dedicated:8980637-1
+    restart: on-failure
+    stop_grace_period: 30s
+    ports:
+      - "36743:36743/tcp"
+    environment:
+      FORGE_SERVER_MODE: COMMANDER
+      FORGE_SERVER_MAX_PLAYERS: "4"
+      FORGE_SERVER_START_DELAY_SECONDS: "15"
+      FORGE_SERVER_RECONNECT_SECONDS: "300"
+      FORGE_SERVER_POSTGAME_SECONDS: "120"
+      JAVA_TOOL_OPTIONS: "-Xmx4g"
+    volumes:
+      - forge-config:/config
+volumes:
+  forge-config:

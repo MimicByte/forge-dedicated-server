@@ -1,0 +1,99 @@
+name: Dedicated server CI
+
+on:
+  push:
+    branches: [dedicated-server]
+    paths:
+      - 'forge-server/**'
+      - 'forge-game/src/main/java/**'
+      - 'forge-gui/src/main/java/forge/gamemodes/**'
+      - 'forge-gui/src/main/java/forge/localinstance/properties/**'
+      - 'forge-gui-desktop/pom.xml'
+      - 'pom.xml'
+      - '.dockerignore'
+      - '.github/workflows/dedicated-ci.yml'
+  pull_request:
+    branches: [dedicated-server]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Run dedicated-server tests
+        run: >-
+          mvn -B -ntp -Pdedicated -pl forge-server -am test
+          -Dtest=ServerConfigTest,ReplyPoolTest,DedicatedNetworkTest
+          -Dsurefire.failIfNoSpecifiedTests=false
+
+      - name: Build dedicated distribution
+        run: >-
+          mvn -B -ntp -Pdedicated -pl forge-server -am
+          -DskipTests -Dlaunch4j.skip=true package
+
+      - name: Verify launcher is packaged
+        run: test -x forge-server/target/forge-server-bin/bin/forge-server
+
+      - name: Upload distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: forge-dedicated-${{ github.sha }}
+          path: forge-server/target/forge-server-bin.tar.gz
+          if-no-files-found: error
+
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dedicated-server'
+    needs: test-and-package
+    permissions:
+      contents: write
+      packages: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push dedicated image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: forge-server/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}-dedicated:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}-dedicated:latest
+
+      - name: Download distribution
+        uses: actions/download-artifact@v4
+        with:
+          name: forge-dedicated-${{ github.sha }}
+          path: release
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dedicated-${{ github.sha }}
+          name: Dedicated server ${{ github.sha }}
+          generate_release_notes: true
+          files: release/forge-server-bin.tar.gz
