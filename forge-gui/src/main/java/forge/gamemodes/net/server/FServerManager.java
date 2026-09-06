@@ -3,6 +3,7 @@ package forge.gamemodes.net.server;
 import forge.ai.LobbyPlayerAi;
 import forge.ai.PlayerControllerAi;
 import forge.game.Game;
+import forge.game.GameType;
 import forge.game.GameLogEntry;
 import forge.game.GameView;
 import forge.game.event.GameEvent;
@@ -241,8 +242,30 @@ public final class FServerManager implements IHasForgeLog {
         // Names and teams stay fixed for the lifetime of a connection in v1.
         event.setName(null);
         LobbySlot slot = localLobby.getSlot(client.getIndex());
-        boolean deckChanged = event.getDeck() != null || event.getSection() != null || event.getCards() != null;
+        if (event.getArchenemy() != null && !localLobby.hasVariant(GameType.Archenemy)) {
+            event.setArchenemy(null);
+        } else if (Boolean.TRUE.equals(event.getArchenemy()) && !slot.isArchenemy()) {
+            for (int i = 0; i < localLobby.getNumberOfSlots(); i++) {
+                LobbySlot other = localLobby.getSlot(i);
+                if (i != client.getIndex() && other.getType() != LobbySlotType.OPEN && other.isArchenemy()) {
+                    client.send(MessageEvent.warning("Another player has already nominated themselves as the Archenemy."));
+                    event.setArchenemy(null);
+                    break;
+                }
+            }
+        }
+        boolean archenemyChanged = event.getArchenemy() != null && slot.isArchenemy() != event.getArchenemy();
+        boolean deckChanged = event.getDeck() != null || event.getSection() != null || event.getCards() != null || archenemyChanged;
         localLobby.applyToSlot(client.getIndex(), event);
+        // GameLobby's desktop-host behavior rotates the Archenemy role when a
+        // player deselects it. A dedicated room instead treats the flag as a
+        // self-nomination: withdrawing leaves no nominee until another player
+        // explicitly claims the role.
+        if (Boolean.FALSE.equals(event.getArchenemy())) {
+            for (int i = 0; i < localLobby.getNumberOfSlots(); i++) {
+                localLobby.getSlot(i).setIsArchenemy(false);
+            }
+        }
         slot.setTeam(client.getIndex());
         slot.setIsDevMode(false);
         if (deckChanged) { slot.setIsReady(false); }

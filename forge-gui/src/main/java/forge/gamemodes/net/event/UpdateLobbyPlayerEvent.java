@@ -193,6 +193,9 @@ public final class UpdateLobbyPlayerEvent implements NetEvent {
     public void setName(String name) {
         this.name = name;
     }
+    public void setArchenemy(Boolean isArchenemy) {
+        this.isArchenemy = isArchenemy;
+    }
 
     public Set<AIOption> getAiOptions() {
         return aiOptions == null ? null : Collections.unmodifiableSet(aiOptions);

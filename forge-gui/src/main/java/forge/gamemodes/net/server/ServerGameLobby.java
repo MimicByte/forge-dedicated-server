@@ -70,7 +70,7 @@ public final class ServerGameLobby extends GameLobby implements IHasForgeLog {
     public boolean isDedicated() { return dedicated; }
 
     public ServerGameLobby(final int capacity) {
-        if (capacity < 2 || capacity > 4) { throw new IllegalArgumentException("Expected 2–4 seats"); }
+        if (capacity < 2 || capacity > 8) { throw new IllegalArgumentException("Expected 2–8 seats"); }
         dedicated = true;
         for (int i = 0; i < capacity; i++) {
             addSlot(new LobbySlot(LobbySlotType.OPEN, null, -1, -1, i, false, false, Collections.emptySet()));

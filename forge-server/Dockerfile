@@ -23,7 +23,7 @@ RUN groupadd --gid 10001 forge && useradd --uid 10001 --gid forge --create-home 
 COPY --from=build /source/forge-server/target/forge-server-bin/ /opt/forge/
 USER 10001:10001
 WORKDIR /opt/forge
-ENV FORGE_SERVER_PORT=36743 FORGE_SERVER_MODE=COMMANDER FORGE_SERVER_MAX_PLAYERS=4
+ENV FORGE_SERVER_PORT=36743 FORGE_SERVER_MODE=COMMANDER FORGE_SERVER_VARIANTS= FORGE_SERVER_MAX_PLAYERS=4
 EXPOSE 36743/tcp
 VOLUME ["/config"]
 HEALTHCHECK --interval=10s --timeout=5s --start-period=300s --retries=3 CMD ["/opt/forge/bin/forge-server", "health"]

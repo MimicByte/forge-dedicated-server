@@ -120,6 +120,44 @@ public class DedicatedNetworkTest {
         b.close().sync();
         await(() -> server.connectedPlayers().isEmpty());
     }
+    @Test public void validatesSpecialVariantRequirements() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            ServerGameLobby special = new ServerGameLobby(2);
+            special.applyVariant(forge.game.GameType.Planechase);
+            special.applyVariant(forge.game.GameType.Vanguard);
+            special.setGameType(forge.game.GameType.Constructed);
+            for (int i = 0; i < 2; i++) {
+                special.getSlot(i).setType(LobbySlotType.REMOTE);
+                special.getSlot(i).setName("Player " + i);
+                special.getSlot(i).setDeck(new Deck("Incomplete special deck"));
+            }
+            List<String> withoutNominee = special.validateDedicatedStart().stream()
+                    .map(forge.gamemodes.match.GameLobby.GameStartError::message).toList();
+            Assert.assertTrue(withoutNominee.stream().anyMatch(m -> m.toLowerCase(Locale.ROOT).contains("planes")));
+            Assert.assertTrue(withoutNominee.stream().anyMatch(m -> m.contains("Vanguard avatar")));
+
+            ServerGameLobby archenemy = new ServerGameLobby(2);
+            archenemy.applyVariant(forge.game.GameType.Archenemy);
+            archenemy.setGameType(forge.game.GameType.Constructed);
+            Assert.assertTrue(archenemy.hasVariant(forge.game.GameType.Archenemy));
+            for (int i = 0; i < 2; i++) {
+                archenemy.getSlot(i).setIsArchenemy(false);
+                archenemy.getSlot(i).setType(LobbySlotType.REMOTE);
+                archenemy.getSlot(i).setName("Player " + i);
+                archenemy.getSlot(i).setDeck(new Deck("Incomplete Archenemy deck"));
+            }
+            List<String> withoutNomineeArchenemy = archenemy.validateDedicatedStart().stream()
+                    .map(forge.gamemodes.match.GameLobby.GameStartError::message).toList();
+            Assert.assertTrue(withoutNomineeArchenemy.stream().anyMatch(m -> m.contains("Exactly one player")),
+                    "errors=" + withoutNomineeArchenemy);
+
+            archenemy.getSlot(0).setIsArchenemy(true);
+            List<String> withNominee = archenemy.validateDedicatedStart().stream()
+                    .map(forge.gamemodes.match.GameLobby.GameStartError::message).toList();
+            Assert.assertFalse(withNominee.stream().anyMatch(m -> m.contains("Exactly one player")));
+            Assert.assertTrue(withNominee.stream().anyMatch(m -> m.toLowerCase(Locale.ROOT).contains("scheme")));
+        });
+    }
     /**
      * Release-candidate smoke test. It needs independently launched desktop
      * Forge clients: the in-process fixture intentionally shares the EDT and

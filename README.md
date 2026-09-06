@@ -9,8 +9,9 @@ Forge is open source and is not affiliated with Wizards of the Coast.
 ## What this repository provides
 
 - A dedicated server that owns one remote multiplayer room per container.
-- Constructed rooms for two players.
-- Commander rooms for two to four players.
+- Constructed, Commander, Oathbreaker, Tiny Leaders, and Brawl rooms.
+- Optional Planechase, Vanguard, and Archenemy table variants.
+- Two to eight seats per room; Compose defaults to four.
 - Reconnect support during a configurable grace period.
 - AI takeover when a disconnected player does not return.
 - Docker packaging for Linux hosts, home servers, and Unraid.
@@ -40,13 +41,16 @@ For Unraid, build the image first, map TCP `36743`, and map `/config` to an appd
 | Environment | Default | Allowed |
 |---|---|---|
 | `FORGE_SERVER_PORT` | `36743` | `1–65535` |
-| `FORGE_SERVER_MODE` | `COMMANDER` | `COMMANDER`, `CONSTRUCTED` |
-| `FORGE_SERVER_MAX_PLAYERS` | `4` (`2` for Constructed) | `2–4`; Constructed requires `2` |
+| `FORGE_SERVER_MODE` | `COMMANDER` | `CONSTRUCTED`, `COMMANDER`, `OATHBREAKER`, `TINY_LEADERS`, `BRAWL` |
+| `FORGE_SERVER_VARIANTS` | unset | Comma-separated `PLANECHASE`, `VANGUARD`, and `ARCHENEMY` |
+| `FORGE_SERVER_MAX_PLAYERS` | `4` | `2–8` |
 | `FORGE_SERVER_START_DELAY_SECONDS` | `15` | `1–300` |
 | `FORGE_SERVER_RECONNECT_SECONDS` | `300` | `1–3600` |
 | `FORGE_SERVER_POSTGAME_SECONDS` | `120` | `1–3600` |
 
-Compose defaults to four seats. Set `FORGE_SERVER_MODE=CONSTRUCTED` and `FORGE_SERVER_MAX_PLAYERS=2` for a Constructed room. `JAVA_TOOL_OPTIONS` controls JVM memory, for example `-Xmx4g`. `FORGE_SERVER_CONFIG_DIR` changes the profile and status location for a locally extracted distribution; it defaults to `/config` in the image.
+Compose defaults to four seats. Set `FORGE_SERVER_MAX_PLAYERS=8` for a larger room. Add table variants to a base format, for example `FORGE_SERVER_MODE=COMMANDER` with `FORGE_SERVER_VARIANTS=PLANECHASE`. `JAVA_TOOL_OPTIONS` controls JVM memory, for example `-Xmx4g`. `FORGE_SERVER_CONFIG_DIR` changes the profile and status location for a locally extracted distribution; it defaults to `/config` in the image.
+
+Players select special game pieces through the normal Forge deck sections: every player needs a legal Planes section for Planechase and Avatar section for Vanguard; the one self-nominated Archenemy needs a legal Schemes section. The stock matching-snapshot Forge client already provides those lobby controls. The server prevents a second Archenemy nomination and starts only when exactly one player is nominated.
 
 Every connected player must choose a legal deck and ready up. With at least two ready players, the server starts a countdown. Joins, departures, and lobby changes cancel the countdown. Changing a deck clears readiness. Teams, dev mode, manually added AI, spectators, and joining an active match are not supported by the current room controller.
 
@@ -84,7 +88,9 @@ Clients and server should use the same Forge snapshot whenever possible. Differe
 Before using a release, record the desktop client version and hash, server image ID, and upstream revision. Test with separate unmodified desktop Forge processes:
 
 - Complete a legal two-player Constructed game.
-- Complete Commander games with two, three, and four players.
+- Complete rooms with two, four, and eight players.
+- Complete Oathbreaker, Tiny Leaders, and Brawl games.
+- Complete Planechase, Vanguard, Archenemy, and a supported combined-variant game using stock matching-snapshot clients.
 - Disconnect and reconnect a player; verify their hand and current prompt recover.
 - Let a grace period expire and verify AI takeover.
 - Exercise Continue, New Match, QUIT, and postgame timeout behavior.

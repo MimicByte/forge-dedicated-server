@@ -1,6 +1,6 @@
 # Forge Dedicated Server
 
-Headless Forge for remote multiplayer rooms using unmodified desktop Forge clients. One container owns one room and all players join over the network. The current release supports Constructed (2 players) and Commander (2–4 players). A disconnected player can reconnect during the grace period; after that, the server transfers that seat to AI for the rest of the match.
+Headless Forge for remote multiplayer rooms using unmodified desktop Forge clients. One container owns one room and all players join over the network. The current release supports Constructed, Commander, Oathbreaker, Tiny Leaders, and Brawl, with optional Planechase, Vanguard, and Archenemy variants. Rooms hold two to eight players and default to four seats. A disconnected player can reconnect during the grace period; after that, the server transfers that seat to AI for the rest of the match.
 
 ## Run
 
@@ -24,13 +24,16 @@ For Unraid, build the image first and select the resulting `forge-dedicated` ima
 | Environment | Default | Allowed |
 |---|---|---|
 | FORGE_SERVER_PORT | 36743 | 1–65535 |
-| FORGE_SERVER_MODE | COMMANDER | COMMANDER, CONSTRUCTED |
-| FORGE_SERVER_MAX_PLAYERS | 4 (2 for Constructed) | 2–4; Constructed requires 2 |
+| FORGE_SERVER_MODE | COMMANDER | CONSTRUCTED, COMMANDER, OATHBREAKER, TINY_LEADERS, BRAWL |
+| FORGE_SERVER_VARIANTS | unset | Comma-separated PLANECHASE, VANGUARD, and ARCHENEMY |
+| FORGE_SERVER_MAX_PLAYERS | 4 | 2–8 |
 | FORGE_SERVER_START_DELAY_SECONDS | 15 | 1–300 |
 | FORGE_SERVER_RECONNECT_SECONDS | 300 | 1–3600 |
 | FORGE_SERVER_POSTGAME_SECONDS | 120 | 1–3600 |
 
-Compose defaults to four seats. Set `FORGE_SERVER_MODE=CONSTRUCTED` and `FORGE_SERVER_MAX_PLAYERS=2` for a Constructed room. `JAVA_TOOL_OPTIONS` controls JVM memory, for example `-Xmx4g`. `FORGE_SERVER_CONFIG_DIR` changes the profile and status location for a locally extracted distribution; it defaults to `/config` in the image.
+Compose defaults to four seats. Set `FORGE_SERVER_MAX_PLAYERS=8` for a larger room. Combine a base format with table variants using `FORGE_SERVER_VARIANTS`, for example `FORGE_SERVER_MODE=COMMANDER` and `FORGE_SERVER_VARIANTS=PLANECHASE`. `JAVA_TOOL_OPTIONS` controls JVM memory, for example `-Xmx4g`. `FORGE_SERVER_CONFIG_DIR` changes the profile and status location for a locally extracted distribution; it defaults to `/config` in the image.
+
+Players supply game pieces using their stock matching-snapshot Forge client: Planechase requires each deck's Planes section, Vanguard requires each deck's Avatar section, and Archenemy requires the nominated player's Schemes section. Players nominate themselves as Archenemy in the normal lobby; the server permits one nomination only and validates it before the match starts.
 
 Every connected player must choose a legal deck and ready up. With at least two ready players, the server starts a countdown. Joins, departures, and lobby changes cancel the countdown. Changing a deck clears readiness. Teams, dev mode, manually added AI, spectators, and joining an active match are not supported.
 
@@ -62,7 +65,9 @@ Name-based reconnect is not authenticated. Duplicate active names are rejected, 
 Before using a release, record the exact desktop client version and hash, server image ID, and upstream revision. Using separate unmodified desktop Forge processes against the headless container:
 
 - Complete a two-player Constructed game with legal decks.
-- Complete Commander games with two, three, and four players.
+- Complete rooms with two, four, and eight players.
+- Complete Oathbreaker, Tiny Leaders, and Brawl games.
+- Complete Planechase, Vanguard, Archenemy, and a supported combined-variant game using stock matching-snapshot clients.
 - Disconnect and reconnect a player; verify their hand and current prompt recover.
 - Let a disconnected player’s grace period expire; verify AI takeover and later match decisions.
 - Exercise Continue, New Match, QUIT, and the postgame timeout.

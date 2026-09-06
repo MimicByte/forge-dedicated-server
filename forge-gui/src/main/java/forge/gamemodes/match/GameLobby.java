@@ -55,10 +55,11 @@ public abstract class GameLobby implements IHasGameType {
         else { startErrorHandler.accept(new GameStartError(-1, message)); }
     }
 
-    /** Pure validation for the two dedicated modes; no GUI or controller construction. */
+    /** Pure validation for a dedicated room; no GUI or controller construction. */
     public List<GameStartError> validateDedicatedStart() {
         List<GameStartError> errors = new ArrayList<>();
         int humans = 0;
+        int archenemies = 0;
         for (int i = 0; i < getNumberOfSlots(); i++) {
             LobbySlot slot = getSlot(i);
             if (slot.getType() == LobbySlotType.OPEN) { continue; }
@@ -68,12 +69,29 @@ public abstract class GameLobby implements IHasGameType {
             } else if (slot.getDeck() == null) {
                 errors.add(new GameStartError(i, slot.getName() + ": choose a deck."));
             } else {
-                String problem = (hasVariant(GameType.Commander) ? GameType.Commander : GameType.Constructed)
-                        .getDeckFormat().getDeckConformanceProblem(slot.getDeck());
+                String problem = getGameType().getDeckFormat().getDeckConformanceProblem(slot.getDeck());
                 if (problem != null) { errors.add(new GameStartError(i, slot.getName() + ": " + problem)); }
+                if (hasVariant(GameType.Planechase)) {
+                    problem = DeckFormat.getPlaneSectionConformanceProblem(slot.getDeck().get(DeckSection.Planes));
+                    if (problem != null) { errors.add(new GameStartError(i, slot.getName() + ": " + problem)); }
+                }
+                if (hasVariant(GameType.Vanguard)) {
+                    CardPool avatars = slot.getDeck().get(DeckSection.Avatar);
+                    if (avatars == null || avatars.countAll() == 0) {
+                        errors.add(new GameStartError(i, slot.getName() + ": choose a Vanguard avatar."));
+                    }
+                }
+                if (hasVariant(GameType.Archenemy) && slot.isArchenemy()) {
+                    archenemies++;
+                    problem = DeckFormat.getSchemeSectionConformanceProblem(slot.getDeck().get(DeckSection.Schemes));
+                    if (problem != null) { errors.add(new GameStartError(i, slot.getName() + ": " + problem)); }
+                }
             }
         }
         if (humans < 2) { errors.add(new GameStartError(-1, "At least two players are required.")); }
+        if (hasVariant(GameType.Archenemy) && archenemies != 1) {
+            errors.add(new GameStartError(-1, "Exactly one player must nominate themselves as the Archenemy."));
+        }
         return List.copyOf(errors);
     }
     private final HashMap<LobbySlot, IGameController> gameControllers = Maps.newHashMap();

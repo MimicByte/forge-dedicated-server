@@ -62,7 +62,7 @@ public final class DedicatedServerMain {
         AtomicReference<DedicatedLobbyController> controllerRef = new AtomicReference<>();
         SwingUtilities.invokeAndWait(() -> {
             ServerGameLobby lobby = new ServerGameLobby(config.maxPlayers());
-            if (config.mode() == ServerConfig.Mode.COMMANDER) { lobby.applyVariant(GameType.Commander); }
+            applyMode(lobby, config);
             DedicatedLobbyController controller = new DedicatedLobbyController(config, lobby, server);
             controllerRef.set(controller);
             gui.setOnMatch(controller::attachMatch);
@@ -113,5 +113,35 @@ public final class DedicatedServerMain {
         SwingUtilities.invokeAndWait(pulse::start);
         System.out.println("[server] Listening on TCP " + config.port() + " mode=" + config.mode());
         new CountDownLatch(1).await();
+    }
+
+    private static void applyMode(ServerGameLobby lobby, ServerConfig config) {
+        switch (config.mode()) {
+        case COMMANDER -> lobby.applyVariant(GameType.Commander);
+        case OATHBREAKER -> lobby.applyVariant(GameType.Oathbreaker);
+        case TINY_LEADERS -> lobby.applyVariant(GameType.TinyLeaders);
+        case BRAWL -> lobby.applyVariant(GameType.Brawl);
+        case CONSTRUCTED -> lobby.setGameType(GameType.Constructed);
+        }
+        for (ServerConfig.Variant variant : config.variants()) {
+            switch (variant) {
+            case PLANECHASE -> lobby.applyVariant(GameType.Planechase);
+            case VANGUARD -> lobby.applyVariant(GameType.Vanguard);
+            case ARCHENEMY -> lobby.applyVariant(GameType.Archenemy);
+            }
+        }
+        if (config.variants().contains(ServerConfig.Variant.ARCHENEMY)) {
+            for (int i = 0; i < lobby.getNumberOfSlots(); i++) {
+                lobby.getSlot(i).setIsArchenemy(false);
+            }
+        }
+        // Table variants should not replace the configured deck format in lobby metadata.
+        switch (config.mode()) {
+        case COMMANDER -> lobby.setGameType(GameType.Commander);
+        case OATHBREAKER -> lobby.setGameType(GameType.Oathbreaker);
+        case TINY_LEADERS -> lobby.setGameType(GameType.TinyLeaders);
+        case BRAWL -> lobby.setGameType(GameType.Brawl);
+        case CONSTRUCTED -> lobby.setGameType(GameType.Constructed);
+        }
     }
 }
