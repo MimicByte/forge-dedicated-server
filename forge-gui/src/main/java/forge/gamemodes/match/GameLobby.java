@@ -56,7 +56,7 @@ public abstract class GameLobby implements IHasGameType {
     }
 
     /** Pure validation for a dedicated room; no GUI or controller construction. */
-    public List<GameStartError> validateDedicatedStart() {
+    public List<GameStartError> validateDedicatedStart(final GameType deckFormatType) {
         List<GameStartError> errors = new ArrayList<>();
         int humans = 0;
         int archenemies = 0;
@@ -69,7 +69,7 @@ public abstract class GameLobby implements IHasGameType {
             } else if (slot.getDeck() == null) {
                 errors.add(new GameStartError(i, slot.getName() + ": choose a deck."));
             } else {
-                String problem = getGameType().getDeckFormat().getDeckConformanceProblem(slot.getDeck());
+                String problem = deckFormatType.getDeckFormat().getDeckConformanceProblem(slot.getDeck());
                 if (problem != null) { errors.add(new GameStartError(i, slot.getName() + ": " + problem)); }
                 if (hasVariant(GameType.Planechase)) {
                     problem = DeckFormat.getPlaneSectionConformanceProblem(slot.getDeck().get(DeckSection.Planes));
@@ -506,7 +506,7 @@ public abstract class GameLobby implements IHasGameType {
             final int avatar = slot.getAvatarIndex();
             final int sleeve = slot.getSleeveIndex();
             final boolean isArchenemy = slot.isArchenemy();
-            final int team = slot.getTeam();
+            final int team = resolveTeam(variantTypes, slot);
             final Set<AIOption> aiOptions = slot.getAiOptions(); // TODO: could AiOptions carry the choice of which AI is selected to play against?
 
             final boolean isAI = slot.getType() == LobbySlotType.AI;
@@ -624,6 +624,10 @@ public abstract class GameLobby implements IHasGameType {
         hostedMatch = null;
         gameControllers.clear();
         updateView(true);
+    }
+
+    static int resolveTeam(final Set<GameType> variantTypes, final LobbySlot slot) {
+        return variantTypes.contains(GameType.Archenemy) && !slot.isArchenemy() ? 1 : slot.getTeam();
     }
 
     public final static class GameLobbyData implements Serializable {

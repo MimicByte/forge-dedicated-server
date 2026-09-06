@@ -4,11 +4,22 @@ import java.util.Map;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Set;
+import forge.game.GameType;
 
 public record ServerConfig(int port, Mode mode, int maxPlayers, int startDelaySeconds,
                            int reconnectSeconds, int postgameSeconds, Set<Variant> variants) {
     public enum Mode { CONSTRUCTED, COMMANDER, OATHBREAKER, TINY_LEADERS, BRAWL }
     public enum Variant { PLANECHASE, VANGUARD, ARCHENEMY }
+
+    public GameType baseGameType() {
+        return switch (mode) {
+        case CONSTRUCTED -> GameType.Constructed;
+        case COMMANDER -> GameType.Commander;
+        case OATHBREAKER -> GameType.Oathbreaker;
+        case TINY_LEADERS -> GameType.TinyLeaders;
+        case BRAWL -> GameType.Brawl;
+        };
+    }
 
     public static ServerConfig from(Map<String, String> env) {
         Mode mode = mode(env.getOrDefault("FORGE_SERVER_MODE", "COMMANDER"));

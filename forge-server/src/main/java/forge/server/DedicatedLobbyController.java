@@ -65,7 +65,7 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
         for (RemoteClient client : players) {
             if (!lobby.getSlot(client.getIndex()).isReady()) { return false; }
         }
-        List<GameStartError> errors = lobby.validateDedicatedStart();
+        List<GameStartError> errors = lobby.validateDedicatedStart(config.baseGameType());
         if (!errors.isEmpty()) {
             for (GameStartError error : errors) {
                 say(error.message());

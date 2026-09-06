@@ -116,13 +116,8 @@ public final class DedicatedServerMain {
     }
 
     private static void applyMode(ServerGameLobby lobby, ServerConfig config) {
-        switch (config.mode()) {
-        case COMMANDER -> lobby.applyVariant(GameType.Commander);
-        case OATHBREAKER -> lobby.applyVariant(GameType.Oathbreaker);
-        case TINY_LEADERS -> lobby.applyVariant(GameType.TinyLeaders);
-        case BRAWL -> lobby.applyVariant(GameType.Brawl);
-        case CONSTRUCTED -> lobby.setGameType(GameType.Constructed);
-        }
+        GameType baseGameType = config.baseGameType();
+        if (baseGameType != GameType.Constructed) { lobby.applyVariant(baseGameType); }
         for (ServerConfig.Variant variant : config.variants()) {
             switch (variant) {
             case PLANECHASE -> lobby.applyVariant(GameType.Planechase);
@@ -135,13 +130,8 @@ public final class DedicatedServerMain {
                 lobby.getSlot(i).setIsArchenemy(false);
             }
         }
-        // Table variants should not replace the configured deck format in lobby metadata.
-        switch (config.mode()) {
-        case COMMANDER -> lobby.setGameType(GameType.Commander);
-        case OATHBREAKER -> lobby.setGameType(GameType.Oathbreaker);
-        case TINY_LEADERS -> lobby.setGameType(GameType.TinyLeaders);
-        case BRAWL -> lobby.setGameType(GameType.Brawl);
-        case CONSTRUCTED -> lobby.setGameType(GameType.Constructed);
-        }
+        // The configured base format remains lobby metadata; rules derive table
+        // behavior such as Archenemy teams from the applied variant set.
+        lobby.setGameType(baseGameType);
     }
 }
