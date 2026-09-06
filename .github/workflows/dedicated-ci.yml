@@ -55,6 +55,7 @@ jobs:
           name: forge-dedicated-${{ github.sha }}
           path: forge-server/target/forge-server-bin.tar.gz
           if-no-files-found: error
+          retention-days: 1
 
   publish:
     if: github.event_name == 'push' && github.ref == 'refs/heads/dedicated-server'
@@ -94,10 +95,45 @@ jobs:
           name: forge-dedicated-${{ github.sha }}
           path: release
 
-      - name: Publish GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: dedicated-${{ github.sha }}
-          name: Dedicated server ${{ github.sha }}
-          generate_release_notes: true
-          files: release/forge-server-bin.tar.gz
+      - name: Update daily snapshot release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SNAPSHOT_TAG: dedicated-daily-snapshot
+        run: |
+          git tag --force "$SNAPSHOT_TAG" "$GITHUB_SHA"
+          git push --force origin "refs/tags/$SNAPSHOT_TAG"
+
+          notes="Automated dedicated-server snapshot for commit $GITHUB_SHA."
+          if gh release view "$SNAPSHOT_TAG" >/dev/null 2>&1; then
+            gh release edit "$SNAPSHOT_TAG" \
+              --title "Dedicated server daily snapshot" \
+              --notes "$notes" \
+              --prerelease
+          else
+            gh release create "$SNAPSHOT_TAG" \
+              --title "Dedicated server daily snapshot" \
+              --notes "$notes" \
+              --prerelease
+          fi
+          gh release upload "$SNAPSHOT_TAG" release/forge-server-bin.tar.gz --clobber
+
+      - name: Keep five container image versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_NAME: ${{ github.event.repository.name }}-dedicated
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: |
+          owner_type=$(gh api "/users/$REPOSITORY_OWNER" --jq .type)
+          if [ "$owner_type" = "Organization" ]; then
+            package_path="/orgs/$REPOSITORY_OWNER/packages/container/$PACKAGE_NAME/versions"
+          else
+            package_path="/users/$REPOSITORY_OWNER/packages/container/$PACKAGE_NAME/versions"
+          fi
+
+          mapfile -t version_ids < <(
+            gh api --paginate "$package_path?per_page=100" --jq \
+              '.[] | select([.metadata.container.tags[]? | startswith("upstream-")] | any | not) | .id'
+          )
+          for version_id in "${version_ids[@]:5}"; do
+            gh api --method DELETE "$package_path/$version_id"
+          done
