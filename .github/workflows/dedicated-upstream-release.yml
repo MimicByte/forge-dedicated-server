@@ -26,6 +26,11 @@ jobs:
           ref: dedicated-server
           fetch-depth: 0
 
+      - name: Configure Git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
       - name: Prepare source from upstream release
         id: source
         env:
