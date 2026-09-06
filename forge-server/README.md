@@ -1,6 +1,6 @@
 # Forge Dedicated Server
 
-Headless Forge for a trusted group using stock desktop clients. One container owns one room; all players join remotely. Commander supports 2–4 humans and Constructed supports 2. AI is used only after a disconnected player's grace period expires.
+Headless Forge for remote multiplayer rooms using unmodified desktop Forge clients. One container owns one room and all players join over the network. The current release supports Constructed (2 players) and Commander (2–4 players). A disconnected player can reconnect during the grace period; after that, the server transfers that seat to AI for the rest of the match.
 
 ## Run
 
@@ -11,11 +11,13 @@ docker compose -f forge-server/compose.yaml up --build -d
 docker compose -f forge-server/compose.yaml logs -f
 ```
 
-Join `server-hostname:36743` in desktop Forge. The server must have reachable inbound TCP; players do not need port forwarding. A home-hosted server may still need router forwarding. The image runs as UID/GID 10001 and has no desktop, web panel, admin API, Docker socket, or owner commands.
+Join `server-hostname:36743` from desktop Forge. The server needs reachable inbound TCP; clients do not need port forwarding. A home-hosted server may need router port forwarding. The image runs as UID/GID 10001 and has no desktop, web panel, admin API, Docker socket, or owner commands.
 
-An empty volume triggers card-data initialization. Allow up to five minutes before health checks begin enforcing readiness. Each additional room needs a separate container, volume, and host port.
+The first start loads the card database and can take several minutes. Health checks begin enforcing readiness after five minutes. Each additional room needs its own container, configuration volume, and host port.
 
-For Unraid, build the image first, select `forge-dedicated:8980637-1`, map TCP 36743 and `/config` to an appdata directory writable by UID/GID 10001, and set the environment values below. Bind-mount ownership must be prepared on the host. Configure a 30-second stop timeout and restart-on-failure. A volume does not preserve live matches.
+The image removes campaign and presentation resources that are not used by the dedicated server. Card rules, token rules, format data, AI data, and localization remain included. Card artwork is not bundled; clients download and cache artwork locally.
+
+For Unraid, build the image first and select the resulting `forge-dedicated` image. Map TCP 36743 and `/config` to an appdata directory writable by UID/GID 10001. Prepare bind-mount ownership on the host. Configure a 30-second stop timeout and restart-on-failure. A configuration volume does not preserve a live match.
 
 ## Configuration
 
@@ -28,13 +30,13 @@ For Unraid, build the image first, select `forge-dedicated:8980637-1`, map TCP 3
 | FORGE_SERVER_RECONNECT_SECONDS | 300 | 1–3600 |
 | FORGE_SERVER_POSTGAME_SECONDS | 120 | 1–3600 |
 
-Compose explicitly defaults capacity to four; change it to two when selecting Constructed. `JAVA_TOOL_OPTIONS` controls JVM memory, e.g. `-Xmx4g`. `FORGE_SERVER_CONFIG_DIR` changes the profile/status location for a local extracted distribution, default `/config`.
+Compose defaults to four seats. Set `FORGE_SERVER_MODE=CONSTRUCTED` and `FORGE_SERVER_MAX_PLAYERS=2` for a Constructed room. `JAVA_TOOL_OPTIONS` controls JVM memory, for example `-Xmx4g`. `FORGE_SERVER_CONFIG_DIR` changes the profile and status location for a locally extracted distribution; it defaults to `/config` in the image.
 
-Everyone connected must choose a legal deck and ready up. With at least two players ready, the server starts a countdown. Joins, departures, and lobby changes cancel it. Changing a deck clears readiness. Teams, dev mode, limited events, manually added AI, spectators, and mid-match admission are not supported.
+Every connected player must choose a legal deck and ready up. With at least two ready players, the server starts a countdown. Joins, departures, and lobby changes cancel the countdown. Changing a deck clears readiness. Teams, dev mode, manually added AI, spectators, and joining an active match are not supported.
 
-Reconnect using exactly the previous display name within the grace period. After expiry, AI controls that seat for the remainder of the match, including subsequent games. If every human disconnects, the room resets after the last departure's grace period. Normal Continue/New Match/QUIT decisions are preserved; unanswered postgame decisions reset the room after the configured timeout.
+Reconnect with exactly the previous display name during the grace period. After the period expires, AI controls that seat for the remainder of the match, including later games. If all human players disconnect, the room resets after the final grace period. Continue, New Match, and QUIT decisions are preserved; an unanswered postgame decision resets the room after the configured timeout.
 
-Still-connected players keep decks when returning to the lobby, but must ready again. Vacated seats are cleared. Container restart always creates a fresh lobby.
+Players who remain connected keep their decks when returning to the lobby, but must ready up again. Vacated seats are cleared. Restarting the container creates a fresh room.
 
 ## Build and compatibility
 
@@ -42,27 +44,30 @@ Requires Maven 3.8.1+ and Java 17+ (the container uses Java 17):
 
 ```sh
 mvn -B -ntp -Pdedicated -pl forge-server -am -DskipTests -Dlaunch4j.skip=true package
-mvn -B -ntp -pl forge-server -am -Dtest=ServerConfigTest,ReplyPoolTest,DedicatedNetworkTest,LobbySlotAuthorizationTest -Dsurefire.failIfNoSpecifiedTests=false test
+mvn -B -ntp -Pdedicated -pl forge-server -am \
+  -Dtest=ServerConfigTest,ReplyPoolTest,DedicatedNetworkTest \
+  -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
-Extract `forge-server/target/forge-server-bin.tar.gz`, then run `bin/forge-server`. Paths are resolved from the launch script, not the working directory. `bin/forge-server health` checks dispatcher heartbeat freshness without opening a game connection.
+Extract `forge-server/target/forge-server-bin.tar.gz`, then run `bin/forge-server`. Paths are resolved from the launch script rather than the working directory. `bin/forge-server health` checks dispatcher heartbeat freshness without opening a game connection.
 
-Compatibility baseline: upstream `89806371a4d1c5b62be45f833535e89e73a27227`, tested stock version `2.0.15-SNAPSHOT-09.05`. `-Pdedicated` writes that tested version into runtime JAR manifests. Different desktop snapshot versions may join, but receive a compatibility warning because matching version labels do not guarantee revision compatibility. Override `-Dforge.client.version=...` only when rebuilding against the corresponding upstream revision and client artifact; changing the label does not make incompatible builds work. Packaging revision is reported separately.
+The dedicated-server branch is rebased daily onto the upstream `daily-snapshots` revision. Clients and server should use the same Forge snapshot whenever possible. Different snapshot versions may connect, but receive a compatibility warning because matching version labels do not guarantee wire compatibility.
 
-**Release acceptance is pending until the stock desktop-client checklist below is completed.** Automated protocol clients do not establish GUI compatibility.
+The image build and focused tests run through `.github/workflows/dedicated-ci.yml`. The upstream synchronization workflow updates `master`, rebases `dedicated-server`, and stops for manual conflict resolution if upstream changes overlap the dedicated implementation.
 
-Name-based reconnect is inherited from stock Forge and is not authenticated. Duplicate active names are rejected, but anyone knowing a parked name can attempt to reclaim it. This release is intended for trusted friends, not authenticated public matchmaking. Preserve upstream serialization protections and avoid privileged container access.
+Name-based reconnect is not authenticated. Duplicate active names are rejected, but anyone who knows a disconnected player’s name can attempt to reclaim it. This server is intended for trusted groups rather than public matchmaking.
 
 ## Release acceptance
 
-Record exact desktop artifact version/hash, server image ID, and upstream revision. Using separate unmodified desktop processes against the headless container:
+Before using a release, record the exact desktop client version and hash, server image ID, and upstream revision. Using separate unmodified desktop Forge processes against the headless container:
 
-- Complete a two-player Constructed game with normal legal deck selection.
+- Complete a two-player Constructed game with legal decks.
 - Complete Commander games with two, three, and four players.
-- Disconnect/reconnect one player; verify their hand and current prompt recover.
-- Let another player's grace expire; verify AI takeover and subsequent match decisions.
-- Exercise Continue, New Match, QUIT, and postgame timeout.
-- Return to the lobby and complete a second match without restarting the container.
-- Disconnect everyone and verify empty-room recovery; test SIGTERM during waiting, countdown, gameplay, and reconnect.
+- Disconnect and reconnect a player; verify their hand and current prompt recover.
+- Let a disconnected player’s grace period expire; verify AI takeover and later match decisions.
+- Exercise Continue, New Match, QUIT, and the postgame timeout.
+- Return to the lobby and complete another match without restarting the container.
+- Disconnect everyone and verify room recovery.
+- Test SIGTERM while waiting, counting down, playing, and waiting for reconnect.
 
-Health means the room dispatcher is alive, not that every possible card interaction has been verified. Logs and the acceptance record should accompany a tested release.
+Health means the room dispatcher is alive. It does not verify every card interaction. Keep logs and the acceptance record with each tested release.
