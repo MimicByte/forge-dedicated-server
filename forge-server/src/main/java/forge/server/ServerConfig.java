@@ -9,9 +9,15 @@ import forge.game.GameType;
 /** Immutable startup configuration. Lobby rules may be replaced in memory by the admin API. */
 public record ServerConfig(int port, int adminPort, String adminToken, int maxPlayers,
                            int startDelaySeconds, int reconnectSeconds, int postgameSeconds,
+                           Set<String> allowedPlayers, int loginFailureLimit,
+                           int loginFailureWindowSeconds, int loginBlockSeconds,
                            LobbyRules rules) {
     public enum Mode { CONSTRUCTED, COMMANDER, OATHBREAKER, TINY_LEADERS, BRAWL, MOMIR_BASIC, MOJHOSTO }
     public enum Variant { PLANECHASE, VANGUARD, ARCHENEMY, ARCHENEMY_RUMBLE }
+
+    public ServerConfig {
+        allowedPlayers = Set.copyOf(allowedPlayers);
+    }
 
     public record LobbyRules(Mode mode, Set<Variant> variants, int gamesPerMatch,
                              int commanderBracket, boolean enforceDeckLegality) {
@@ -42,6 +48,10 @@ public record ServerConfig(int port, int adminPort, String adminToken, int maxPl
     public Set<Variant> variants() { return rules.variants(); }
     public GameType baseGameType() { return rules.baseGameType(); }
     public boolean adminEnabled() { return !adminToken.isBlank(); }
+    /** Empty means public admission; configured names are compared case-insensitively. */
+    public boolean allowsPlayer(String name) {
+        return allowedPlayers.isEmpty() || allowedPlayers.contains(name.toLowerCase(Locale.ROOT));
+    }
 
     public static ServerConfig from(Map<String, String> env) {
         Mode mode = mode(env.getOrDefault("FORGE_SERVER_MODE", "COMMANDER"));
@@ -57,7 +67,10 @@ public record ServerConfig(int port, int adminPort, String adminToken, int maxPl
         return new ServerConfig(port, adminPort, token, number(env, "MAX_PLAYERS", 4, 2, 8),
                 number(env, "START_DELAY_SECONDS", 15, 1, 300),
                 number(env, "RECONNECT_SECONDS", 300, 1, 3600),
-                number(env, "POSTGAME_SECONDS", 120, 1, 3600), rules);
+                number(env, "POSTGAME_SECONDS", 120, 1, 3600), allowedPlayers(env),
+                number(env, "LOGIN_FAILURE_LIMIT", 5, 1, 100),
+                number(env, "LOGIN_FAILURE_WINDOW_SECONDS", 60, 1, 3600),
+                number(env, "LOGIN_BLOCK_SECONDS", 900, 1, 86400), rules);
     }
 
     private static Mode mode(String value) {
@@ -78,6 +91,22 @@ public record ServerConfig(int port, int adminPort, String adminToken, int maxPl
             } catch (IllegalArgumentException e) {
                 if (e.getMessage() != null && e.getMessage().startsWith("FORGE_SERVER_VARIANTS")) { throw e; }
                 throw new IllegalArgumentException("FORGE_SERVER_VARIANTS has unsupported value " + item.trim());
+            }
+        }
+        return Set.copyOf(parsed);
+    }
+
+    private static Set<String> allowedPlayers(Map<String, String> env) {
+        String value = env.getOrDefault("FORGE_SERVER_ALLOWED_PLAYERS", "").trim();
+        if (value.isEmpty()) { return Set.of(); }
+        Set<String> parsed = new java.util.LinkedHashSet<>();
+        for (String item : value.split(",")) {
+            String name = item.trim();
+            if (name.isEmpty()) {
+                throw new IllegalArgumentException("FORGE_SERVER_ALLOWED_PLAYERS contains an empty name");
+            }
+            if (!parsed.add(name.toLowerCase(Locale.ROOT))) {
+                throw new IllegalArgumentException("FORGE_SERVER_ALLOWED_PLAYERS contains duplicate " + name);
             }
         }
         return Set.copyOf(parsed);

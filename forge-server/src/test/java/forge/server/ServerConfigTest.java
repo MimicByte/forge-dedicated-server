@@ -13,6 +13,10 @@ public class ServerConfigTest {
         Assert.assertEquals(c.reconnectSeconds(), 300);
         Assert.assertEquals(c.rules().gamesPerMatch(), 3);
         Assert.assertTrue(c.rules().enforceDeckLegality());
+        Assert.assertTrue(c.allowedPlayers().isEmpty());
+        Assert.assertEquals(c.loginFailureLimit(), 5);
+        Assert.assertEquals(c.loginFailureWindowSeconds(), 60);
+        Assert.assertEquals(c.loginBlockSeconds(), 900);
     }
     @Test public void constructedUsesNormalRoomCapacity() {
         Assert.assertEquals(ServerConfig.from(Map.of("FORGE_SERVER_MODE", "CONSTRUCTED")).maxPlayers(), 4);
@@ -39,6 +43,31 @@ public class ServerConfigTest {
         Assert.assertEquals(c.mode(), ServerConfig.Mode.MOMIR_BASIC);
         Assert.assertTrue(c.adminEnabled());
         Assert.assertEquals(c.adminPort(), 9090);
+    }
+    @Test public void supportsOptionalCaseInsensitivePlayerAllowlist() {
+        ServerConfig publicRoom = ServerConfig.from(Map.of());
+        Assert.assertTrue(publicRoom.allowsPlayer("Anyone"));
+
+        ServerConfig privateRoom = ServerConfig.from(Map.of(
+                "FORGE_SERVER_ALLOWED_PLAYERS", "Alice, BOB ",
+                "FORGE_SERVER_LOGIN_FAILURE_LIMIT", "3",
+                "FORGE_SERVER_LOGIN_FAILURE_WINDOW_SECONDS", "30",
+                "FORGE_SERVER_LOGIN_BLOCK_SECONDS", "120"));
+        Assert.assertTrue(privateRoom.allowsPlayer("alice"));
+        Assert.assertTrue(privateRoom.allowsPlayer("Bob"));
+        Assert.assertFalse(privateRoom.allowsPlayer("Carol"));
+        Assert.assertEquals(privateRoom.loginFailureLimit(), 3);
+        Assert.assertEquals(privateRoom.loginFailureWindowSeconds(), 30);
+        Assert.assertEquals(privateRoom.loginBlockSeconds(), 120);
+    }
+    @Test(expectedExceptions = IllegalArgumentException.class) public void rejectsBlankAllowedPlayer() {
+        ServerConfig.from(Map.of("FORGE_SERVER_ALLOWED_PLAYERS", "Alice,,Bob"));
+    }
+    @Test(expectedExceptions = IllegalArgumentException.class) public void rejectsDuplicateAllowedPlayer() {
+        ServerConfig.from(Map.of("FORGE_SERVER_ALLOWED_PLAYERS", "Alice,alice"));
+    }
+    @Test(expectedExceptions = IllegalArgumentException.class) public void rejectsInvalidLoginFailureLimit() {
+        ServerConfig.from(Map.of("FORGE_SERVER_LOGIN_FAILURE_LIMIT", "0"));
     }
     @Test(expectedExceptions = IllegalArgumentException.class) public void rejectsUnknownVariant() {
         ServerConfig.from(Map.of("FORGE_SERVER_VARIANTS", "PLANECHASE,UNKNOWN"));

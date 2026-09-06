@@ -23,6 +23,11 @@ services:
       FORGE_SERVER_START_DELAY_SECONDS: "15"
       FORGE_SERVER_RECONNECT_SECONDS: "300"
       FORGE_SERVER_POSTGAME_SECONDS: "120"
+      # Leave empty for public rooms; otherwise list the permitted display names.
+      FORGE_SERVER_ALLOWED_PLAYERS: ""
+      FORGE_SERVER_LOGIN_FAILURE_LIMIT: "5"
+      FORGE_SERVER_LOGIN_FAILURE_WINDOW_SECONDS: "60"
+      FORGE_SERVER_LOGIN_BLOCK_SECONDS: "900"
       JAVA_TOOL_OPTIONS: "-Xmx4g"
     volumes:
       - forge-config:/config

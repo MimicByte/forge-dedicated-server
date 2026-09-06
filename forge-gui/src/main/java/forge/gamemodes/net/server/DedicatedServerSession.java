@@ -10,16 +10,22 @@ import forge.util.BuildInfo;
 import forge.util.IHasForgeLog;
 import forge.util.LogSafe;
 import io.netty.channel.ChannelHandlerContext;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import javax.swing.SwingUtilities;
 
 /** Dedicated-only connection and lobby rules, separated from shared Netty transport ownership. */
 final class DedicatedServerSession implements IHasForgeLog {
     private final FServerManager server;
     private final DedicatedServerPolicy policy;
+    private final LoginFailureTracker failedLogins;
 
     DedicatedServerSession(FServerManager server, DedicatedServerPolicy policy) {
         this.server = server;
         this.policy = policy;
+        failedLogins = new LoginFailureTracker(policy.loginFailureLimit(),
+                policy.loginFailureWindowSeconds(), policy.loginBlockSeconds());
     }
 
     void handleLogin(ChannelHandlerContext context, RemoteClient client, LoginEvent event) {
@@ -46,13 +52,21 @@ final class DedicatedServerSession implements IHasForgeLog {
 
     private void login(ChannelHandlerContext context, RemoteClient client, LoginEvent event) {
         String name = LogSafe.forDisplay(event.getUsername(), server.maxDedicatedNameLength());
-        if (client == null || client.hasValidSlot() || name == null || name.isBlank()
-                || event.isLibgdx()
+        if (client == null || client.hasValidSlot() || name == null || name.isBlank() || event.isLibgdx()
                 || server.connectedPlayers().stream().anyMatch(c -> name.equalsIgnoreCase(c.getUsername()))) {
             if (client != null) {
                 client.send(MessageEvent.warning("Login rejected: use a desktop Forge client and a unique name."));
             }
             context.close();
+            return;
+        }
+        String source = sourceOf(context.channel().remoteAddress());
+        boolean allowed = policy.allowsPlayer(name);
+        long now = System.currentTimeMillis();
+        boolean blocked = failedLogins.isBlocked(source, now);
+        if (blocked || !allowed) {
+            if (!blocked && !allowed) { failedLogins.recordFailure(source, now); }
+            rejectPrivateLogin(context, client);
             return;
         }
         warnOnVersionMismatch(client, name, event.getVersion());
@@ -81,7 +95,21 @@ final class DedicatedServerSession implements IHasForgeLog {
             server.broadcast(new MessageEvent(name + " joined the lobby."));
             server.updateLobbyState();
         }
+        failedLogins.clear(source);
         policy.connectionsChanged();
+    }
+
+    private void rejectPrivateLogin(ChannelHandlerContext context, RemoteClient client) {
+        client.send(MessageEvent.warning("Login rejected: this is a private server."));
+        context.close();
+    }
+
+    private static String sourceOf(SocketAddress address) {
+        if (address instanceof InetSocketAddress inet) {
+            InetAddress host = inet.getAddress();
+            return host == null ? inet.getHostString() : host.getHostAddress();
+        }
+        return String.valueOf(address);
     }
 
     private void warnOnVersionMismatch(RemoteClient client, String name, String clientVersion) {

@@ -50,10 +50,16 @@ For Unraid, build the image first, map TCP `36743`, and map `/config` to an appd
 | `FORGE_SERVER_START_DELAY_SECONDS` | `15` | `1–300` |
 | `FORGE_SERVER_RECONNECT_SECONDS` | `300` | `1–3600` |
 | `FORGE_SERVER_POSTGAME_SECONDS` | `120` | `1–3600` |
+| `FORGE_SERVER_ALLOWED_PLAYERS` | unset | Comma-separated invite-only display names; empty permits public joins |
+| `FORGE_SERVER_LOGIN_FAILURE_LIMIT` | `5` | `1–100` failed invite-only logins before a temporary block |
+| `FORGE_SERVER_LOGIN_FAILURE_WINDOW_SECONDS` | `60` | `1–3600` |
+| `FORGE_SERVER_LOGIN_BLOCK_SECONDS` | `900` | `1–86400` |
 | `FORGE_SERVER_ADMIN_TOKEN` | unset | Enables the private management API when non-empty |
 | `FORGE_SERVER_ADMIN_PORT` | `8080` | `1–65535`, different from the game port |
 
 Compose defaults to four seats. Set `FORGE_SERVER_MAX_PLAYERS=8` for a larger room. Add table variants to a base format, for example `FORGE_SERVER_MODE=COMMANDER` with `FORGE_SERVER_VARIANTS=PLANECHASE`. `JAVA_TOOL_OPTIONS` controls JVM memory, for example `-Xmx4g`. `FORGE_SERVER_CONFIG_DIR` changes the profile and status location for a locally extracted distribution; it defaults to `/config` in the image.
+
+Set `FORGE_SERVER_ALLOWED_PLAYERS=Alice,Bob` for an invite-only room. Names are matched case-insensitively, but this is not authentication: anyone who knows an allowed display name can impersonate it. Rejected invite-only logins are rate-limited per source IP using the login-failure settings above.
 
 ## Private management API
 

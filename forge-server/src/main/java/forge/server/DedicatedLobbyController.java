@@ -50,6 +50,10 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
     @Override public boolean acceptsNewPlayers() { return acceptsLobbyChanges(); }
     @Override public boolean acceptsLobbyChanges() { return state == State.WAITING || state == State.COUNTDOWN; }
     @Override public boolean acceptsGameActions() { return state == State.PLAYING || state == State.POSTGAME; }
+    @Override public boolean allowsPlayer(String name) { return config.allowsPlayer(name); }
+    @Override public int loginFailureLimit() { return config.loginFailureLimit(); }
+    @Override public int loginFailureWindowSeconds() { return config.loginFailureWindowSeconds(); }
+    @Override public int loginBlockSeconds() { return config.loginBlockSeconds(); }
 
     /** Coalesce notifications so a multi-field client update is processed atomically. */
     public void lobbyChanged() {
