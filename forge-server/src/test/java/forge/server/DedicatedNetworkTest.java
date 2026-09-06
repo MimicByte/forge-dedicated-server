@@ -170,6 +170,22 @@ public class DedicatedNetworkTest {
             Assert.assertTrue(momir.validateDedicatedStart(forge.game.GameType.MomirBasic).isEmpty());
         });
     }
+    @Test public void legalityDisabledAllowsNonConformingSubmittedDecks() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            FModel.getPreferences().setPref(FPref.ENFORCE_DECK_LEGALITY, false);
+            try {
+                ServerGameLobby room = new ServerGameLobby(2);
+                for (int i = 0; i < 2; i++) {
+                    room.getSlot(i).setType(LobbySlotType.REMOTE);
+                    room.getSlot(i).setName("Player " + i);
+                    room.getSlot(i).setDeck(new Deck("Intentionally nonconforming"));
+                }
+                Assert.assertTrue(room.validateDedicatedStart(forge.game.GameType.Constructed).isEmpty());
+            } finally {
+                FModel.getPreferences().setPref(FPref.ENFORCE_DECK_LEGALITY, true);
+            }
+        });
+    }
     /**
      * Release-candidate smoke test. It needs independently launched desktop
      * Forge clients: the in-process fixture intentionally shares the EDT and

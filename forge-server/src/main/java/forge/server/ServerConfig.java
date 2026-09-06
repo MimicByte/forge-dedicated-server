@@ -87,8 +87,12 @@ public record ServerConfig(int port, int adminPort, String adminToken, int maxPl
         if (variants.contains(Variant.ARCHENEMY) && variants.contains(Variant.ARCHENEMY_RUMBLE)) {
             throw new IllegalArgumentException("FORGE_SERVER_VARIANTS cannot combine ARCHENEMY and ARCHENEMY_RUMBLE");
         }
-        if ((mode == Mode.MOMIR_BASIC || mode == Mode.MOJHOSTO) && variants.contains(Variant.VANGUARD)) {
-            throw new IllegalArgumentException("FORGE_SERVER_VARIANTS cannot combine VANGUARD with " + mode);
+        if (mode == Mode.MOMIR_BASIC || mode == Mode.MOJHOSTO) {
+            for (Variant variant : Set.of(Variant.PLANECHASE, Variant.VANGUARD, Variant.ARCHENEMY, Variant.ARCHENEMY_RUMBLE)) {
+                if (variants.contains(variant)) {
+                    throw new IllegalArgumentException("FORGE_SERVER_VARIANTS cannot combine " + variant + " with " + mode);
+                }
+            }
         }
     }
 
