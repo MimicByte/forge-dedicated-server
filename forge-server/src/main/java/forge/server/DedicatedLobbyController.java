@@ -4,6 +4,7 @@ import forge.game.Game;
 import forge.game.GameEndReason;
 import forge.game.GameType;
 import forge.gamemodes.match.GameLobby.GameStartError;
+import forge.gamemodes.match.DedicatedMatchLifecycle;
 import forge.gamemodes.match.HostedMatch;
 import forge.gamemodes.match.LobbySlot;
 import forge.gamemodes.match.LobbySlotType;
@@ -103,18 +104,46 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
         // A remote GUI can issue a command as soon as it has received its view.
         // Do not expose a playable room until Match.prepareAllZones has run;
         // otherwise an immediate concede can race initial zone preparation.
-        match.setDedicatedPreparedHook(() -> {
-            if (epoch == generation && current == match && state == State.STARTING) {
-                transition(State.PLAYING);
+        match.setDedicatedLifecycle(new DedicatedMatchLifecycle() {
+            private boolean current() {
+                return epoch == generation && DedicatedLobbyController.this.current == match
+                        && state != State.STOPPING;
+            }
+
+            @Override public void gameStarting() {
+                if (current() && state == State.POSTGAME) {
+                    deadline = 0;
+                    transition(State.STARTING);
+                }
+            }
+
+            @Override public void gamePrepared() {
+                runOnEdtAndWait(() -> {
+                    if (current() && state == State.STARTING) { transition(State.PLAYING); }
+                });
+            }
+
+            @Override public void gameFinished() {
+                if (!current()) { return; }
+                if (state == State.RESETTING) { match.finishDedicatedMatch(); return; }
+                transition(State.POSTGAME);
+                deadline = now() + config.postgameSeconds() * 1000L;
             }
         });
-        match.setDedicatedLifecycle(postgame -> {
-            if (epoch != generation || current != match || state == State.STOPPING) { return; }
-            if (state == State.RESETTING) { match.finishDedicatedMatch(); return; }
-            if (!postgame) { return; }
-            transition(State.POSTGAME);
-            if (postgame) { deadline = now() + config.postgameSeconds() * 1000L; }
-        });
+    }
+
+    private static void runOnEdtAndWait(Runnable action) {
+        if (SwingUtilities.isEventDispatchThread()) {
+            action.run();
+            return;
+        }
+        try {
+            SwingUtilities.invokeAndWait(action);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            throw new IllegalStateException("Unable to update dedicated match state", e.getCause());
+        }
     }
     public void tick() {
         long time = now();

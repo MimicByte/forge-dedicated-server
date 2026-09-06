@@ -63,17 +63,12 @@ public class HostedMatch {
     private final MatchUiEventVisitor visitor = new MatchUiEventVisitor();
     private final Map<PlayerControllerHuman, NextGameDecision> nextGameDecisions = Maps.newHashMap();
     private boolean isMatchOver = false;
-    private java.util.function.Consumer<Boolean> dedicatedLifecycle;
-    private Runnable dedicatedPreparedHook;
+    private DedicatedMatchLifecycle dedicatedLifecycle;
     private boolean dedicatedFinished;
     private final Set<PlayerControllerHuman> retiredControllers = new HashSet<>();
 
-    public void setDedicatedLifecycle(java.util.function.Consumer<Boolean> listener) {
+    public void setDedicatedLifecycle(DedicatedMatchLifecycle listener) {
         dedicatedLifecycle = listener;
-    }
-
-    public void setDedicatedPreparedHook(Runnable hook) {
-        dedicatedPreparedHook = hook;
     }
 
     /** Invoked on a Forge game worker, before releasing the disconnected input queue. */
@@ -195,7 +190,7 @@ public class HostedMatch {
         if (dedicatedFinished) { return; }
         retiredControllers.clear();
         nextGameDecisions.clear();
-        if (dedicatedLifecycle != null) { dedicatedLifecycle.accept(false); }
+        if (dedicatedLifecycle != null) { dedicatedLifecycle.gameStarting(); }
         nextGameDecisions.clear();
         SoundSystem.instance.setBackgroundMusic(this.matchPlaylist == null ? MusicPlaylist.MATCH : this.matchPlaylist);
 
@@ -331,7 +326,8 @@ public class HostedMatch {
                 currentGame.subscribeToEvents(playbackControl);
             }
             // Actually start the game!
-            match.startGame(currentGame, startGameHook, dedicatedPreparedHook);
+            match.startGame(currentGame, startGameHook,
+                    dedicatedLifecycle == null ? null : dedicatedLifecycle::gamePrepared);
             // this function waits?
             if (endGameHook != null){
                 endGameHook.run();
@@ -350,7 +346,7 @@ public class HostedMatch {
 
             if (dedicatedLifecycle != null) {
                 FThreads.invokeInEdtNowOrLater(() -> {
-                    if (!dedicatedFinished && game == currentGame) { dedicatedLifecycle.accept(true); }
+                    if (!dedicatedFinished && game == currentGame) { dedicatedLifecycle.gameFinished(); }
                 });
             }
             // After game is over...

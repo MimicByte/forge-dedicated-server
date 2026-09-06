@@ -3,7 +3,6 @@ package forge.gamemodes.net.server;
 import forge.ai.LobbyPlayerAi;
 import forge.ai.PlayerControllerAi;
 import forge.game.Game;
-import forge.game.GameType;
 import forge.game.GameLogEntry;
 import forge.game.GameView;
 import forge.game.event.GameEvent;
@@ -155,10 +154,14 @@ public final class FServerManager implements IHasForgeLog {
     private UpnpService upnpService = null;
     private ServerGameLobby localLobby;
     private DedicatedServerPolicy dedicatedPolicy;
+    private DedicatedServerSession dedicatedSession;
     private volatile boolean finalShutdown;
     private io.netty.channel.Channel listeningChannel;
 
-    public void setDedicatedPolicy(DedicatedServerPolicy policy) { dedicatedPolicy = policy; }
+    public void setDedicatedPolicy(DedicatedServerPolicy policy) {
+        dedicatedPolicy = policy;
+        dedicatedSession = policy == null ? null : new DedicatedServerSession(this, policy);
+    }
 
     public java.util.List<RemoteClient> connectedPlayers() {
         return clients.values().stream().filter(c -> c.hasValidSlot() && c.isConnected()).toList();
@@ -190,108 +193,15 @@ public final class FServerManager implements IHasForgeLog {
         stopServer(false);
     }
 
-    private void dedicatedLogin(ChannelHandlerContext ctx, RemoteClient client, LoginEvent event) {
-        String name = LogSafe.forDisplay(event.getUsername(), maxNameLength());
-        if (client == null || client.hasValidSlot() || name == null || name.isBlank()
-                || event.isLibgdx()
-                || connectedPlayers().stream().anyMatch(c -> name.equalsIgnoreCase(c.getUsername()))) {
-            if (client != null) { client.send(MessageEvent.warning("Login rejected: use a desktop Forge client and a unique name.")); }
-            ctx.close();
-            return;
-        }
-        final String clientVersion = event.getVersion();
-        final String hostVersion = BuildInfo.getVersionString();
-        if (!java.util.Objects.equals(hostVersion, clientVersion)) {
-            final String reportedVersion = clientVersion == null ? "unknown" : clientVersion;
-            netLog.warn("[Dedicated] {} joined with Forge version {} (server: {})",
-                    name, reportedVersion, hostVersion);
-            client.send(MessageEvent.warning(String.format(
-                    "Warning: You are using Forge version %s (server: %s). "
-                            + "Network compatibility is not guaranteed.",
-                    reportedVersion, hostVersion)));
-        }
-        RemoteClient parked = disconnectedClients.remove(name);
-        if (parked != null) {
-            clients.remove(ctx.channel());
-            parked.swapChannel(ctx.channel());
-            clients.put(ctx.channel(), parked);
-            updateLobbyState();
-            dedicatedPolicy.reconnected(parked);
-            resumeAndResync(parked);
-            broadcast(new MessageEvent(name + " reconnected."));
-        } else {
-            if (!dedicatedPolicy.acceptsNewPlayers()) {
-                client.send(MessageEvent.warning("A match is in progress. Join again when it ends."));
-                ctx.close();
-                return;
-            }
-            client.setUsername(name);
-            int index = localLobby.connectPlayer(name, event.getAvatarIndex(), event.getSleeveIndex());
-            if (index < 0) { ctx.close(); return; }
-            client.setIndex(index);
-            client.setLibgdx(false);
-            broadcast(new MessageEvent(name + " joined the lobby."));
-            updateLobbyState();
-        }
-        dedicatedPolicy.connectionsChanged();
-    }
-
-    private void dedicatedUpdate(RemoteClient client, UpdateLobbyPlayerEvent event) {
-        if (client == null || !client.hasValidSlot() || !dedicatedPolicy.acceptsLobbyChanges()) { return; }
-        event.clearServerOwnedFields();
-        // Names and teams stay fixed for the lifetime of a connection in v1.
-        event.setName(null);
-        LobbySlot slot = localLobby.getSlot(client.getIndex());
-        if (event.getArchenemy() != null && !localLobby.hasVariant(GameType.Archenemy)) {
-            event.setArchenemy(null);
-        } else if (Boolean.TRUE.equals(event.getArchenemy()) && !slot.isArchenemy()) {
-            for (int i = 0; i < localLobby.getNumberOfSlots(); i++) {
-                LobbySlot other = localLobby.getSlot(i);
-                if (i != client.getIndex() && other.getType() != LobbySlotType.OPEN && other.isArchenemy()) {
-                    client.send(MessageEvent.warning("Another player has already nominated themselves as the Archenemy."));
-                    event.setArchenemy(null);
-                    break;
-                }
-            }
-        }
-        boolean archenemyChanged = event.getArchenemy() != null && slot.isArchenemy() != event.getArchenemy();
-        boolean deckChanged = event.getDeck() != null || event.getSection() != null || event.getCards() != null || archenemyChanged;
-        localLobby.applyToSlot(client.getIndex(), event);
-        // GameLobby's desktop-host behavior rotates the Archenemy role when a
-        // player deselects it. A dedicated room instead treats the flag as a
-        // self-nomination: withdrawing leaves no nominee until another player
-        // explicitly claims the role.
-        if (Boolean.FALSE.equals(event.getArchenemy())) {
-            for (int i = 0; i < localLobby.getNumberOfSlots(); i++) {
-                localLobby.getSlot(i).setIsArchenemy(false);
-            }
-        }
-        slot.setTeam(client.getIndex());
-        slot.setIsDevMode(false);
-        if (deckChanged) { slot.setIsReady(false); }
-        localLobby.applyToSlot(client.getIndex(), UpdateLobbyPlayerEvent.isReadyUpdate(slot.isReady()));
-        updateLobbyState();
-        dedicatedPolicy.connectionsChanged();
-    }
-
-    /**
-     * Lobby changes share the desktop event dispatcher with the dedicated
-     * lifecycle. Block the Netty worker for these short mutations instead of
-     * forwarding a ChannelHandlerContext from the EDT, which Netty does not
-     * guarantee will survive a channel close.
-     */
-    private void onDedicatedDispatcher(final Runnable action) {
-        if (javax.swing.SwingUtilities.isEventDispatchThread()) {
-            action.run();
-            return;
-        }
-        try {
-            javax.swing.SwingUtilities.invokeAndWait(action);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } catch (java.lang.reflect.InvocationTargetException e) {
-            throw new IllegalStateException("Dedicated lobby dispatch failed", e.getCause());
-        }
+    ServerGameLobby getLocalLobby() { return localLobby; }
+    int maxDedicatedNameLength() { return maxNameLength(); }
+    boolean isDedicatedShuttingDown() { return finalShutdown; }
+    RemoteClient takeParkedDedicatedClient(String name) { return disconnectedClients.remove(name); }
+    void parkDisconnectedClient(RemoteClient client) { disconnectedClients.put(client.getUsername(), client); }
+    void replaceClientChannel(ChannelHandlerContext context, RemoteClient client) {
+        clients.remove(context.channel());
+        client.swapChannel(context.channel());
+        clients.put(context.channel(), client);
     }
 
     private ILobbyListener lobbyListener;
@@ -1069,14 +979,14 @@ public final class FServerManager implements IHasForgeLog {
         return null;
     }
 
-    private void pauseRemoteClientGuiGame(final RemoteClient client) {
+    void pauseRemoteClientGuiGame(final RemoteClient client) {
         final RemoteClientGuiGame gui = client.getGui();
         if (gui == null) { return; }
         gui.pause();
         netLog.info("[Reconnect] Paused RemoteClientGuiGame for slot {} ({})", client.getIndex(), client.getUsername());
     }
 
-    private void resumeAndResync(final RemoteClient client) {
+    void resumeAndResync(final RemoteClient client) {
         final int slotIndex = client.getIndex();
         final RemoteClientGuiGame netGui = client.getGui();
         if (netGui == null) { return; }
@@ -1228,13 +1138,13 @@ public final class FServerManager implements IHasForgeLog {
         @Override
         public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
             final RemoteClient client = clients.get(ctx.channel());
-            if (dedicatedPolicy != null) {
+            if (dedicatedSession != null) {
                 if (msg instanceof LoginEvent event) {
-                    onDedicatedDispatcher(() -> dedicatedLogin(ctx, client, event));
+                    dedicatedSession.handleLogin(ctx, client, event);
                     return;
                 }
                 if (msg instanceof UpdateLobbyPlayerEvent event) {
-                    onDedicatedDispatcher(() -> dedicatedUpdate(client, event));
+                    dedicatedSession.handleLobbyUpdate(client, event);
                     return;
                 }
                 if (msg instanceof DraftPickEvent) { return; }
@@ -1400,17 +1310,8 @@ public final class FServerManager implements IHasForgeLog {
             netLog.info("[Disconnect] Canceling pending replies for disconnected client");
             client.getReplyPool().cancelAll();
 
-            if (dedicatedPolicy != null) {
-                javax.swing.SwingUtilities.invokeLater(() -> {
-                    if (client.hasValidSlot() && !finalShutdown) {
-                        if (!dedicatedPolicy.acceptsLobbyChanges()) {
-                            pauseRemoteClientGuiGame(client);
-                            disconnectedClients.put(client.getUsername(), client);
-                        } else { localLobby.disconnectPlayer(client.getIndex()); }
-                        dedicatedPolicy.disconnected(client);
-                        dedicatedPolicy.connectionsChanged();
-                    }
-                });
+            if (dedicatedSession != null) {
+                dedicatedSession.handleDisconnect(client);
                 super.channelInactive(ctx);
                 return;
             }

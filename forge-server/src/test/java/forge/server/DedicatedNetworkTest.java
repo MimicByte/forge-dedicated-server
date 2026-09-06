@@ -2,6 +2,7 @@ package forge.server;
 
 import forge.deck.Deck;
 import forge.gamemodes.match.LobbySlotType;
+import forge.gamemodes.match.NextGameDecision;
 import forge.gamemodes.net.CompatibleObjectDecoder;
 import forge.gamemodes.net.CompatibleObjectEncoder;
 import forge.gamemodes.net.event.*;
@@ -221,12 +222,17 @@ public class DedicatedNetworkTest {
                 Assert.assertFalse(controller.acceptsNewPlayers(),
                         "A playing room must reject late admissions.");
                 if (round == 0) {
-                    // Exercise a normal remote concession once. Larger rooms
-                    // use the server's shutdown/reset path so the test does
-                    // not depend on artificial clients racing mulligan UI.
+                    // Exercise a normal remote concession and continuation.
                     for (int i = 0; i < players - 1; i++) {
                         clients.get(i).getClient().send(new GuiGameEvent(forge.gamemodes.net.ProtocolMethod.concede));
                     }
+                    await(() -> controller.state() == DedicatedLobbyController.State.POSTGAME);
+                    for (forge.net.HeadlessNetworkClient client : clients) {
+                        client.getClient().send(new GuiGameEvent(
+                                forge.gamemodes.net.ProtocolMethod.nextGameDecision, NextGameDecision.CONTINUE));
+                    }
+                    await(() -> controller.state() == DedicatedLobbyController.State.PLAYING);
+                    SwingUtilities.invokeAndWait(() -> controller.abort("Test room reset."));
                 } else {
                     SwingUtilities.invokeAndWait(() -> controller.abort("Test room reset."));
                 }
