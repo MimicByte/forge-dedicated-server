@@ -74,6 +74,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Normalize image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}-dedicated" >> "$GITHUB_OUTPUT"
+
       - name: Build and push dedicated image
         uses: docker/build-push-action@v6
         with:
@@ -81,8 +85,8 @@ jobs:
           file: forge-server/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}-dedicated:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}-dedicated:latest
+            ${{ steps.image.outputs.name }}:${{ github.sha }}
+            ${{ steps.image.outputs.name }}:latest
 
       - name: Download distribution
         uses: actions/download-artifact@v4
