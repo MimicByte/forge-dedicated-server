@@ -1,6 +1,5 @@
 package forge.server;
 
-import forge.game.GameType;
 import forge.gamemodes.net.ChatMessage;
 import forge.gamemodes.net.client.ClientGameLobby;
 import forge.gamemodes.net.server.FServerManager;
@@ -48,7 +47,9 @@ public final class DedicatedServerMain {
         FModel.initialize(null, preferences -> {
             preferences.setPref(FPref.PLAYER_NAME, "Dedicated Server");
             preferences.setPref(FPref.UI_LANGUAGE, "en-US");
-            preferences.setPref(FPref.ENFORCE_DECK_LEGALITY, true);
+            preferences.setPref(FPref.ENFORCE_DECK_LEGALITY, config.rules().enforceDeckLegality());
+            preferences.setPref(FPref.UI_MATCHES_PER_GAME, Integer.toString(config.rules().gamesPerMatch()));
+            preferences.setPref(FPref.DECKGEN_MAXIMUM_COMMANDER_BRACKET, Integer.toString(config.rules().commanderBracket()));
             preferences.setPref(FPref.UI_ENABLE_ONLINE_IMAGE_FETCHER, false);
             preferences.setPref(FPref.UI_ENABLE_SOUNDS, false);
             preferences.setPref(FPref.UI_ENABLE_MUSIC, false);
@@ -62,7 +63,7 @@ public final class DedicatedServerMain {
         AtomicReference<DedicatedLobbyController> controllerRef = new AtomicReference<>();
         SwingUtilities.invokeAndWait(() -> {
             ServerGameLobby lobby = new ServerGameLobby(config.maxPlayers());
-            applyMode(lobby, config);
+            DedicatedLobbyController.applyRules(lobby, config.rules());
             DedicatedLobbyController controller = new DedicatedLobbyController(config, lobby, server);
             controllerRef.set(controller);
             gui.setOnMatch(controller::attachMatch);
@@ -83,6 +84,11 @@ public final class DedicatedServerMain {
         });
         DedicatedLobbyController controller = controllerRef.get();
         server.startServer(config.port());
+        DedicatedAdminServer admin = config.adminEnabled() ? new DedicatedAdminServer(config, controller) : null;
+        if (admin != null) {
+            admin.start();
+            System.out.println("[server] Management API listening on TCP " + config.adminPort());
+        }
         Timer pulse = new Timer(1000, event -> {
             try {
                 controller.tick();
@@ -108,6 +114,7 @@ public final class DedicatedServerMain {
                 SwingUtilities.invokeAndWait(() -> { pulse.stop(); controller.stopping(); });
                 Files.deleteIfExists(status);
                 server.shutdownDedicated();
+                if (admin != null) { admin.stop(); }
             } catch (Throwable error) { error.printStackTrace(); Runtime.getRuntime().halt(1); }
         }, "dedicated-shutdown"));
         SwingUtilities.invokeAndWait(pulse::start);
@@ -115,23 +122,4 @@ public final class DedicatedServerMain {
         new CountDownLatch(1).await();
     }
 
-    private static void applyMode(ServerGameLobby lobby, ServerConfig config) {
-        GameType baseGameType = config.baseGameType();
-        if (baseGameType != GameType.Constructed) { lobby.applyVariant(baseGameType); }
-        for (ServerConfig.Variant variant : config.variants()) {
-            switch (variant) {
-            case PLANECHASE -> lobby.applyVariant(GameType.Planechase);
-            case VANGUARD -> lobby.applyVariant(GameType.Vanguard);
-            case ARCHENEMY -> lobby.applyVariant(GameType.Archenemy);
-            }
-        }
-        if (config.variants().contains(ServerConfig.Variant.ARCHENEMY)) {
-            for (int i = 0; i < lobby.getNumberOfSlots(); i++) {
-                lobby.getSlot(i).setIsArchenemy(false);
-            }
-        }
-        // The configured base format remains lobby metadata; rules derive table
-        // behavior such as Archenemy teams from the applied variant set.
-        lobby.setGameType(baseGameType);
-    }
 }

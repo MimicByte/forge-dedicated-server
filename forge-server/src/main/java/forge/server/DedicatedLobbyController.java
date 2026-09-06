@@ -2,6 +2,7 @@ package forge.server;
 
 import forge.game.Game;
 import forge.game.GameEndReason;
+import forge.game.GameType;
 import forge.gamemodes.match.GameLobby.GameStartError;
 import forge.gamemodes.match.HostedMatch;
 import forge.gamemodes.match.LobbySlot;
@@ -9,6 +10,8 @@ import forge.gamemodes.match.LobbySlotType;
 import forge.gamemodes.net.event.MessageEvent;
 import forge.gamemodes.net.server.*;
 import forge.player.PlayerControllerHuman;
+import forge.localinstance.properties.ForgePreferences.FPref;
+import forge.model.FModel;
 import javax.swing.SwingUtilities;
 import java.util.*;
 
@@ -18,6 +21,7 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
     private final ServerConfig config;
     private final ServerGameLobby lobby;
     private final FServerManager server;
+    private volatile ServerConfig.LobbyRules rules;
     private volatile State state = State.WAITING;
     private long deadline;
     private long emptyDeadline;
@@ -30,9 +34,13 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
         this.config = config;
         this.lobby = lobby;
         this.server = server;
+        this.rules = config.rules();
         lobby.setStartErrorHandler(error -> say(error.message()));
     }
     public State state() { return state; }
+    public ServerConfig.LobbyRules rules() { return rules; }
+    public int connectedPlayerCount() { return server.connectedPlayers().size(); }
+    public int seatCapacity() { return lobby.getNumberOfSlots(); }
     private static long now() { return System.nanoTime() / 1_000_000; }
     private void transition(State next) {
         if (state != next) { System.out.println("[server] " + state + " -> " + next); state = next; }
@@ -65,7 +73,7 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
         for (RemoteClient client : players) {
             if (!lobby.getSlot(client.getIndex()).isReady()) { return false; }
         }
-        List<GameStartError> errors = lobby.validateDedicatedStart(config.baseGameType());
+        List<GameStartError> errors = lobby.validateDedicatedStart(rules.baseGameType());
         if (!errors.isEmpty()) {
             for (GameStartError error : errors) {
                 say(error.message());
@@ -187,4 +195,44 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
         server.updateLobbyState();
     }
     public void stopping() { transition(State.STOPPING); ++generation; }
+
+    /** Applies a complete rule set on the EDT. Admin callers receive false outside a stable lobby. */
+    public boolean updateRules(ServerConfig.LobbyRules next) {
+        if (SwingUtilities.isEventDispatchThread()) { return updateRulesOnEdt(next); }
+        final java.util.concurrent.atomic.AtomicBoolean changed = new java.util.concurrent.atomic.AtomicBoolean();
+        try {
+            SwingUtilities.invokeAndWait(() -> changed.set(updateRulesOnEdt(next)));
+        } catch (Exception e) {
+            throw new IllegalStateException("Unable to update dedicated lobby rules", e);
+        }
+        return changed.get();
+    }
+
+    private boolean updateRulesOnEdt(ServerConfig.LobbyRules next) {
+        if (state != State.WAITING) { return false; }
+        applyRules(lobby, next);
+        FModel.getPreferences().setPref(FPref.UI_MATCHES_PER_GAME, Integer.toString(next.gamesPerMatch()));
+        FModel.getPreferences().setPref(FPref.DECKGEN_MAXIMUM_COMMANDER_BRACKET, Integer.toString(next.commanderBracket()));
+        FModel.getPreferences().setPref(FPref.ENFORCE_DECK_LEGALITY, next.enforceDeckLegality());
+        for (int i = 0; i < lobby.getNumberOfSlots(); i++) { lobby.getSlot(i).setIsReady(false); }
+        rules = next;
+        server.updateLobbyState();
+        return true;
+    }
+
+    static void applyRules(ServerGameLobby lobby, ServerConfig.LobbyRules rules) {
+        lobby.clearVariants();
+        GameType baseGameType = rules.baseGameType();
+        if (baseGameType != GameType.Constructed) { lobby.applyVariant(baseGameType); }
+        for (ServerConfig.Variant variant : rules.variants()) {
+            switch (variant) {
+            case PLANECHASE -> lobby.applyVariant(GameType.Planechase);
+            case VANGUARD -> lobby.applyVariant(GameType.Vanguard);
+            case ARCHENEMY -> lobby.applyVariant(GameType.Archenemy);
+            case ARCHENEMY_RUMBLE -> lobby.applyVariant(GameType.ArchenemyRumble);
+            }
+        }
+        for (int i = 0; i < lobby.getNumberOfSlots(); i++) { lobby.getSlot(i).setIsArchenemy(false); }
+        lobby.setGameType(baseGameType);
+    }
 }

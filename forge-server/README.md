@@ -24,16 +24,33 @@ For Unraid, build the image first and select the resulting `forge-dedicated` ima
 | Environment | Default | Allowed |
 |---|---|---|
 | FORGE_SERVER_PORT | 36743 | 1–65535 |
-| FORGE_SERVER_MODE | COMMANDER | CONSTRUCTED, COMMANDER, OATHBREAKER, TINY_LEADERS, BRAWL |
-| FORGE_SERVER_VARIANTS | unset | Comma-separated PLANECHASE, VANGUARD, and ARCHENEMY |
+| FORGE_SERVER_MODE | COMMANDER | CONSTRUCTED, COMMANDER, OATHBREAKER, TINY_LEADERS, BRAWL, MOMIR_BASIC, MOJHOSTO |
+| FORGE_SERVER_VARIANTS | unset | Comma-separated PLANECHASE, VANGUARD, ARCHENEMY, and ARCHENEMY_RUMBLE |
 | FORGE_SERVER_MAX_PLAYERS | 4 | 2–8 |
+| FORGE_SERVER_GAMES_PER_MATCH | 3 | 1, 3, or 5 |
+| FORGE_SERVER_COMMANDER_BRACKET | 5 | 1–5 |
+| FORGE_SERVER_ENFORCE_DECK_LEGALITY | true | true or false |
 | FORGE_SERVER_START_DELAY_SECONDS | 15 | 1–300 |
 | FORGE_SERVER_RECONNECT_SECONDS | 300 | 1–3600 |
 | FORGE_SERVER_POSTGAME_SECONDS | 120 | 1–3600 |
+| FORGE_SERVER_ADMIN_TOKEN | unset | Enables the private management API when non-empty |
+| FORGE_SERVER_ADMIN_PORT | 8080 | 1–65535, different from the game port |
 
 Compose defaults to four seats. Set `FORGE_SERVER_MAX_PLAYERS=8` for a larger room. Combine a base format with table variants using `FORGE_SERVER_VARIANTS`, for example `FORGE_SERVER_MODE=COMMANDER` and `FORGE_SERVER_VARIANTS=PLANECHASE`. `JAVA_TOOL_OPTIONS` controls JVM memory, for example `-Xmx4g`. `FORGE_SERVER_CONFIG_DIR` changes the profile and status location for a locally extracted distribution; it defaults to `/config` in the image.
 
-Players supply game pieces using their stock matching-snapshot Forge client: Planechase requires each deck's Planes section, Vanguard requires each deck's Avatar section, and Archenemy requires the nominated player's Schemes section. Players nominate themselves as Archenemy in the normal lobby; the server permits one nomination only and validates it before the match starts.
+## Private management API
+
+Set `FORGE_SERVER_ADMIN_TOKEN` to enable the token-protected API on TCP 8080 inside the container. Compose does not publish this port; use a private Docker network or trusted local proxy. Send `Authorization: Bearer <token>` with every request.
+
+`GET /v1/status` reports state and occupancy. `GET /v1/settings` reports mutable rules. While the lobby is waiting, `PUT /v1/settings` accepts:
+
+```json
+{"mode":"COMMANDER","variants":"PLANECHASE","gamesPerMatch":3,"commanderBracket":5,"enforceDeckLegality":true}
+```
+
+The API does not start, cancel, or abort games. Successful updates clear player readiness, and updates are memory-only: restart the container to restore environment values. Dedicated rules can be configured even when stock remote clients do not expose matching controls; clients still need any required planes or scheme deck sections.
+
+Clients must supply game pieces through their Forge deck sections: Planechase requires Planes, Vanguard requires an Avatar, and Archenemy requires the nominated player's Schemes. The dedicated server can apply configured rules even when a stock remote client does not display matching controls; use a matching client build that can submit the required deck sections and nomination. The server permits one nomination only and validates it before the match starts.
 
 Every connected player must choose a legal deck and ready up. With at least two ready players, the server starts a countdown. Joins, departures, and lobby changes cancel the countdown. Changing a deck clears readiness. Teams, dev mode, manually added AI, spectators, and joining an active match are not supported.
 
