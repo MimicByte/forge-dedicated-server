@@ -1,104 +1,103 @@
-# ⚔️  Forge: The Magic: The Gathering Rules Engine
+# ⚔️ Forge Dedicated Server
 
-Join the **Forge community** on [Discord](https://discord.gg/HcPJNyD66a)!
+Run a headless [Forge](https://github.com/Card-Forge/forge) multiplayer room for **Magic: The Gathering** using unmodified desktop Forge clients.
 
-[![Test build](https://github.com/Card-Forge/forge/actions/workflows/test-build.yaml/badge.svg)](https://github.com/Card-Forge/forge/actions/workflows/test-build.yaml)
+Join the [Forge community on Discord](https://discord.gg/HcPJNyD66a) for help and discussion.
 
----
+Forge is open source and is not affiliated with Wizards of the Coast.
 
-## ✨ Introduction
-**Forge** is a dynamic and open-source **Rules Engine** tailored for **Magic: The Gathering** enthusiasts. Developed by a community of passionate programmers, Forge allows players to explore the rich universe of MTG through a flexible, engaging platform. 
+## What this repository provides
 
-**Note:** Forge operates independently and is not affiliated with Wizards of the Coast.
+- A dedicated server that owns one remote multiplayer room per container.
+- Constructed rooms for two players.
+- Commander rooms for two to four players.
+- Reconnect support during a configurable grace period.
+- AI takeover when a disconnected player does not return.
+- Docker packaging for Linux hosts, home servers, and Unraid.
+- The card rules engine, token data, format data, AI data, and localization required for networked play.
 
----
+The server does not include card artwork. Desktop clients download and cache artwork locally. Campaign, quest, adventure, and other single-player resources are removed from the runtime image.
 
-## 🌟 Key Features
-- **🌐 Cross-Platform Support:** Play on **Windows, Mac, Linux,** and **Android**.
-- **🔧 Extensible Architecture:** Built in **Java**, Forge encourages developers to contribute by adding features and cards.
-- **🎮 Versatile Gameplay:** Dive into single-player modes or challenge opponents online!
+## Run with Docker
 
----
+From the repository root:
 
-## 🛠️ Installation Steps
+```sh
+docker compose -f forge-server/compose.yaml up --build -d
+docker compose -f forge-server/compose.yaml logs -f
+```
 
-### 📥 Desktop
-1. **Latest Releases:** Download the latest version [here](https://github.com/Card-Forge/forge/releases/latest).
-2. **Snapshot Build:** For the latest development version, grab the `forge-gui-desktop` tarball from our [Snapshot Build](https://github.com/Card-Forge/forge/releases/tag/daily-snapshots).
-   - **Tip:** Extract to a new folder to prevent version conflicts.
-3. **User Data Management:** Previous players’ data is preserved during upgrades.
-4. **Java Requirement:** Ensure you have **Java 17 or later** installed.
+Connect from desktop Forge to `server-hostname:36743`. The host needs reachable inbound TCP; clients do not need port forwarding. A home-hosted server may need router port forwarding.
 
-### 📱 Android
-- _(Note: **Android 11** is the minimum requirement with at least **6GB RAM** to run smoothly. You need to enable **"Install unknown apps"** for Forge to initialize and update itself)_
-- Download the **APK** from the [Snapshot Build](https://github.com/Card-Forge/forge/releases/tag/daily-snapshots). On the first launch, Forge will automatically download all necessary assets.
+The first start loads the card database and can take several minutes. Health checks begin enforcing readiness after five minutes. Each additional room needs its own container, configuration volume, and host port.
 
-### 📱 iOS (early stage)
-- Build the **IPA** according to Wiki
-- No jailbreak needed, only developer mode and iOS 16-26
-- Connect your device to a PC to self-sign and upload the app file, multiple tools exist e.g. [Sideloadly](https://sideloadly.io)
+The image runs as UID/GID `10001`, with no desktop, web panel, admin API, Docker socket, or owner commands. If `/config` is bind-mounted, its host directory must be writable by UID/GID `10001`. A configuration volume does not preserve a live match.
 
----
+For Unraid, build the image first, map TCP `36743`, and map `/config` to an appdata directory with the required ownership. Configure a 30-second stop timeout and restart-on-failure.
 
-## 🎮 Modes of Play
-Forge offers various exciting gameplay options:
+## Configuration
 
-### 🌍 Adventure Mode
-Embark on a thrilling single-player journey where you can:
-- Explore an overworld map.
-- Challenge diverse AI opponents.
-- Collect cards and items to boost your abilities.
+| Environment | Default | Allowed |
+|---|---|---|
+| `FORGE_SERVER_PORT` | `36743` | `1–65535` |
+| `FORGE_SERVER_MODE` | `COMMANDER` | `COMMANDER`, `CONSTRUCTED` |
+| `FORGE_SERVER_MAX_PLAYERS` | `4` (`2` for Constructed) | `2–4`; Constructed requires `2` |
+| `FORGE_SERVER_START_DELAY_SECONDS` | `15` | `1–300` |
+| `FORGE_SERVER_RECONNECT_SECONDS` | `300` | `1–3600` |
+| `FORGE_SERVER_POSTGAME_SECONDS` | `120` | `1–3600` |
 
-<img width="1282" height="752" alt="Shandalar World" src="https://github.com/user-attachments/assets/9af31471-d688-442f-9418-9807d8635b72" />
+Compose defaults to four seats. Set `FORGE_SERVER_MODE=CONSTRUCTED` and `FORGE_SERVER_MAX_PLAYERS=2` for a Constructed room. `JAVA_TOOL_OPTIONS` controls JVM memory, for example `-Xmx4g`. `FORGE_SERVER_CONFIG_DIR` changes the profile and status location for a locally extracted distribution; it defaults to `/config` in the image.
 
-### 🔍 Quest Mode
-Engage in focused gameplay without the overworld exploration—perfect for quick sessions!
+Every connected player must choose a legal deck and ready up. With at least two ready players, the server starts a countdown. Joins, departures, and lobby changes cancel the countdown. Changing a deck clears readiness. Teams, dev mode, manually added AI, spectators, and joining an active match are not supported by the current room controller.
 
-<img width="1282" height="752" alt="Quest Duels" src="https://github.com/user-attachments/assets/b9613b1c-e8c3-4320-8044-6922c519aad4" />
+Reconnect with exactly the previous display name during the grace period. After it expires, AI controls that seat for the remainder of the match. If all humans disconnect, the room resets after the final grace period. Continue, New Match, and QUIT decisions are preserved; unanswered postgame decisions reset the room after the configured timeout.
 
-### 🤖 AI Formats
-Test your skills against AI in multiple formats:
-- **Sealed**
-- **Draft**
-- **Commander**
-- **Cube**
+## Build locally
 
-For comprehensive gameplay instructions, visit our [User Guide](https://github.com/Card-Forge/forge/wiki/User-Guide).
+Requires Maven 3.8.1+ and Java 17+:
 
-<img width="1282" height="752" alt="Sealed" src="https://github.com/user-attachments/assets/ae603dbd-4421-4753-a333-87cb0a28d772" />
+```sh
+mvn -B -ntp -Pdedicated -pl forge-server -am \
+  -DskipTests -Dlaunch4j.skip=true package
+```
 
----
+The distribution is written to `forge-server/target/forge-server-bin.tar.gz`. Extract it and run `bin/forge-server`. The launcher resolves paths from its own location. Run `bin/forge-server health` to check dispatcher heartbeat freshness.
 
-## 💬 Support & Community
-Need help? Join our vibrant Discord community! 
-- 📜 Read the **#rules** and explore the **FAQ**.
-- ❓ Ask your questions in the **#help** channel for assistance.
+Focused tests:
 
----
+```sh
+mvn -B -ntp -Pdedicated -pl forge-server -am \
+  -Dtest=ServerConfigTest,ReplyPoolTest,DedicatedNetworkTest \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
 
-## 🤝 Contributing to Forge
-We love community contributions! Interested in helping? Check out our [Contributing Guidelines](CONTRIBUTING.md) for details on how to get started.
+## Snapshot branch workflow
 
----
+`master` is kept aligned with Forge’s upstream `daily-snapshots` revision. `dedicated-server` contains the server changes and is rebased onto `master` after each published snapshot.
 
-## ℹ️ About Forge
-Forge aims to deliver an immersive and customizable Magic: The Gathering experience for fans around the world. 
+GitHub Actions runs the dedicated tests and Docker build from `dedicated-server`. The scheduled synchronization workflow updates `master`, rebases `dedicated-server`, and stops for manual conflict resolution if upstream changes overlap the server implementation.
 
-### 📊 Repository Statistics
+Clients and server should use the same Forge snapshot whenever possible. Different snapshot versions may connect, but receive a compatibility warning because matching version labels do not guarantee wire compatibility.
 
-| Metric         | Count                                                       |
-|----------------|-------------------------------------------------------------|
-| **⭐ Stars:**   | [![GitHub stars](https://img.shields.io/github/stars/Card-Forge/forge?style=flat-square)](https://github.com/Card-Forge/forge/stargazers) |
-| **🍴 Forks:**   | [![GitHub forks](https://img.shields.io/github/forks/Card-Forge/forge?style=flat-square)](https://github.com/Card-Forge/forge/network) |
-| **👥 Contributors:** | [![GitHub contributors](https://img.shields.io/github/contributors/Card-Forge/forge?style=flat-square)](https://github.com/Card-Forge/forge/graphs/contributors) |
+## Operations and release checks
 
----
+Before using a release, record the desktop client version and hash, server image ID, and upstream revision. Test with separate unmodified desktop Forge processes:
 
-**📄 License:** [GPL-3.0](LICENSE)
-<div align="center" style="display: flex; align-items: center; justify-content: center;">
-    <div style="margin-left: auto;">
-        <a href="#top">
-            <img src="https://img.shields.io/badge/Back%20to%20Top-000000?style=for-the-badge&logo=github&logoColor=white" alt="Back to Top">
-        </a>
-    </div>
-</div>
+- Complete a legal two-player Constructed game.
+- Complete Commander games with two, three, and four players.
+- Disconnect and reconnect a player; verify their hand and current prompt recover.
+- Let a grace period expire and verify AI takeover.
+- Exercise Continue, New Match, QUIT, and postgame timeout behavior.
+- Return to the lobby and complete another match without restarting the container.
+- Disconnect everyone and verify room recovery.
+- Test SIGTERM while waiting, counting down, playing, and waiting for reconnect.
+
+Name-based reconnect is not authenticated. Duplicate active names are rejected, but anyone who knows a disconnected player’s name can attempt to reclaim it. This server is intended for trusted groups rather than public matchmaking.
+
+## Support and contributing
+
+For help, read the [dedicated-server guide](forge-server/README.md) and join the [Forge Discord](https://discord.gg/HcPJNyD66a). Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+[GPL-3.0](LICENSE)
