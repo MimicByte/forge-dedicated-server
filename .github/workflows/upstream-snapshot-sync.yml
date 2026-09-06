@@ -4,7 +4,7 @@ name: Sync upstream snapshot
 # the repository's default branch, then explicitly update dedicated-server.
 on:
   schedule:
-    - cron: '30 19 * * *'
+    - cron: '30 8 * * *'
   workflow_dispatch:
 
 permissions:
