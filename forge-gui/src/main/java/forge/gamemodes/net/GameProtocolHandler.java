@@ -27,6 +27,15 @@ public abstract class GameProtocolHandler<T> extends ChannelInboundHandlerAdapte
     protected abstract T getToInvoke(ChannelHandlerContext ctx);
     protected abstract void beforeCall(ChannelHandlerContext ctx, ProtocolMethod protocolMethod, Object[] args);
 
+    /**
+     * Gives a transport a chance to retain an initialization message while its
+     * controller is being installed. Returning {@code true} consumes it.
+     */
+    protected boolean deferWhenTargetUnavailable(final ChannelHandlerContext ctx,
+            final ProtocolMethod protocolMethod, final Object[] args) {
+        return false;
+    }
+
     protected boolean shouldDispatchToGuiThread(final ProtocolMethod protocolMethod) {
         return runInEdt;
     }
@@ -53,6 +62,9 @@ public abstract class GameProtocolHandler<T> extends ChannelInboundHandlerAdapte
 
             final Object toInvoke = getToInvoke(ctx);
             if (toInvoke == null) {
+                if (deferWhenTargetUnavailable(ctx, protocolMethod, args)) {
+                    return;
+                }
                 netLog.info("Ignoring {} — controller no longer available (game ended)", methodName);
                 // For methods expecting a reply, send null so the client doesn't hang
                 final Class<?> earlyReturnType = protocolMethod.getReturnType();

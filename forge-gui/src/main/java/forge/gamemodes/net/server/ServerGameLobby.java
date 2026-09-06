@@ -66,6 +66,17 @@ public final class ServerGameLobby extends GameLobby implements IHasForgeLog {
         updateView(true);
     }
 
+    private boolean dedicated;
+    public boolean isDedicated() { return dedicated; }
+
+    public ServerGameLobby(final int capacity) {
+        if (capacity < 2 || capacity > 4) { throw new IllegalArgumentException("Expected 2–4 seats"); }
+        dedicated = true;
+        for (int i = 0; i < capacity; i++) {
+            addSlot(new LobbySlot(LobbySlotType.OPEN, null, -1, -1, i, false, false, Collections.emptySet()));
+        }
+    }
+
     public ServerGameLobby() {
         final int[] avatarIndices = localAvatarIndices();
         final int[] sleeveIndices = localSleeveIndices();
@@ -108,6 +119,16 @@ public final class ServerGameLobby extends GameLobby implements IHasForgeLog {
         final LobbySlot slot = getSlot(index);
         if (slot == null) {
             return;
+        }
+        if (dedicated) {
+            slot.setDeck(null);
+            slot.setDeckName(null);
+            slot.setAvatarIndex(-1);
+            slot.setSleeveIndex(-1);
+            slot.setTeam(index);
+            slot.setIsDevMode(false);
+            slot.setAiOptions(Collections.emptySet());
+            slot.setAiProfile(null);
         }
         slot.setType(LobbySlotType.OPEN);
         slot.setName(StringUtils.EMPTY);

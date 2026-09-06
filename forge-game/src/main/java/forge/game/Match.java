@@ -78,7 +78,19 @@ public class Match {
     }
 
     public void startGame(final Game game, Runnable startGameHook) {
+        startGame(game, startGameHook, null);
+    }
+
+    /**
+     * Starts a game after its zones have been populated.  Dedicated network
+     * hosts use {@code preparedHook} to admit player commands only once the
+     * initial game state is safe to inspect.
+     */
+    public void startGame(final Game game, Runnable startGameHook, Runnable preparedHook) {
         prepareAllZones(game);
+        if (preparedHook != null) {
+            preparedHook.run();
+        }
         if (rules.useAnte()) {  // Deciding which cards go to ante
             Multimap<Player, Card> list = game.chooseCardsForAnte(rules.getMatchAnteRarity(), rules.getAnteIncludeBasicLands());
             for (Entry<Player, Card> kv : list.entries()) {

@@ -43,6 +43,39 @@ public abstract class GameLobby implements IHasGameType {
     private IUpdateable listener;
 
     private HostedMatch hostedMatch;
+    public record GameStartError(int slot, String message) { }
+    private java.util.function.Consumer<GameStartError> startErrorHandler;
+
+    public void setStartErrorHandler(java.util.function.Consumer<GameStartError> handler) {
+        startErrorHandler = handler;
+    }
+
+    private void reportStartError(String message) {
+        if (startErrorHandler == null) { SOptionPane.showMessageDialog(message); }
+        else { startErrorHandler.accept(new GameStartError(-1, message)); }
+    }
+
+    /** Pure validation for the two dedicated modes; no GUI or controller construction. */
+    public List<GameStartError> validateDedicatedStart() {
+        List<GameStartError> errors = new ArrayList<>();
+        int humans = 0;
+        for (int i = 0; i < getNumberOfSlots(); i++) {
+            LobbySlot slot = getSlot(i);
+            if (slot.getType() == LobbySlotType.OPEN) { continue; }
+            humans++;
+            if (slot.getType() != LobbySlotType.REMOTE) {
+                errors.add(new GameStartError(i, "Only remote human seats can start a dedicated match."));
+            } else if (slot.getDeck() == null) {
+                errors.add(new GameStartError(i, slot.getName() + ": choose a deck."));
+            } else {
+                String problem = (hasVariant(GameType.Commander) ? GameType.Commander : GameType.Constructed)
+                        .getDeckFormat().getDeckConformanceProblem(slot.getDeck());
+                if (problem != null) { errors.add(new GameStartError(i, slot.getName() + ": " + problem)); }
+            }
+        }
+        if (humans < 2) { errors.add(new GameStartError(-1, "At least two players are required.")); }
+        return List.copyOf(errors);
+    }
     private final HashMap<LobbySlot, IGameController> gameControllers = Maps.newHashMap();
 
     public boolean isAllowNetworking() {
@@ -362,7 +395,11 @@ public abstract class GameLobby implements IHasGameType {
     }
 
     /** Lists every illegal deck in one warning and offers to ignore it. Returns true if the user chose to continue anyway. */
-    private static boolean confirmIgnoreDeckLegality(final List<String> problems) {
+    private boolean confirmIgnoreDeckLegality(final List<String> problems) {
+        if (startErrorHandler != null) {
+            problems.forEach(this::reportStartError);
+            return false;
+        }
         final Localizer localizer = Localizer.getInstance();
         final StringBuilder message = new StringBuilder(localizer.getMessage("lblDecksNotLegal"));
         message.append('\n');
@@ -383,12 +420,12 @@ public abstract class GameLobby implements IHasGameType {
         }
 
         if (activeSlots.size() < 2) {
-            SOptionPane.showMessageDialog(Localizer.getInstance().getMessage("lblRequiredLeastTwoPlayerStartGame"));
+            reportStartError(Localizer.getInstance().getMessage("lblRequiredLeastTwoPlayerStartGame"));
             return null;
         }
 
         if (!isEnoughTeams()) {
-            SOptionPane.showMessageDialog(Localizer.getInstance().getMessage("lblNotEnoughTeams"));
+            reportStartError(Localizer.getInstance().getMessage("lblNotEnoughTeams"));
             return null;
         }
 
@@ -416,11 +453,11 @@ public abstract class GameLobby implements IHasGameType {
 
         for (final LobbySlot slot : activeSlots) {
             if (!slot.isReady()) {
-                SOptionPane.showMessageDialog(Localizer.getInstance().getMessage("lblPlayerIsNotReady", slot.getName()));
+                reportStartError(Localizer.getInstance().getMessage("lblPlayerIsNotReady", slot.getName()));
                 return null;
             }
             if (slot.getDeck() == null && autoGenerateVariant == null) {
-                SOptionPane.showMessageDialog(Localizer.getInstance().getMessage("lblPleaseSpecifyPlayerDeck", slot.getName()));
+                reportStartError(Localizer.getInstance().getMessage("lblPleaseSpecifyPlayerDeck", slot.getName()));
                 return null;
             }
         }
@@ -524,7 +561,7 @@ public abstract class GameLobby implements IHasGameType {
 
                 if (variantTypes.contains(GameType.Vanguard)) {
                     if (avatarPool == null || avatarPool.countAll() == 0) { //ERROR! null if avatar deselected on list
-                        SOptionPane.showMessageDialog(Localizer.getInstance().getMessage("lblNoSelectedVanguardAvatarForPlayer", name));
+                        reportStartError(Localizer.getInstance().getMessage("lblNoSelectedVanguardAvatarForPlayer", name));
                         return null;
                     }
                 }

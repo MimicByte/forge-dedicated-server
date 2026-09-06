@@ -63,6 +63,42 @@ public class HostedMatch {
     private final MatchUiEventVisitor visitor = new MatchUiEventVisitor();
     private final Map<PlayerControllerHuman, NextGameDecision> nextGameDecisions = Maps.newHashMap();
     private boolean isMatchOver = false;
+    private java.util.function.Consumer<Boolean> dedicatedLifecycle;
+    private Runnable dedicatedPreparedHook;
+    private boolean dedicatedFinished;
+    private final Set<PlayerControllerHuman> retiredControllers = new HashSet<>();
+
+    public void setDedicatedLifecycle(java.util.function.Consumer<Boolean> listener) {
+        dedicatedLifecycle = listener;
+    }
+
+    public void setDedicatedPreparedHook(Runnable hook) {
+        dedicatedPreparedHook = hook;
+    }
+
+    /** Invoked on a Forge game worker, before releasing the disconnected input queue. */
+    public void replaceDedicatedPlayer(PlayerControllerHuman controller) {
+        Player player = controller.getPlayer();
+        forge.ai.LobbyPlayerAi replacement = new forge.ai.LobbyPlayerAi(player.getName(), null);
+        player.getRegisteredPlayer().setPlayer(replacement);
+        player.dangerouslySetController(new forge.ai.PlayerControllerAi(game, player, replacement));
+        FThreads.invokeInEdtNowOrLater(() -> {
+            retiredControllers.add(controller);
+            nextGameDecisions.remove(controller);
+            resolveNextGameDecisions();
+        });
+        controller.getInputQueue().clearInputs();
+    }
+
+    /** Call after the active game has ended and its input waits have been released. */
+    public void finishDedicatedMatch() {
+        if (dedicatedFinished) { return; }
+        dedicatedFinished = true;
+        endCurrentGame();
+        isMatchOver = true;
+        if (onMatchOver != null) { onMatchOver.run(); }
+    }
+
     public int subGameCount = 0;
 
     public HostedMatch() {}
@@ -156,6 +192,10 @@ public class HostedMatch {
     }
 
     public void startGame() {
+        if (dedicatedFinished) { return; }
+        retiredControllers.clear();
+        nextGameDecisions.clear();
+        if (dedicatedLifecycle != null) { dedicatedLifecycle.accept(false); }
         nextGameDecisions.clear();
         SoundSystem.instance.setBackgroundMusic(this.matchPlaylist == null ? MusicPlaylist.MATCH : this.matchPlaylist);
 
@@ -291,7 +331,7 @@ public class HostedMatch {
                 currentGame.subscribeToEvents(playbackControl);
             }
             // Actually start the game!
-            match.startGame(currentGame, startGameHook);
+            match.startGame(currentGame, startGameHook, dedicatedPreparedHook);
             // this function waits?
             if (endGameHook != null){
                 endGameHook.run();
@@ -308,6 +348,11 @@ public class HostedMatch {
                 }
             }
 
+            if (dedicatedLifecycle != null) {
+                FThreads.invokeInEdtNowOrLater(() -> {
+                    if (!dedicatedFinished && game == currentGame) { dedicatedLifecycle.accept(true); }
+                });
+            }
             // After game is over...
             isMatchOver = match.isMatchOver();
             if (humanCount == 0) {
@@ -444,7 +489,9 @@ public class HostedMatch {
 
         @Override
         public Void visit(final UiEventNextGameDecision event) {
-            addNextGameDecision(event.controller(), event.decision());
+            if (dedicatedLifecycle != null) {
+                FThreads.invokeInEdtNowOrLater(() -> addNextGameDecision(event.controller(), event.decision()));
+            } else { addNextGameDecision(event.controller(), event.decision()); }
             return null;
         }
 
@@ -532,8 +579,11 @@ public class HostedMatch {
     }
 
     private void addNextGameDecision(final PlayerControllerHuman controller, final NextGameDecision decision) {
+        if (dedicatedLifecycle != null && (dedicatedFinished || retiredControllers.contains(controller)
+                || !humanControllers.contains(controller) || game == null || !game.isGameOver())) { return; }
         if (decision == NextGameDecision.QUIT) {
             FThreads.invokeInEdtNowOrLater(() -> {
+                if (dedicatedLifecycle != null) { finishDedicatedMatch(); return; }
                 endCurrentGame();
                 isMatchOver = true;
                 if (onMatchOver != null) {
@@ -544,7 +594,12 @@ public class HostedMatch {
         }
 
         nextGameDecisions.put(controller, decision);
-        if (nextGameDecisions.size() < humanControllers.size()) {
+        resolveNextGameDecisions();
+    }
+
+    private void resolveNextGameDecisions() {
+        if (dedicatedFinished || nextGameDecisions.isEmpty()) { return; }
+        if (nextGameDecisions.size() < humanControllers.size() - retiredControllers.size()) {
             return;
         }
 

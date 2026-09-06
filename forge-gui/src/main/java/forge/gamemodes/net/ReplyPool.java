@@ -21,7 +21,8 @@ public class ReplyPool {
 
     public void complete(final int index, final Object value) {
         synchronized (pool) {
-            pool.get(index).set(value);
+            CompletableFuture future = pool.get(index);
+            if (future != null) { future.set(value); }
         }
     }
 
@@ -30,10 +31,13 @@ public class ReplyPool {
         synchronized (pool) {
             future = pool.get(index);
         }
+        if (future == null) { return null; }
         try {
             return future.get();
         } catch (final InterruptedException | ExecutionException e) {
             throw new RuntimeException(e);
+        } finally {
+            synchronized (pool) { pool.remove(index, future); }
         }
     }
 
