@@ -1,0 +1,76 @@
+name: Sync upstream snapshot
+
+# This workflow is intentionally kept on master. Scheduled workflows run from
+# the repository's default branch, then explicitly update dedicated-server.
+on:
+  schedule:
+    - cron: '30 19 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: upstream-snapshot-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git remote add upstream https://github.com/Card-Forge/forge.git
+
+      - name: Rebase dedicated branch onto the published snapshot
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          issue_title='Dedicated server upstream sync needs attention'
+          report_issue() {
+            local body="$1"
+            if [ "$(gh issue list --state open --search \"$issue_title in:title\" --json number --jq 'length')" = 0 ]; then
+              gh issue create --title "$issue_title" --body "$body"
+            fi
+          }
+
+          git fetch --prune upstream master refs/tags/daily-snapshots
+          snapshot_ref='refs/tags/daily-snapshots'
+          if ! git rev-parse --verify "$snapshot_ref^{commit}" >/dev/null 2>&1; then
+            report_issue "The upstream daily-snapshots tag was not available.\n\nRun: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            exit 1
+          fi
+
+          snapshot=$(git rev-parse "$snapshot_ref^{commit}")
+          old_master=$(git rev-parse master)
+          old_upstream=$(git rev-parse master^1)
+          git fetch origin master dedicated-server
+          git switch master
+          if ! git merge-base --is-ancestor "$old_upstream" "$snapshot"; then
+            report_issue "Fork master is not based on an ancestor of upstream daily-snapshots. Manual review is required before synchronization.\n\nFork master: $old_master\nUpstream base: $old_upstream\nSnapshot: $snapshot"
+            exit 1
+          fi
+          # master carries this workflow as its only fork-owned commit. Replay
+          # that commit on top of the newly published upstream snapshot so the
+          # default branch remains both schedulable and upstream-aligned.
+          git rebase --onto "$snapshot" "$old_upstream" master
+
+          git switch dedicated-server
+          if ! git rebase master; then
+            git rebase --abort || true
+            report_issue "The dedicated-server branch could not be rebased automatically.\n\nBase snapshot: $snapshot\n\nResolve the conflicts locally, then rerun this workflow.\n\nRun: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            exit 1
+          fi
+
+          git push --force-with-lease origin dedicated-server
+          git push --force-with-lease origin master
