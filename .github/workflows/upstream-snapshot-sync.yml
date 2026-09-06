@@ -60,9 +60,9 @@ jobs:
             report_issue "Fork master is not based on an ancestor of upstream daily-snapshots. Manual review is required before synchronization.\n\nFork master: $old_master\nUpstream base: $old_upstream\nSnapshot: $snapshot"
             exit 1
           fi
-          # master carries this workflow as its only fork-owned commit. Replay
-          # that commit on top of the newly published upstream snapshot so the
-          # default branch remains both schedulable and upstream-aligned.
+          # master carries the fork-owned maintenance workflows. Replay them
+          # on the newly published upstream snapshot so the default branch
+          # remains both schedulable and upstream-aligned.
           git rebase --onto "$snapshot" "$old_upstream" master
 
           git switch dedicated-server
