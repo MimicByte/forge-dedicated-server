@@ -17,6 +17,7 @@ public class ServerConfigTest {
         Assert.assertEquals(c.loginFailureLimit(), 5);
         Assert.assertEquals(c.loginFailureWindowSeconds(), 60);
         Assert.assertEquals(c.loginBlockSeconds(), 900);
+        Assert.assertEquals(c.crashReportMaxFiles(), 10);
     }
     @Test public void constructedUsesNormalRoomCapacity() {
         Assert.assertEquals(ServerConfig.from(Map.of("FORGE_SERVER_MODE", "CONSTRUCTED")).maxPlayers(), 4);

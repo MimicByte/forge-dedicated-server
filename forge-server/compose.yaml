@@ -28,6 +28,10 @@ services:
       FORGE_SERVER_LOGIN_FAILURE_LIMIT: "5"
       FORGE_SERVER_LOGIN_FAILURE_WINDOW_SECONDS: "60"
       FORGE_SERVER_LOGIN_BLOCK_SECONDS: "900"
+      # Text crash reports are always kept in /config/crash-reports (newest 10 by default).
+      # Heap dumps can contain game data and require disk space up to the Java heap size.
+      FORGE_SERVER_HEAP_DUMPS: "false"
+      FORGE_SERVER_CRASH_REPORT_MAX_FILES: "10"
       JAVA_TOOL_OPTIONS: "-Xmx4g"
     volumes:
       - forge-config:/config

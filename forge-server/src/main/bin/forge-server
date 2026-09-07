@@ -1,8 +1,21 @@
 #!/bin/sh
 set -eu
 SERVER_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+CONFIG_DIR=${FORGE_SERVER_CONFIG_DIR:-/config}
+CRASH_DIR="$CONFIG_DIR/crash-reports"
+mkdir -p "$CRASH_DIR"
+
+# Native JVM failures always leave a small diagnostic file in the persistent
+# configuration volume. Heap dumps are useful but can be as large as the Java
+# heap, so operators must explicitly enable them.
+case ${FORGE_SERVER_HEAP_DUMPS:-false} in
+  true|TRUE) JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:-} -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=$CRASH_DIR -XX:+ExitOnOutOfMemoryError" ;;
+  false|FALSE) JAVA_TOOL_OPTIONS=${JAVA_TOOL_OPTIONS:-} ;;
+  *) echo "FORGE_SERVER_HEAP_DUMPS must be true or false" >&2; exit 64 ;;
+esac
+export JAVA_TOOL_OPTIONS="$JAVA_TOOL_OPTIONS -XX:ErrorFile=$CRASH_DIR/hs_err_pid%p.log"
 exec java -Djava.awt.headless=true -Dforge.server.assets="$SERVER_ROOT" \
-  -Dforge.server.config="${FORGE_SERVER_CONFIG_DIR:-/config}" \
+  -Dforge.server.config="$CONFIG_DIR" \
   --add-opens java.base/java.util=ALL-UNNAMED \
   --add-opens java.base/java.lang=ALL-UNNAMED \
   --add-opens java.base/java.lang.reflect=ALL-UNNAMED \

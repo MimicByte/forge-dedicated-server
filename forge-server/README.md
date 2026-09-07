@@ -37,12 +37,20 @@ For Unraid, build the image first and select the resulting `forge-dedicated` ima
 | FORGE_SERVER_LOGIN_FAILURE_LIMIT | 5 | 1–100 failed invite-only logins before a temporary block |
 | FORGE_SERVER_LOGIN_FAILURE_WINDOW_SECONDS | 60 | 1–3600 |
 | FORGE_SERVER_LOGIN_BLOCK_SECONDS | 900 | 1–86400 |
+| FORGE_SERVER_CRASH_REPORT_MAX_FILES | 10 | 1–100 retained text crash reports |
+| FORGE_SERVER_HEAP_DUMPS | false | true or false; writes a heap dump after an out-of-memory error |
 | FORGE_SERVER_ADMIN_TOKEN | unset | Enables the private management API when non-empty |
 | FORGE_SERVER_ADMIN_PORT | 8080 | 1–65535, different from the game port |
 
 Compose defaults to four seats. Set `FORGE_SERVER_MAX_PLAYERS=8` for a larger room. Combine a base format with table variants using `FORGE_SERVER_VARIANTS`, for example `FORGE_SERVER_MODE=COMMANDER` and `FORGE_SERVER_VARIANTS=PLANECHASE`. `JAVA_TOOL_OPTIONS` controls JVM memory, for example `-Xmx4g`. `FORGE_SERVER_CONFIG_DIR` changes the profile and status location for a locally extracted distribution; it defaults to `/config` in the image.
 
 Set `FORGE_SERVER_ALLOWED_PLAYERS=Alice,Bob` for an invite-only room. Names are matched case-insensitively, but this is not authentication: anyone who knows an allowed display name can impersonate it. Rejected invite-only logins are rate-limited per source IP using the login-failure settings above.
+
+## Crash reports and logs
+
+Unhandled server failures produce a timestamped text report in `/config/crash-reports`, which survives a container restart. Reports include the build, upstream revision, safe room configuration, thread name, and stack trace; secrets, allowed-player names, and game state are deliberately excluded. The newest `FORGE_SERVER_CRASH_REPORT_MAX_FILES` reports are retained.
+
+The JVM also writes fatal native-error reports there. Set `FORGE_SERVER_HEAP_DUMPS=true` to preserve a heap dump for an out-of-memory error and restart the server afterward. A heap dump can be as large as `-Xmx` and may contain player/game data, so leave it disabled unless diagnosing a memory problem and ensure the `/config` volume has enough free space. Docker logs retain ordinary startup, match, and error output; configure Docker log rotation in production.
 
 ## Private management API
 
@@ -56,9 +64,26 @@ Set `FORGE_SERVER_ADMIN_TOKEN` to enable the token-protected API on TCP 8080 ins
 
 The API does not start, cancel, or abort games. Successful updates clear player readiness, and updates are memory-only: restart the container to restore environment values. Dedicated rules can be configured even when stock remote clients do not expose matching controls; clients still need any required planes or scheme deck sections.
 
+## Server-managed AI seats
+
+The private API can add AI opponents while the room is waiting. AI seats persist after a match returns to the lobby, but a room still requires two connected human players before it can start. AI seats cannot replace humans or disconnected players, and must be removed before changing the base format.
+
+`GET /v1/ai/decks` lists the bundled deck IDs valid for the current format: official Commander precons for Commander, and Forge's general precons for Constructed. `GET /v1/ai/profiles` lists available AI profiles and simulation modes. `GET /v1/slots` reports the lobby's one-based seat numbers and AI settings.
+
+To add or update an AI in seat 3, send a complete configuration using a deck ID returned by `/v1/ai/decks`:
+
+```sh
+curl -X PUT http://localhost:8080/v1/slots/3/ai \
+  -H 'Authorization: Bearer your-token' \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"AI Atraxa","deck":"commander:Veloci-Ramp-Tor [LCC] [2023]","profile":"Default","simulation":"NONE"}'
+```
+
+`simulation` is `NONE`, `HYBRID`, or `FULL`. Remove an AI with `DELETE /v1/slots/3/ai`. Oathbreaker, Tiny Leaders, Brawl, Momir Basic, and MoJhoSto do not expose AI seats yet because Forge has no matching bundled precon catalog.
+
 Clients must supply game pieces through their Forge deck sections: Planechase requires Planes, Vanguard requires an Avatar, and Archenemy requires the nominated player's Schemes. The dedicated server can apply configured rules even when a stock remote client does not display matching controls; use a matching client build that can submit the required deck sections and nomination. The server permits one nomination only and validates it before the match starts.
 
-Every connected player must choose a legal deck and ready up. With at least two ready players, the server starts a countdown. Joins, departures, and lobby changes cancel the countdown. Changing a deck clears readiness. Teams, dev mode, manually added AI, spectators, and joining an active match are not supported.
+Every connected player must choose a legal deck and ready up. With at least two ready players, the server starts a countdown. Joins, departures, and lobby changes cancel the countdown. Changing a deck clears readiness. Teams, dev mode, spectators, and joining an active match are not supported. AI seats are managed only through the private API.
 
 Reconnect with exactly the previous display name during the grace period. After the period expires, AI controls that seat for the remainder of the match, including later games. If all human players disconnect, the room resets after the final grace period. Continue, New Match, and QUIT decisions are preserved; an unanswered postgame decision resets the room after the configured timeout.
 

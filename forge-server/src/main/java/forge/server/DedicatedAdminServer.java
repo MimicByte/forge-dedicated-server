@@ -6,6 +6,7 @@ import java.security.MessageDigest;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.servlet.http.HttpServlet;
@@ -32,6 +33,7 @@ public final class DedicatedAdminServer {
     private static final class ApiServlet extends HttpServlet {
         private static final int MAX_BODY_BYTES = 16 * 1024;
         private static final Pattern MEMBER = Pattern.compile("\\\"([A-Za-z][A-Za-z0-9]*)\\\"\\s*:\\s*(\\\"[^\\\"\\\\]*\\\"|true|false|-?[0-9]+)");
+        private static final Pattern AI_SLOT_PATH = Pattern.compile("/slots/(\\d+)/ai");
         private final byte[] token;
         private final DedicatedLobbyController controller;
 
@@ -45,24 +47,69 @@ public final class DedicatedAdminServer {
             switch (request.getPathInfo()) {
             case "/status" -> write(response, HttpServletResponse.SC_OK, statusJson());
             case "/settings" -> write(response, HttpServletResponse.SC_OK, settingsJson(controller.rules()));
+            case "/slots" -> write(response, HttpServletResponse.SC_OK, slotsJson());
+            case "/ai/decks" -> write(response, HttpServletResponse.SC_OK, decksJson());
+            case "/ai/profiles" -> write(response, HttpServletResponse.SC_OK, profilesJson());
             default -> error(response, HttpServletResponse.SC_NOT_FOUND, "not_found", "Unknown endpoint");
             }
         }
 
         @Override protected void doPut(HttpServletRequest request, HttpServletResponse response) throws IOException {
             if (!authorized(request, response)) { return; }
-            if (!"/settings".equals(request.getPathInfo())) {
+            if ("/settings".equals(request.getPathInfo())) {
+                updateRules(request, response);
+                return;
+            }
+            Matcher path = AI_SLOT_PATH.matcher(request.getPathInfo());
+            if (!path.matches()) {
                 error(response, HttpServletResponse.SC_NOT_FOUND, "not_found", "Unknown endpoint");
                 return;
             }
+            updateAiSlot(Integer.parseInt(path.group(1)), request, response);
+        }
+
+        @Override protected void doDelete(HttpServletRequest request, HttpServletResponse response) throws IOException {
+            if (!authorized(request, response)) { return; }
+            Matcher path = AI_SLOT_PATH.matcher(request.getPathInfo());
+            if (!path.matches()) {
+                error(response, HttpServletResponse.SC_NOT_FOUND, "not_found", "Unknown endpoint");
+                return;
+            }
+            writeAiResult(response, controller.removeAiSlot(Integer.parseInt(path.group(1))));
+        }
+
+        private void updateRules(HttpServletRequest request, HttpServletResponse response) throws IOException {
             final ServerConfig.LobbyRules rules;
             try { rules = parseRules(readBody(request)); }
             catch (IllegalArgumentException e) { error(response, 422, "invalid_settings", e.getMessage()); return; }
+            boolean changingModeWithAi = controller.hasAiSlots() && rules.mode() != controller.rules().mode();
             if (!controller.updateRules(rules)) {
-                error(response, HttpServletResponse.SC_CONFLICT, "lobby_not_waiting", "Settings may only change while the lobby is waiting.");
+                if (changingModeWithAi) {
+                    error(response, HttpServletResponse.SC_CONFLICT, "ai_slots_present", "Remove AI seats before changing the base mode.");
+                } else {
+                    error(response, HttpServletResponse.SC_CONFLICT, "lobby_not_waiting", "Settings may only change while the lobby is waiting.");
+                }
                 return;
             }
             write(response, HttpServletResponse.SC_OK, settingsJson(rules));
+        }
+
+        private void updateAiSlot(int slot, HttpServletRequest request, HttpServletResponse response) throws IOException {
+            final Map<String, String> values;
+            try { values = parseObject(readBody(request), 4); }
+            catch (IllegalArgumentException e) { error(response, 422, "invalid_ai", e.getMessage()); return; }
+            final DedicatedLobbyController.AiSlotConfiguration configuration;
+            try {
+                configuration = new DedicatedLobbyController.AiSlotConfiguration(slot,
+                        string(values, "name"), string(values, "deck"), string(values, "profile"),
+                        string(values, "simulation").toUpperCase(java.util.Locale.ROOT));
+            } catch (IllegalArgumentException e) { error(response, 422, "invalid_ai", e.getMessage()); return; }
+            writeAiResult(response, controller.updateAiSlot(configuration));
+        }
+
+        private static void writeAiResult(HttpServletResponse response, DedicatedLobbyController.AiResult result) throws IOException {
+            if (result.success()) { write(response, HttpServletResponse.SC_OK, "{\"status\":\"ok\"}"); }
+            else { error(response, HttpServletResponse.SC_CONFLICT, result.code(), result.message()); }
         }
 
         private boolean authorized(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -86,17 +133,8 @@ public final class DedicatedAdminServer {
         }
 
         private static ServerConfig.LobbyRules parseRules(String json) {
-            String trimmed = json.trim();
-            if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) { throw new IllegalArgumentException("Expected a JSON object"); }
-            Map<String, String> values = new LinkedHashMap<>();
-            Matcher matcher = MEMBER.matcher(trimmed);
-            int cursor = 1;
-            while (matcher.find()) {
-                if (!trimmed.substring(cursor, matcher.start()).trim().matches(",?")) { throw new IllegalArgumentException("Malformed JSON settings object"); }
-                if (values.put(matcher.group(1), matcher.group(2)) != null) { throw new IllegalArgumentException("Duplicate setting " + matcher.group(1)); }
-                cursor = matcher.end();
-            }
-            if (!trimmed.substring(cursor, trimmed.length() - 1).trim().isEmpty() || values.size() != 5) {
+            Map<String, String> values = parseObject(json, 5);
+            if (values.size() != 5) {
                 throw new IllegalArgumentException("Provide mode, variants, gamesPerMatch, commanderBracket, and enforceDeckLegality");
             }
             try {
@@ -109,6 +147,22 @@ public final class DedicatedAdminServer {
                 return new ServerConfig.LobbyRules(mode, variants, integer(values, "gamesPerMatch"),
                         integer(values, "commanderBracket"), bool(values, "enforceDeckLegality"));
             } catch (IllegalArgumentException e) { throw new IllegalArgumentException(e.getMessage()); }
+        }
+        private static Map<String, String> parseObject(String json, int expectedMembers) {
+            String trimmed = json.trim();
+            if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) { throw new IllegalArgumentException("Expected a JSON object"); }
+            Map<String, String> values = new LinkedHashMap<>();
+            Matcher matcher = MEMBER.matcher(trimmed);
+            int cursor = 1;
+            while (matcher.find()) {
+                if (!trimmed.substring(cursor, matcher.start()).trim().matches(",?")) { throw new IllegalArgumentException("Malformed JSON object"); }
+                if (values.put(matcher.group(1), matcher.group(2)) != null) { throw new IllegalArgumentException("Duplicate setting " + matcher.group(1)); }
+                cursor = matcher.end();
+            }
+            if (!trimmed.substring(cursor, trimmed.length() - 1).trim().isEmpty() || values.size() != expectedMembers) {
+                throw new IllegalArgumentException("Provide exactly " + expectedMembers + " settings");
+            }
+            return values;
         }
         private static String string(Map<String, String> values, String key) {
             String value = values.get(key);
@@ -127,6 +181,46 @@ public final class DedicatedAdminServer {
         private String statusJson() {
             return "{\"state\":\"" + controller.state() + "\",\"players\":" + controller.connectedPlayerCount()
                     + ",\"seats\":" + controller.seatCapacity() + ",\"settings\":" + settingsJson(controller.rules()) + "}";
+        }
+        private String slotsJson() {
+            List<DedicatedLobbyController.AiSlotView> slots = controller.aiSlotViews();
+            StringBuilder json = new StringBuilder("{\"slots\":[");
+            for (int i = 0; i < slots.size(); i++) {
+                DedicatedLobbyController.AiSlotView slot = slots.get(i);
+                if (i > 0) { json.append(','); }
+                json.append("{\"slot\":").append(slot.slot()).append(",\"type\":\"").append(slot.type())
+                        .append("\",\"name\":").append(jsonString(slot.name()));
+                if (slot.deckId() != null) {
+                    json.append(",\"deck\":").append(jsonString(slot.deckId()))
+                            .append(",\"profile\":").append(jsonString(slot.profile()))
+                            .append(",\"simulation\":").append(jsonString(slot.simulation()));
+                }
+                json.append('}');
+            }
+            return json.append("]}").toString();
+        }
+        private String decksJson() {
+            List<BuiltInPreconCatalog.Entry> decks = controller.availableAiDecks();
+            StringBuilder json = new StringBuilder("{\"decks\":[");
+            for (int i = 0; i < decks.size(); i++) {
+                if (i > 0) { json.append(','); }
+                BuiltInPreconCatalog.Entry deck = decks.get(i);
+                json.append("{\"id\":").append(jsonString(deck.id())).append(",\"name\":").append(jsonString(deck.name())).append('}');
+            }
+            return json.append("]}").toString();
+        }
+        private String profilesJson() {
+            List<String> profiles = controller.availableAiProfiles();
+            StringBuilder json = new StringBuilder("{\"profiles\":[");
+            for (int i = 0; i < profiles.size(); i++) {
+                if (i > 0) { json.append(','); }
+                json.append(jsonString(profiles.get(i)));
+            }
+            return json.append("],\"simulations\":[\"NONE\",\"HYBRID\",\"FULL\"]}").toString();
+        }
+        private static String jsonString(String value) {
+            if (value == null) { return "null"; }
+            return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
         }
         private static String settingsJson(ServerConfig.LobbyRules rules) {
             String variants = rules.variants().stream().map(Enum::name).sorted().reduce((a, b) -> a + "," + b).orElse("");

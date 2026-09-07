@@ -40,6 +40,8 @@ public final class DedicatedServerMain {
         Files.deleteIfExists(status);
         System.setProperty("forge.server.profile", configDir.toString());
         ServerConfig config = ServerConfig.from(System.getenv());
+        DedicatedCrashReporter.install(configDir, config.crashReportMaxFiles(), () -> "build=" + BuildInfo.getVersionString()
+                + "\nupstream=" + UPSTREAM + "\nmode=" + config.mode() + "\nmax_players=" + config.maxPlayers());
         Path assets = Path.of(System.getProperty("forge.server.assets", ".")).toAbsolutePath();
         if (!Files.isDirectory(assets.resolve("res/cardsfolder"))) { throw new IllegalArgumentException("Missing Forge resources at " + assets); }
         DedicatedGui gui = new DedicatedGui(assets);
@@ -96,6 +98,7 @@ public final class DedicatedServerMain {
                 Files.writeString(pending, System.currentTimeMillis() + " " + controller.state() + "\n");
                 Files.move(pending, status, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (Throwable error) {
+                DedicatedCrashReporter.report(error, "Dispatcher pulse failed");
                 error.printStackTrace();
                 new Thread(() -> System.exit(1), "fatal-server-error").start();
             }
@@ -115,7 +118,11 @@ public final class DedicatedServerMain {
                 Files.deleteIfExists(status);
                 server.shutdownDedicated();
                 if (admin != null) { admin.stop(); }
-            } catch (Throwable error) { error.printStackTrace(); Runtime.getRuntime().halt(1); }
+            } catch (Throwable error) {
+                DedicatedCrashReporter.report(error, "Shutdown failed");
+                error.printStackTrace();
+                Runtime.getRuntime().halt(1);
+            }
         }, "dedicated-shutdown"));
         SwingUtilities.invokeAndWait(pulse::start);
         System.out.println("[server] Listening on TCP " + config.port() + " mode=" + config.mode());

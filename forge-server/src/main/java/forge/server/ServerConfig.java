@@ -11,6 +11,7 @@ public record ServerConfig(int port, int adminPort, String adminToken, int maxPl
                            int startDelaySeconds, int reconnectSeconds, int postgameSeconds,
                            Set<String> allowedPlayers, int loginFailureLimit,
                            int loginFailureWindowSeconds, int loginBlockSeconds,
+                           int crashReportMaxFiles,
                            LobbyRules rules) {
     public enum Mode { CONSTRUCTED, COMMANDER, OATHBREAKER, TINY_LEADERS, BRAWL, MOMIR_BASIC, MOJHOSTO }
     public enum Variant { PLANECHASE, VANGUARD, ARCHENEMY, ARCHENEMY_RUMBLE }
@@ -70,7 +71,8 @@ public record ServerConfig(int port, int adminPort, String adminToken, int maxPl
                 number(env, "POSTGAME_SECONDS", 120, 1, 3600), allowedPlayers(env),
                 number(env, "LOGIN_FAILURE_LIMIT", 5, 1, 100),
                 number(env, "LOGIN_FAILURE_WINDOW_SECONDS", 60, 1, 3600),
-                number(env, "LOGIN_BLOCK_SECONDS", 900, 1, 86400), rules);
+                number(env, "LOGIN_BLOCK_SECONDS", 900, 1, 86400),
+                number(env, "CRASH_REPORT_MAX_FILES", 10, 1, 100), rules);
     }
 
     private static Mode mode(String value) {

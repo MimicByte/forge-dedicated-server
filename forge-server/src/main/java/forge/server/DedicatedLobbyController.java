@@ -3,6 +3,8 @@ package forge.server;
 import forge.game.Game;
 import forge.game.GameEndReason;
 import forge.game.GameType;
+import forge.ai.AIOption;
+import forge.ai.AiProfileUtil;
 import forge.gamemodes.match.GameLobby.GameStartError;
 import forge.gamemodes.match.DedicatedMatchLifecycle;
 import forge.gamemodes.match.HostedMatch;
@@ -27,6 +29,7 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
     private long deadline;
     private long emptyDeadline;
     private final Map<RemoteClient, Long> disconnected = new HashMap<>();
+    private final Map<Integer, AiSlotConfiguration> aiSlots = new HashMap<>();
     private volatile HostedMatch current;
     private boolean updateQueued;
     private long generation;
@@ -42,6 +45,12 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
     public ServerConfig.LobbyRules rules() { return rules; }
     public int connectedPlayerCount() { return server.connectedPlayers().size(); }
     public int seatCapacity() { return lobby.getNumberOfSlots(); }
+    public record AiSlotConfiguration(int slot, String name, String deckId, String profile, String simulation) { }
+    public record AiSlotView(int slot, String type, String name, String deckId, String profile, String simulation) { }
+    public record AiResult(boolean success, String code, String message) {
+        static AiResult ok() { return new AiResult(true, "ok", ""); }
+        static AiResult failure(String code, String message) { return new AiResult(false, code, message); }
+    }
     private static long now() { return System.nanoTime() / 1_000_000; }
     private void transition(State next) {
         if (state != next) { System.out.println("[server] " + state + " -> " + next); state = next; }
@@ -217,7 +226,9 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
         Set<Integer> occupied = new HashSet<>();
         server.connectedPlayers().forEach(c -> occupied.add(c.getIndex()));
         for (int i = 0; i < lobby.getNumberOfSlots(); i++) {
-            if (!occupied.contains(i)) { lobby.disconnectPlayer(i); }
+            if (aiSlots.containsKey(i)) {
+                lobby.getSlot(i).setIsReady(false);
+            } else if (!occupied.contains(i)) { lobby.disconnectPlayer(i); }
             else {
                 LobbySlot slot = lobby.getSlot(i);
                 slot.setType(LobbySlotType.REMOTE);
@@ -243,6 +254,7 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
 
     private boolean updateRulesOnEdt(ServerConfig.LobbyRules next) {
         if (state != State.WAITING) { return false; }
+        if (!aiSlots.isEmpty() && next.mode() != rules.mode()) { return false; }
         applyRules(lobby, next);
         FModel.getPreferences().setPref(FPref.UI_MATCHES_PER_GAME, Integer.toString(next.gamesPerMatch()));
         FModel.getPreferences().setPref(FPref.DECKGEN_MAXIMUM_COMMANDER_BRACKET, Integer.toString(next.commanderBracket()));
@@ -251,6 +263,127 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
         rules = next;
         server.updateLobbyState();
         return true;
+    }
+
+    /** Returns the bundled deck choices available for the room's current base format. */
+    List<BuiltInPreconCatalog.Entry> availableAiDecks() {
+        return callOnEdt(() -> BuiltInPreconCatalog.available(rules.mode()));
+    }
+
+    public List<String> availableAiProfiles() {
+        return callOnEdt(() -> List.copyOf(AiProfileUtil.getProfilesDisplayList()));
+    }
+
+    public List<AiSlotView> aiSlotViews() {
+        return callOnEdt(() -> {
+            List<AiSlotView> views = new ArrayList<>();
+            for (int index = 0; index < lobby.getNumberOfSlots(); index++) {
+                LobbySlot slot = lobby.getSlot(index);
+                AiSlotConfiguration ai = aiSlots.get(index);
+                views.add(new AiSlotView(index + 1, slot.getType().name(), slot.getName(),
+                        ai == null ? null : ai.deckId(), ai == null ? null : ai.profile(),
+                        ai == null ? null : ai.simulation()));
+            }
+            return views;
+        });
+    }
+
+    public boolean hasAiSlots() { return callOnEdt(() -> !aiSlots.isEmpty()); }
+
+    /** Adds or replaces an AI only while the room is a stable lobby. */
+    public AiResult updateAiSlot(AiSlotConfiguration configuration) {
+        return callOnEdt(() -> updateAiSlotOnEdt(configuration));
+    }
+
+    public AiResult removeAiSlot(int oneBasedSlot) {
+        return callOnEdt(() -> {
+            int index = oneBasedSlot - 1;
+            if (state != State.WAITING) { return AiResult.failure("lobby_not_waiting", "AI seats may only change while the lobby is waiting."); }
+            if (index < 0 || index >= lobby.getNumberOfSlots()) { return AiResult.failure("invalid_slot", "Slot is outside this lobby."); }
+            if (!aiSlots.containsKey(index)) { return AiResult.failure("not_ai", "The selected slot is not an AI seat."); }
+            aiSlots.remove(index);
+            lobby.disconnectPlayer(index);
+            server.updateLobbyState();
+            lobbyChanged();
+            return AiResult.ok();
+        });
+    }
+
+    private AiResult updateAiSlotOnEdt(AiSlotConfiguration configuration) {
+        int index = configuration.slot() - 1;
+        if (state != State.WAITING) { return AiResult.failure("lobby_not_waiting", "AI seats may only change while the lobby is waiting."); }
+        if (index < 0 || index >= lobby.getNumberOfSlots()) { return AiResult.failure("invalid_slot", "Slot is outside this lobby."); }
+        if (rules.mode() != ServerConfig.Mode.COMMANDER && rules.mode() != ServerConfig.Mode.CONSTRUCTED) {
+            return AiResult.failure("unsupported_mode", "Built-in AI precons are available only for Commander and Constructed.");
+        }
+        LobbySlot slot = lobby.getSlot(index);
+        if (slot.getType() != LobbySlotType.OPEN && slot.getType() != LobbySlotType.AI) {
+            return AiResult.failure("slot_occupied", "AI cannot replace a human or disconnected player.");
+        }
+        if (configuration.name() == null || configuration.name().isBlank() || configuration.name().length() > 30) {
+            return AiResult.failure("invalid_name", "AI name must be 1 to 30 characters.");
+        }
+        for (int other = 0; other < lobby.getNumberOfSlots(); other++) {
+            LobbySlot otherSlot = lobby.getSlot(other);
+            if (other != index && otherSlot.getType() != LobbySlotType.OPEN
+                    && configuration.name().trim().equalsIgnoreCase(otherSlot.getName())) {
+                return AiResult.failure("duplicate_name", "AI name is already in use by another seat.");
+            }
+        }
+        if (!AiProfileUtil.getProfilesDisplayList().contains(configuration.profile())) {
+            return AiResult.failure("invalid_profile", "Unknown AI profile.");
+        }
+        Set<AIOption> options = simulationOptions(configuration.simulation());
+        if (options == null) { return AiResult.failure("invalid_simulation", "simulation must be NONE, HYBRID, or FULL."); }
+        BuiltInPreconCatalog.Entry deck = BuiltInPreconCatalog.find(rules.mode(), configuration.deckId());
+        if (deck == null) { return AiResult.failure("invalid_deck", "Unknown built-in precon for the current mode."); }
+
+        slot.setType(LobbySlotType.AI);
+        slot.setName(configuration.name().trim());
+        slot.setAvatarIndex(0);
+        slot.setSleeveIndex(0);
+        slot.setTeam(index);
+        slot.setIsArchenemy(false);
+        slot.setIsReady(false);
+        slot.setAiOptions(options);
+        slot.setAiProfile(configuration.profile());
+        slot.setDeck(deck.deck());
+        slot.setDeckName(deck.name());
+        aiSlots.put(index, configuration);
+        server.updateLobbyState();
+        lobbyChanged();
+        return AiResult.ok();
+    }
+
+    private static Set<AIOption> simulationOptions(String simulation) {
+        return switch (simulation) {
+        case "NONE" -> Set.of();
+        case "HYBRID" -> Set.of(AIOption.USE_HYBRID_SIMULATION);
+        case "FULL" -> Set.of(AIOption.USE_FULL_SIMULATION);
+        default -> null;
+        };
+    }
+
+    private static <T> T callOnEdt(java.util.concurrent.Callable<T> action) {
+        if (SwingUtilities.isEventDispatchThread()) {
+            try { return action.call(); }
+            catch (Exception e) { throw new IllegalStateException("Dedicated lobby operation failed", e); }
+        }
+        final java.util.concurrent.atomic.AtomicReference<T> result = new java.util.concurrent.atomic.AtomicReference<>();
+        final java.util.concurrent.atomic.AtomicReference<Exception> failure = new java.util.concurrent.atomic.AtomicReference<>();
+        try {
+            SwingUtilities.invokeAndWait(() -> {
+                try { result.set(action.call()); }
+                catch (Exception e) { failure.set(e); }
+            });
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while updating dedicated lobby", e);
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            throw new IllegalStateException("Unable to update dedicated lobby", e.getCause());
+        }
+        if (failure.get() != null) { throw new IllegalStateException("Dedicated lobby operation failed", failure.get()); }
+        return result.get();
     }
 
     static void applyRules(ServerGameLobby lobby, ServerConfig.LobbyRules rules) {
