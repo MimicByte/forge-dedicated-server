@@ -77,7 +77,7 @@ jobs:
 
       - name: Normalize image name
         id: image
-        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}-dedicated" >> "$GITHUB_OUTPUT"
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push dedicated image
         uses: docker/build-push-action@v6
@@ -120,7 +120,7 @@ jobs:
       - name: Keep five container image versions
         env:
           GH_TOKEN: ${{ github.token }}
-          PACKAGE_NAME: ${{ github.event.repository.name }}-dedicated
+          PACKAGE_NAME: ${{ github.event.repository.name }}
           REPOSITORY_OWNER: ${{ github.repository_owner }}
         run: |
           owner_type=$(gh api "/users/$REPOSITORY_OWNER" --jq .type)
