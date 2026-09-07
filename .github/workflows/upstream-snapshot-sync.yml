@@ -31,7 +31,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git remote add upstream https://github.com/Card-Forge/forge.git
 
-      - name: Rebase dedicated branch onto the published snapshot
+      - name: Merge the published snapshot into fork branches
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -55,26 +55,23 @@ jobs:
           fi
 
           snapshot=$(git rev-parse "$snapshot_ref^{commit}")
-          old_master=$(git rev-parse master)
           git fetch origin master dedicated-server
           git switch master
-          if ! old_upstream=$(git merge-base "$old_master" "$snapshot"); then
-            report_issue "Fork master and upstream daily-snapshots have no common ancestor. Manual review is required before synchronization.\n\nFork master: $old_master\nSnapshot: $snapshot"
-            exit 1
-          fi
-          # master carries one or more fork-owned maintenance commits. Find
-          # their common base with upstream instead of assuming master^1 is it.
-          # This is the same comparison GitHub's branch UI performs.
-          if [ "$old_upstream" != "$snapshot" ]; then
-            git rebase --onto "$snapshot" "$old_upstream" master
+          if ! git merge-base --is-ancestor "$snapshot" master; then
+            if ! git merge --no-ff -m "chore: sync upstream snapshot ${snapshot:0:12}" "$snapshot"; then
+              git merge --abort || true
+              report_issue "Fork master could not merge the upstream daily-snapshots revision.\n\nSnapshot: $snapshot\n\nResolve the conflicts locally, then rerun this workflow.\n\nRun: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+              exit 1
+            fi
           fi
 
           git switch dedicated-server
-          if ! git rebase master; then
-            git rebase --abort || true
-            report_issue "The dedicated-server branch could not be rebased automatically.\n\nBase snapshot: $snapshot\n\nResolve the conflicts locally, then rerun this workflow.\n\nRun: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-            exit 1
+          if ! git merge-base --is-ancestor master dedicated-server; then
+            if ! git merge --no-ff -m "chore: sync dedicated server with upstream snapshot ${snapshot:0:12}" master; then
+              git merge --abort || true
+              report_issue "The dedicated-server branch could not merge the updated fork master.\n\nBase snapshot: $snapshot\n\nResolve the conflicts locally, then rerun this workflow.\n\nRun: $GITHUB_SERVER_URL/$GITHUB_RUN_ID"
+              exit 1
+            fi
           fi
 
-          git push --force-with-lease origin dedicated-server
-          git push --force-with-lease origin master
+          git push origin master dedicated-server
