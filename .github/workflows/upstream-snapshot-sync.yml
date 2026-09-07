@@ -8,6 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: write
   contents: write
   issues: write
 
@@ -75,3 +76,7 @@ jobs:
           fi
 
           git push origin master dedicated-server
+          # Pushes made with GITHUB_TOKEN do not start another workflow. Run
+          # the dedicated publisher explicitly so the rolling release and
+          # GHCR retention stay aligned with the synchronized branch.
+          gh workflow run dedicated-ci.yml --ref dedicated-server
