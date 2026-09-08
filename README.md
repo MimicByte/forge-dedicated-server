@@ -82,6 +82,8 @@ Set `FORGE_SERVER_ALLOWED_PLAYERS=Alice,Bob` for an invite-only room. Names matc
 
 Set `FORGE_SERVER_ADMIN_TOKEN` to enable the token-protected management API on TCP 8080 inside the container. Send `Authorization: Bearer <token>` with every request. Do not publish this port.
 
+For the complete contract intended for service integrations, see [Dedicated Server Integration Reference](forge-server/INTEGRATION.md).
+
 `GET /v1/status` reports state, occupancy, and disconnected players with their one-based slot and reconnect deadline. `GET /v1/settings` reports mutable rules. While the lobby is waiting, `PUT /v1/settings` accepts:
 
 ```json

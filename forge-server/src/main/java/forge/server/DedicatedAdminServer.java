@@ -16,7 +16,7 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 
-/** Small private management surface. It deliberately has no game-control endpoints. */
+/** Small private management surface with only allow-listed room operations. */
 public final class DedicatedAdminServer {
     private final Server server;
 
