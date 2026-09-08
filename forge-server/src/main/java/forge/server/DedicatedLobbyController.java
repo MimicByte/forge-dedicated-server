@@ -47,9 +47,14 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
     public int seatCapacity() { return lobby.getNumberOfSlots(); }
     public record AiSlotConfiguration(int slot, String name, String deckId, String profile, String simulation) { }
     public record AiSlotView(int slot, String type, String name, String deckId, String profile, String simulation) { }
+    public record DisconnectedPlayerView(int slot, String name, Long reconnectSecondsRemaining) { }
     public record AiResult(boolean success, String code, String message) {
         static AiResult ok() { return new AiResult(true, "ok", ""); }
         static AiResult failure(String code, String message) { return new AiResult(false, code, message); }
+    }
+    public record ActionResult(boolean success, String code, String message) {
+        static ActionResult ok() { return new ActionResult(true, "ok", ""); }
+        static ActionResult failure(String code, String message) { return new ActionResult(false, code, message); }
     }
     private static long now() { return System.nanoTime() / 1_000_000; }
     private void transition(State next) {
@@ -174,19 +179,7 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
         if (emptyDeadline != 0 && time >= emptyDeadline) { abort("Room abandoned; resetting."); return; }
         for (RemoteClient client : List.copyOf(disconnected.keySet())) {
             if (time >= disconnected.get(client)) {
-                disconnected.remove(client);
-                server.forgetDisconnected(client);
-                HostedMatch match = current;
-                if (match != null && match.getGame() != null) {
-                    PlayerControllerHuman controller = match.getHumanControllers().stream()
-                            .filter(c -> c.getGui() == client.getGui()).findFirst().orElse(null);
-                    if (controller != null) {
-                        say(client.getUsername() + " did not reconnect; AI takes over.");
-                        match.getGame().getAction().invoke(() -> {
-                            if (current == match) { match.replaceDedicatedPlayer(controller); }
-                        });
-                    }
-                }
+                takeOverDisconnectedPlayer(client, client.getUsername() + " did not reconnect; AI takes over.");
             }
         }
         if (state == State.POSTGAME && time >= deadline) {
@@ -239,6 +232,81 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
         server.updateLobbyState();
     }
     public void stopping() { transition(State.STOPPING); ++generation; }
+
+    /** Lists players awaiting reconnection. A null deadline means an administrator disabled takeover. */
+    public List<DisconnectedPlayerView> disconnectedPlayerViews() {
+        return callOnEdt(() -> {
+            long currentTime = now();
+            List<DisconnectedPlayerView> views = new ArrayList<>();
+            for (Map.Entry<RemoteClient, Long> entry : disconnected.entrySet()) {
+                Long deadline = entry.getValue() == Long.MAX_VALUE ? null
+                        : Math.max(0, (entry.getValue() - currentTime + 999) / 1000);
+                views.add(new DisconnectedPlayerView(entry.getKey().getIndex() + 1,
+                        entry.getKey().getUsername(), deadline));
+            }
+            return views.stream().sorted(Comparator.comparingInt(DisconnectedPlayerView::slot)).toList();
+        });
+    }
+
+    /** Sends a server-labelled announcement to all connected players. */
+    public ActionResult announce(String message) {
+        if (message == null || message.isBlank() || message.length() > 500) {
+            return ActionResult.failure("invalid_message", "message must be 1 to 500 characters.");
+        }
+        return callOnEdt(() -> {
+            if (state == State.STOPPING) { return ActionResult.failure("server_stopping", "Server is stopping."); }
+            say("Server: " + message.trim());
+            return ActionResult.ok();
+        });
+    }
+
+    /** Returns the current room to its lobby, ending an active game as a draw. */
+    public ActionResult abortByAdministrator() {
+        return callOnEdt(() -> {
+            if (state == State.STOPPING) { return ActionResult.failure("server_stopping", "Server is stopping."); }
+            abort("Room reset by administrator.");
+            return ActionResult.ok();
+        });
+    }
+
+    /** Immediately hands an awaiting disconnected player's seat to AI. */
+    public ActionResult takeOverDisconnectedPlayer(int oneBasedSlot) {
+        return callOnEdt(() -> {
+            if (state == State.STOPPING) { return ActionResult.failure("server_stopping", "Server is stopping."); }
+            RemoteClient client = disconnected.keySet().stream()
+                    .filter(candidate -> candidate.getIndex() == oneBasedSlot - 1).findFirst().orElse(null);
+            if (client == null) { return ActionResult.failure("not_disconnected", "No disconnected player occupies that slot."); }
+            takeOverDisconnectedPlayer(client, client.getUsername() + " was replaced with AI by an administrator.");
+            return ActionResult.ok();
+        });
+    }
+
+    /** Prevents automatic AI takeover while another player remains connected. */
+    public ActionResult waitIndefinitelyForDisconnectedPlayer(int oneBasedSlot) {
+        return callOnEdt(() -> {
+            if (state == State.STOPPING) { return ActionResult.failure("server_stopping", "Server is stopping."); }
+            RemoteClient client = disconnected.keySet().stream()
+                    .filter(candidate -> candidate.getIndex() == oneBasedSlot - 1).findFirst().orElse(null);
+            if (client == null) { return ActionResult.failure("not_disconnected", "No disconnected player occupies that slot."); }
+            disconnected.put(client, Long.MAX_VALUE);
+            say("Server: reconnect timeout disabled for " + client.getUsername() + ".");
+            return ActionResult.ok();
+        });
+    }
+
+    private void takeOverDisconnectedPlayer(RemoteClient client, String message) {
+        disconnected.remove(client);
+        server.forgetDisconnected(client);
+        HostedMatch match = current;
+        if (match == null || match.getGame() == null) { return; }
+        PlayerControllerHuman controller = match.getHumanControllers().stream()
+                .filter(candidate -> candidate.getGui() == client.getGui()).findFirst().orElse(null);
+        if (controller == null) { return; }
+        say(message);
+        match.getGame().getAction().invoke(() -> {
+            if (current == match) { match.replaceDedicatedPlayer(controller); }
+        });
+    }
 
     /** Applies a complete rule set on the EDT. Admin callers receive false outside a stable lobby. */
     public boolean updateRules(ServerConfig.LobbyRules next) {

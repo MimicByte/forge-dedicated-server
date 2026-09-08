@@ -9,6 +9,7 @@ import forge.game.GameType;
 /** Immutable startup configuration. Lobby rules may be replaced in memory by the admin API. */
 public record ServerConfig(int port, int adminPort, String adminToken, int maxPlayers,
                            int startDelaySeconds, int reconnectSeconds, int postgameSeconds,
+                           int afkTimeoutMinutes,
                            Set<String> allowedPlayers, int loginFailureLimit,
                            int loginFailureWindowSeconds, int loginBlockSeconds,
                            int crashReportMaxFiles,
@@ -68,7 +69,8 @@ public record ServerConfig(int port, int adminPort, String adminToken, int maxPl
         return new ServerConfig(port, adminPort, token, number(env, "MAX_PLAYERS", 4, 2, 8),
                 number(env, "START_DELAY_SECONDS", 15, 1, 300),
                 number(env, "RECONNECT_SECONDS", 300, 1, 3600),
-                number(env, "POSTGAME_SECONDS", 120, 1, 3600), allowedPlayers(env),
+                number(env, "POSTGAME_SECONDS", 120, 1, 3600),
+                number(env, "AFK_TIMEOUT", 5, 0, 60), allowedPlayers(env),
                 number(env, "LOGIN_FAILURE_LIMIT", 5, 1, 100),
                 number(env, "LOGIN_FAILURE_WINDOW_SECONDS", 60, 1, 3600),
                 number(env, "LOGIN_BLOCK_SECONDS", 900, 1, 86400),

@@ -23,6 +23,8 @@ services:
       FORGE_SERVER_START_DELAY_SECONDS: "15"
       FORGE_SERVER_RECONNECT_SECONDS: "300"
       FORGE_SERVER_POSTGAME_SECONDS: "120"
+      # Minutes before an inactive player is auto-passed; 0 disables this.
+      FORGE_SERVER_AFK_TIMEOUT: "5"
       # Leave empty for public rooms; otherwise list the permitted display names.
       FORGE_SERVER_ALLOWED_PLAYERS: ""
       FORGE_SERVER_LOGIN_FAILURE_LIMIT: "5"

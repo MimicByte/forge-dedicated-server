@@ -11,6 +11,7 @@ public class ServerConfigTest {
         Assert.assertEquals(c.maxPlayers(), 4);
         Assert.assertEquals(c.startDelaySeconds(), 15);
         Assert.assertEquals(c.reconnectSeconds(), 300);
+        Assert.assertEquals(c.afkTimeoutMinutes(), 5);
         Assert.assertEquals(c.rules().gamesPerMatch(), 3);
         Assert.assertTrue(c.rules().enforceDeckLegality());
         Assert.assertTrue(c.allowedPlayers().isEmpty());
@@ -81,6 +82,12 @@ public class ServerConfigTest {
     }
     @Test(expectedExceptions = IllegalArgumentException.class) public void rejectsZeroDeadline() {
         ServerConfig.from(Map.of("FORGE_SERVER_RECONNECT_SECONDS", "0"));
+    }
+    @Test public void supportsDisabledAfkTimeout() {
+        Assert.assertEquals(ServerConfig.from(Map.of("FORGE_SERVER_AFK_TIMEOUT", "0")).afkTimeoutMinutes(), 0);
+    }
+    @Test(expectedExceptions = IllegalArgumentException.class) public void rejectsAfkTimeoutOverOneHour() {
+        ServerConfig.from(Map.of("FORGE_SERVER_AFK_TIMEOUT", "61"));
     }
     @Test(expectedExceptions = IllegalArgumentException.class) public void rejectsConflictingArchenemyVariants() {
         ServerConfig.from(Map.of("FORGE_SERVER_VARIANTS", "ARCHENEMY,ARCHENEMY_RUMBLE"));

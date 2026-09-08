@@ -34,6 +34,7 @@ public final class DedicatedAdminServer {
         private static final int MAX_BODY_BYTES = 16 * 1024;
         private static final Pattern MEMBER = Pattern.compile("\\\"([A-Za-z][A-Za-z0-9]*)\\\"\\s*:\\s*(\\\"[^\\\"\\\\]*\\\"|true|false|-?[0-9]+)");
         private static final Pattern AI_SLOT_PATH = Pattern.compile("/slots/(\\d+)/ai");
+        private static final Pattern DISCONNECTED_ACTION_PATH = Pattern.compile("/disconnected/(\\d+)/(takeover|wait-indefinitely)");
         private final byte[] token;
         private final DedicatedLobbyController controller;
 
@@ -78,6 +79,34 @@ public final class DedicatedAdminServer {
             writeAiResult(response, controller.removeAiSlot(Integer.parseInt(path.group(1))));
         }
 
+        @Override protected void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
+            if (!authorized(request, response)) { return; }
+            if ("/messages".equals(request.getPathInfo())) {
+                final Map<String, String> values;
+                try { values = parseObject(readBody(request), 1); }
+                catch (IllegalArgumentException e) { error(response, 422, "invalid_message", e.getMessage()); return; }
+                final String message;
+                try { message = string(values, "message"); }
+                catch (IllegalArgumentException e) { error(response, 422, "invalid_message", e.getMessage()); return; }
+                writeActionResult(response, controller.announce(message));
+                return;
+            }
+            if ("/match/abort".equals(request.getPathInfo())) {
+                writeActionResult(response, controller.abortByAdministrator());
+                return;
+            }
+            Matcher path = DISCONNECTED_ACTION_PATH.matcher(request.getPathInfo());
+            if (!path.matches()) {
+                error(response, HttpServletResponse.SC_NOT_FOUND, "not_found", "Unknown endpoint");
+                return;
+            }
+            int slot = Integer.parseInt(path.group(1));
+            DedicatedLobbyController.ActionResult result = "takeover".equals(path.group(2))
+                    ? controller.takeOverDisconnectedPlayer(slot)
+                    : controller.waitIndefinitelyForDisconnectedPlayer(slot);
+            writeActionResult(response, result);
+        }
+
         private void updateRules(HttpServletRequest request, HttpServletResponse response) throws IOException {
             final ServerConfig.LobbyRules rules;
             try { rules = parseRules(readBody(request)); }
@@ -108,6 +137,10 @@ public final class DedicatedAdminServer {
         }
 
         private static void writeAiResult(HttpServletResponse response, DedicatedLobbyController.AiResult result) throws IOException {
+            if (result.success()) { write(response, HttpServletResponse.SC_OK, "{\"status\":\"ok\"}"); }
+            else { error(response, HttpServletResponse.SC_CONFLICT, result.code(), result.message()); }
+        }
+        private static void writeActionResult(HttpServletResponse response, DedicatedLobbyController.ActionResult result) throws IOException {
             if (result.success()) { write(response, HttpServletResponse.SC_OK, "{\"status\":\"ok\"}"); }
             else { error(response, HttpServletResponse.SC_CONFLICT, result.code(), result.message()); }
         }
@@ -180,7 +213,22 @@ public final class DedicatedAdminServer {
         }
         private String statusJson() {
             return "{\"state\":\"" + controller.state() + "\",\"players\":" + controller.connectedPlayerCount()
-                    + ",\"seats\":" + controller.seatCapacity() + ",\"settings\":" + settingsJson(controller.rules()) + "}";
+                    + ",\"seats\":" + controller.seatCapacity() + ",\"settings\":" + settingsJson(controller.rules())
+                    + ",\"disconnected\":" + disconnectedJson() + "}";
+        }
+        private String disconnectedJson() {
+            List<DedicatedLobbyController.DisconnectedPlayerView> players = controller.disconnectedPlayerViews();
+            StringBuilder json = new StringBuilder("[");
+            for (int i = 0; i < players.size(); i++) {
+                if (i > 0) { json.append(','); }
+                DedicatedLobbyController.DisconnectedPlayerView player = players.get(i);
+                json.append("{\"slot\":").append(player.slot()).append(",\"name\":")
+                        .append(jsonString(player.name())).append(",\"reconnectSecondsRemaining\":");
+                if (player.reconnectSecondsRemaining() == null) { json.append("null"); }
+                else { json.append(player.reconnectSecondsRemaining()); }
+                json.append('}');
+            }
+            return json.append(']').toString();
         }
         private String slotsJson() {
             List<DedicatedLobbyController.AiSlotView> slots = controller.aiSlotViews();

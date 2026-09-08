@@ -27,6 +27,7 @@ services:
       FORGE_SERVER_START_DELAY_SECONDS: "15"
       FORGE_SERVER_RECONNECT_SECONDS: "300"
       FORGE_SERVER_POSTGAME_SECONDS: "120"
+      FORGE_SERVER_AFK_TIMEOUT: "5"
       # Empty permits public joins. Otherwise list permitted display names.
       FORGE_SERVER_ALLOWED_PLAYERS: ""
       # Leave empty to disable the private management API.
@@ -63,6 +64,7 @@ The image removes unused campaign and presentation resources, while retaining ca
 | `FORGE_SERVER_START_DELAY_SECONDS` | 15 | 1–300 |
 | `FORGE_SERVER_RECONNECT_SECONDS` | 300 | 1–3600 |
 | `FORGE_SERVER_POSTGAME_SECONDS` | 120 | 1–3600 |
+| `FORGE_SERVER_AFK_TIMEOUT` | 5 | Minutes before auto-pass; 0 (off)–60 |
 | `FORGE_SERVER_ALLOWED_PLAYERS` | unset | Comma-separated invite-only display names; empty permits public joins |
 | `FORGE_SERVER_LOGIN_FAILURE_LIMIT` | 5 | 1–100 |
 | `FORGE_SERVER_LOGIN_FAILURE_WINDOW_SECONDS` | 60 | 1–3600 |
@@ -78,9 +80,9 @@ Set `FORGE_SERVER_ALLOWED_PLAYERS=Alice,Bob` for an invite-only room. Names matc
 
 ## Private management API and AI seats
 
-Set `FORGE_SERVER_ADMIN_TOKEN` to enable the token-protected management API on TCP 8080 inside the container. Send `Authorization: Bearer <token>` with every request. The API reports state and lobby settings but cannot start, cancel, or abort games.
+Set `FORGE_SERVER_ADMIN_TOKEN` to enable the token-protected management API on TCP 8080 inside the container. Send `Authorization: Bearer <token>` with every request. Do not publish this port.
 
-`GET /v1/status` reports state and occupancy. `GET /v1/settings` reports mutable rules. While the lobby is waiting, `PUT /v1/settings` accepts:
+`GET /v1/status` reports state, occupancy, and disconnected players with their one-based slot and reconnect deadline. `GET /v1/settings` reports mutable rules. While the lobby is waiting, `PUT /v1/settings` accepts:
 
 ```json
 {"mode":"COMMANDER","variants":"PLANECHASE","gamesPerMatch":3,"commanderBracket":5,"enforceDeckLegality":true}
@@ -96,6 +98,8 @@ curl -X PUT http://localhost:8080/v1/slots/3/ai \
 ```
 
 `simulation` is `NONE`, `HYBRID`, or `FULL`; remove an AI with `DELETE /v1/slots/3/ai`. Commander uses official Commander precons and Constructed uses Forge general precons. Other modes do not currently expose AI seats because no matching bundled catalog exists. Settings updates clear player readiness and are memory-only; restart the container to restore environment values.
+
+The private moderation endpoints are `POST /v1/messages` with `{"message":"text"}`, `POST /v1/match/abort`, `POST /v1/disconnected/{slot}/takeover`, and `POST /v1/disconnected/{slot}/wait-indefinitely`. They cannot start games or bypass player deck/ready requirements. An indefinite reconnect timeout still does not keep an entirely abandoned room alive; if every human disconnects, the normal room reset policy applies.
 
 Every connected player must choose a legal deck and ready up. With at least two ready players, the server starts a countdown. Joins, departures, and lobby changes cancel it. Teams, dev mode, spectators, joining an active match, and replacing a human or disconnected seat with a configured AI are not supported. Planechase requires Planes, Vanguard requires an Avatar, and Archenemy requires the nominated player's Schemes. A reconnect must use exactly the prior display name during the grace period. After the grace period, AI controls the vacated seat for the remainder of the match, including later games. If all humans disconnect, the room resets after the final grace period. Connected players keep their decks after returning to the lobby but must ready again; vacated seats are cleared.
 

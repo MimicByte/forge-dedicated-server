@@ -211,6 +211,14 @@ public class DedicatedNetworkTest {
             }
         });
     }
+    @Test public void administrativeActionsValidateRequests() throws Exception {
+        Assert.assertEquals(controller.announce(" ").code(), "invalid_message");
+        Assert.assertTrue(controller.announce("Maintenance reminder").success());
+        Assert.assertEquals(controller.takeOverDisconnectedPlayer(1).code(), "not_disconnected");
+        Assert.assertEquals(controller.waitIndefinitelyForDisconnectedPlayer(1).code(), "not_disconnected");
+        Assert.assertTrue(controller.abortByAdministrator().success());
+        await(() -> controller.state() == DedicatedLobbyController.State.WAITING);
+    }
     /**
      * Release-candidate smoke test. It needs independently launched desktop
      * Forge clients: the in-process fixture intentionally shares the EDT and

@@ -58,6 +58,8 @@ public final class DedicatedServerMain {
             preferences.setPref(FPref.MATCH_AI_SIDEBOARDING_MODE, "AI");
             FModel.getNetPreferences().setPref(ForgeNetPreferences.FNetPref.UPnP, "NEVER");
             FModel.getNetPreferences().setPref(ForgeNetPreferences.FNetPref.NET_BANDWIDTH_LOGGING, false);
+            FModel.getNetPreferences().setPref(ForgeNetPreferences.FNetPref.NET_AFK_TIMEOUT,
+                    Integer.toString(config.afkTimeoutMinutes()));
             return null;
         });
         System.out.println("[server] Forge " + BuildInfo.getVersionString() + " upstream=" + UPSTREAM + " packaging=1");
