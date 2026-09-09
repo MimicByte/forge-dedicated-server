@@ -102,8 +102,8 @@ jobs:
           SNAPSHOT_TAG: dedicated-daily-snapshot
         run: |
           if [ -z "$FORGE_RELEASE_TOKEN" ]; then
-            echo '::error::Set the FORGE_RELEASE_TOKEN repository secret with permission to update workflow-containing refs.'
-            exit 1
+            echo '::warning::Skipping the rolling GitHub release: set FORGE_RELEASE_TOKEN with permission to update workflow-containing refs.'
+            exit 0
           fi
           git remote set-url origin "https://x-access-token:${FORGE_RELEASE_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git tag --force "$SNAPSHOT_TAG" "$GITHUB_SHA"
