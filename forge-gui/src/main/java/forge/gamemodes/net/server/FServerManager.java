@@ -237,6 +237,14 @@ public final class FServerManager implements IHasForgeLog {
         return null;
     }
 
+    /** Disconnects a currently connected dedicated-server player by zero-based lobby slot. */
+    public boolean disconnectDedicatedPlayer(int slotIndex) {
+        RemoteClient client = getClientBySlotIndex(slotIndex);
+        if (client == null || !client.isConnected()) { return false; }
+        client.close();
+        return true;
+    }
+
     /**
      * Send an event to the given slot. If the slot is a remote client, sends
      * the NetEvent over the wire; otherwise dispatches it to the local lobby

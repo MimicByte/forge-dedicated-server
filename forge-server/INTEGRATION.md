@@ -108,7 +108,7 @@ Example status response:
 `disconnected[].slot` is one-based. A `reconnectSecondsRemaining` value of `null` means automatic AI takeover was disabled for that player. `GET /v1/slots` returns this shape:
 
 ```json
-{"slots":[{"slot":1,"type":"REMOTE","name":"Bob"},{"slot":2,"type":"AI","name":"AI Atraxa","deck":"commander:example","profile":"Default","simulation":"NONE"}]}
+{"slots":[{"slot":1,"type":"REMOTE","name":"Bob","team":1},{"slot":2,"type":"AI","name":"AI Atraxa","deck":"commander:example","profile":"Default","simulation":"NONE","team":1}]}
 ```
 
 ### Lobby and AI endpoints
@@ -124,10 +124,10 @@ Changing settings clears readiness. The base mode cannot change while configured
 `PUT /v1/slots/{slot}/ai` adds or replaces a configured AI in an open seat. `{slot}` is one-based. Its body contains exactly:
 
 ```json
-{"name":"AI Atraxa","deck":"commander:deck-id","profile":"Default","simulation":"NONE"}
+{"name":"AI Atraxa","deck":"commander:deck-id","profile":"Default","simulation":"NONE","team":1}
 ```
 
-Use IDs returned by `GET /v1/ai/decks` and a profile returned by `GET /v1/ai/profiles`. `simulation` is `NONE`, `HYBRID`, or `FULL`. AI seat changes work only in `WAITING`, cannot replace a human or disconnected player, and are presently available only for Commander and Constructed. Remove an AI seat with `DELETE /v1/slots/{slot}/ai`.
+Use IDs returned by `GET /v1/ai/decks` and a profile returned by `GET /v1/ai/profiles`. `simulation` is `NONE`, `HYBRID`, or `FULL`. `team` is a one-based seat number; use a human player's slot number to put an AI on that player's team. AI seat changes work only in `WAITING`, cannot replace a human or disconnected player, and are presently available only for Commander and Constructed. Remove an AI seat with `DELETE /v1/slots/{slot}/ai`.
 
 ### Moderation endpoints
 
@@ -135,6 +135,7 @@ Use IDs returned by `GET /v1/ai/decks` and a profile returned by `GET /v1/ai/pro
 |---|---|
 | `POST /v1/messages` | Broadcast a server-labelled message. Body: `{"message":"text"}`; message length is 1–500 characters. |
 | `POST /v1/match/abort` | End a current game as a draw and return the room to the lobby. A waiting room is reset harmlessly. |
+| `POST /v1/slots/{slot}/kick` | Disconnect the connected player in the one-based slot and free the seat. Available only while the room is waiting; the player cannot use the reconnect grace period. |
 | `POST /v1/disconnected/{slot}/takeover` | Immediately replace the disconnected player in the one-based slot with AI. |
 | `POST /v1/disconnected/{slot}/wait-indefinitely` | Disable automatic AI takeover for that disconnected player while other humans remain. |
 
@@ -152,7 +153,7 @@ Use container lifecycle controls to create, stop, and remove rooms. The manageme
 
 Unhandled server failures write timestamped text reports under `/config/crash-reports`. They include build information, safe room configuration, thread name, and stack trace; secrets, allow-list names, and game state are excluded. Heap dumps are off by default and should be enabled only for memory diagnosis.
 
-The image intentionally does not support teams, dev mode, spectators, joining an active match, Draft/Sealed/Limited event hosting, a local host player, or arbitrary host chat commands. Planechase requires Planes, Vanguard requires an Avatar, and Archenemy requires one nominated player with Schemes.
+The image does not support changing connected human-player teams, dev mode, spectators, joining an active match, Draft/Sealed/Limited event hosting, a local host player, or arbitrary host chat commands. AI seats can join a human player's team through their configured `team`. Planechase requires Planes, Vanguard requires an Avatar, and Archenemy requires one nominated player with Schemes.
 
 ## Validation reference
 

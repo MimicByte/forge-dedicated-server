@@ -39,6 +39,11 @@ final class DedicatedServerSession implements IHasForgeLog {
     void handleDisconnect(RemoteClient client) {
         SwingUtilities.invokeLater(() -> {
             if (!client.hasValidSlot() || server.isDedicatedShuttingDown()) { return; }
+            if (policy.wasKicked(client)) {
+                server.getLocalLobby().disconnectPlayer(client.getIndex());
+                policy.connectionsChanged();
+                return;
+            }
             if (!policy.acceptsLobbyChanges()) {
                 server.pauseRemoteClientGuiGame(client);
                 server.parkDisconnectedClient(client);

@@ -30,6 +30,7 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
     private int lastCountdownAnnouncement;
     private long emptyDeadline;
     private final Map<RemoteClient, Long> disconnected = new HashMap<>();
+    private final Set<RemoteClient> kicked = new HashSet<>();
     private final Map<Integer, AiSlotConfiguration> aiSlots = new HashMap<>();
     private volatile HostedMatch current;
     private boolean updateQueued;
@@ -46,8 +47,8 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
     public ServerConfig.LobbyRules rules() { return rules; }
     public int connectedPlayerCount() { return server.connectedPlayers().size(); }
     public int seatCapacity() { return lobby.getNumberOfSlots(); }
-    public record AiSlotConfiguration(int slot, String name, String deckId, String profile, String simulation) { }
-    public record AiSlotView(int slot, String type, String name, String deckId, String profile, String simulation) { }
+    public record AiSlotConfiguration(int slot, String name, String deckId, String profile, String simulation, int team) { }
+    public record AiSlotView(int slot, String type, String name, String deckId, String profile, String simulation, int team) { }
     public record DisconnectedPlayerView(int slot, String name, Long reconnectSecondsRemaining) { }
     public record AiResult(boolean success, String code, String message) {
         static AiResult ok() { return new AiResult(true, "ok", ""); }
@@ -118,6 +119,7 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
         }
     }
     @Override public void reconnected(RemoteClient client) { disconnected.remove(client); emptyDeadline = 0; }
+    @Override public boolean wasKicked(RemoteClient client) { return kicked.remove(client); }
 
     public void attachMatch(HostedMatch match) {
         current = match;
@@ -312,6 +314,24 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
         });
     }
 
+    /** Disconnects a player from a stable lobby without allowing a reconnect grace period. */
+    public ActionResult kickPlayer(int oneBasedSlot) {
+        return callOnEdt(() -> {
+            if (state != State.WAITING) { return ActionResult.failure("lobby_not_waiting", "Players may only be kicked while the lobby is waiting."); }
+            int index = oneBasedSlot - 1;
+            if (index < 0 || index >= lobby.getNumberOfSlots()) { return ActionResult.failure("invalid_slot", "Slot is outside this lobby."); }
+            RemoteClient client = server.getClientBySlotIndex(index);
+            if (client == null || !client.isConnected()) { return ActionResult.failure("not_connected", "No connected player occupies that slot."); }
+            kicked.add(client);
+            say("Server: " + client.getUsername() + " was removed from the lobby.");
+            if (!server.disconnectDedicatedPlayer(index)) {
+                kicked.remove(client);
+                return ActionResult.failure("not_connected", "No connected player occupies that slot.");
+            }
+            return ActionResult.ok();
+        });
+    }
+
     private void takeOverDisconnectedPlayer(RemoteClient client, String message) {
         disconnected.remove(client);
         server.forgetDisconnected(client);
@@ -368,7 +388,7 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
                 AiSlotConfiguration ai = aiSlots.get(index);
                 views.add(new AiSlotView(index + 1, slot.getType().name(), slot.getName(),
                         ai == null ? null : ai.deckId(), ai == null ? null : ai.profile(),
-                        ai == null ? null : ai.simulation()));
+                        ai == null ? null : ai.simulation(), slot.getTeam() + 1));
             }
             return views;
         });
@@ -409,6 +429,9 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
         if (configuration.name() == null || configuration.name().isBlank() || configuration.name().length() > 30) {
             return AiResult.failure("invalid_name", "AI name must be 1 to 30 characters.");
         }
+        if (configuration.team() < 1 || configuration.team() > lobby.getNumberOfSlots()) {
+            return AiResult.failure("invalid_team", "team must be a one-based lobby slot number.");
+        }
         for (int other = 0; other < lobby.getNumberOfSlots(); other++) {
             LobbySlot otherSlot = lobby.getSlot(other);
             if (other != index && otherSlot.getType() != LobbySlotType.OPEN
@@ -428,7 +451,7 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
         slot.setName(configuration.name().trim());
         slot.setAvatarIndex(0);
         slot.setSleeveIndex(0);
-        slot.setTeam(index);
+        slot.setTeam(configuration.team() - 1);
         slot.setIsArchenemy(false);
         slot.setIsReady(false);
         slot.setAiOptions(options);

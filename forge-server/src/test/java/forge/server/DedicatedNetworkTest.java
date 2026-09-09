@@ -118,7 +118,8 @@ public class DedicatedNetworkTest {
             Assert.assertEquals(lobby.getSlot(0).getType(), LobbySlotType.OPEN);
             Assert.assertNull(lobby.getSlot(0).getDeck());
         });
-        b.close().sync();
+        Assert.assertTrue(controller.kickPlayer(2).success());
+        await(() -> !b.isActive() && server.connectedPlayers().isEmpty() && lobby.getSlot(1).getType() == LobbySlotType.OPEN);
         await(() -> server.connectedPlayers().isEmpty());
     }
     @Test public void validatesSpecialVariantRequirements() throws Exception {
@@ -165,16 +166,19 @@ public class DedicatedNetworkTest {
         List<String> profiles = controller.availableAiProfiles();
         Assert.assertFalse(profiles.isEmpty(), "Forge should load at least its default AI profile");
         DedicatedLobbyController.AiSlotConfiguration configuration = new DedicatedLobbyController.AiSlotConfiguration(
-                3, "AI Test", decks.get(0).id(), profiles.get(0), "HYBRID");
+                3, "AI Test", decks.get(0).id(), profiles.get(0), "HYBRID", 1);
 
         Assert.assertTrue(controller.updateAiSlot(configuration).success());
         SwingUtilities.invokeAndWait(() -> {
             Assert.assertEquals(lobby.getSlot(2).getType(), LobbySlotType.AI);
             Assert.assertEquals(lobby.getSlot(2).getName(), "AI Test");
             Assert.assertNotNull(lobby.getSlot(2).getDeck());
+            Assert.assertEquals(lobby.getSlot(2).getTeam(), 0);
         });
         Assert.assertEquals(controller.updateAiSlot(new DedicatedLobbyController.AiSlotConfiguration(
-                4, "AI Test", decks.get(0).id(), profiles.get(0), "NONE")).code(), "duplicate_name");
+                4, "AI Test", decks.get(0).id(), profiles.get(0), "NONE", 1)).code(), "duplicate_name");
+        Assert.assertEquals(controller.updateAiSlot(new DedicatedLobbyController.AiSlotConfiguration(
+                4, "AI Other", decks.get(0).id(), profiles.get(0), "NONE", 5)).code(), "invalid_team");
         Assert.assertFalse(controller.updateRules(new ServerConfig.LobbyRules(ServerConfig.Mode.CONSTRUCTED,
                 Set.of(), 3, 5, true)), "Changing modes must require removing persistent AI seats first");
 

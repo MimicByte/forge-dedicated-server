@@ -12,4 +12,5 @@ public interface DedicatedServerPolicy {
     void connectionsChanged();
     void disconnected(RemoteClient client);
     void reconnected(RemoteClient client);
+    boolean wasKicked(RemoteClient client);
 }
