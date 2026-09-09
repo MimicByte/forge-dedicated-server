@@ -141,10 +141,13 @@ jobs:
             git push origin "refs/tags/$RELEASE_TAG"
           fi
 
-          notes="Dedicated server build based on Card-Forge/forge release $UPSTREAM_RELEASE_TAG.
+          notes=$(cat <<EOF
+          Dedicated server build based on Card-Forge/forge release $UPSTREAM_RELEASE_TAG.
 
-Upstream commit: $UPSTREAM_COMMIT
-Dedicated-server commit: $DEDICATED_COMMIT"
+          Upstream commit: $UPSTREAM_COMMIT
+          Dedicated-server commit: $DEDICATED_COMMIT
+          EOF
+          )
           gh release create "$RELEASE_TAG" forge-server/target/forge-server-bin.tar.gz \
             --title "Dedicated server for $UPSTREAM_RELEASE_TAG" \
             --notes "$notes"
