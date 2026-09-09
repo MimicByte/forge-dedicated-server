@@ -1,9 +1,8 @@
 name: Sync upstream snapshot
 
-# This workflow is maintained on master and mirrored to dedicated-server.
-# dedicated-server intentionally remains the repository's default branch, so
-# GitHub evaluates its copy for scheduled runs; the job explicitly updates
-# master first, then merges master into dedicated-server.
+# This workflow belongs only on dedicated-server, the repository's default
+# branch. It fast-forwards the clean upstream mirror (master), then merges that
+# mirror into dedicated-server. Do not add fork-specific commits to master.
 on:
   schedule:
     - cron: '30 8 * * *'
@@ -25,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: master
+          ref: dedicated-server
           fetch-depth: 0
 
       - name: Configure Git
@@ -34,7 +33,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git remote add upstream https://github.com/Card-Forge/forge.git
 
-      - name: Merge the published snapshot into fork branches
+      - name: Fast-forward master and merge it into dedicated-server
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -59,26 +58,34 @@ jobs:
 
           snapshot=$(git rev-parse "$snapshot_ref^{commit}")
           git fetch origin master dedicated-server
+
           git switch master
-          if ! git merge-base --is-ancestor "$snapshot" master; then
-            if ! git merge --no-ff -m "chore: sync upstream snapshot ${snapshot:0:12}" "$snapshot"; then
-              git merge --abort || true
-              report_issue "Fork master could not merge the upstream daily-snapshots revision.\n\nSnapshot: $snapshot\n\nResolve the conflicts locally, then rerun this workflow.\n\nRun: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-              exit 1
-            fi
+          git reset --hard origin/master
+          master=$(git rev-parse master)
+          if [ "$master" = "$snapshot" ]; then
+            echo 'master is already at the upstream snapshot.'
+          elif git merge-base --is-ancestor "$master" "$snapshot"; then
+            git merge --ff-only "$snapshot"
+          else
+            report_issue "Fork master is not a clean ancestor of the upstream daily-snapshots revision.\n\nFork master: $master\nSnapshot: $snapshot\n\nRestore master to an upstream snapshot before rerunning this workflow.\n\nRun: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            exit 1
           fi
 
           git switch dedicated-server
+          git reset --hard origin/dedicated-server
+          dedicated_updated=false
           if ! git merge-base --is-ancestor master dedicated-server; then
             if ! git merge --no-ff -m "chore: sync dedicated server with upstream snapshot ${snapshot:0:12}" master; then
               git merge --abort || true
               report_issue "The dedicated-server branch could not merge the updated fork master.\n\nBase snapshot: $snapshot\n\nResolve the conflicts locally, then rerun this workflow.\n\nRun: $GITHUB_SERVER_URL/$GITHUB_RUN_ID"
               exit 1
             fi
+            dedicated_updated=true
           fi
 
           git push origin master dedicated-server
-          # Pushes made with GITHUB_TOKEN do not start another workflow. Run
-          # the dedicated publisher explicitly so the rolling release and
-          # GHCR retention stay aligned with the synchronized branch.
-          gh workflow run dedicated-ci.yml --repo "$GITHUB_REPOSITORY" --ref dedicated-server
+          # Pushes made with GITHUB_TOKEN do not start another workflow. Only
+          # publish when the dedicated branch actually advanced.
+          if [ "$dedicated_updated" = true ]; then
+            gh workflow run dedicated-ci.yml --repo "$GITHUB_REPOSITORY" --ref dedicated-server
+          fi
