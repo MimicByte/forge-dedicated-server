@@ -120,6 +120,4 @@ mvn -B -ntp -Pdedicated -pl forge-server -am \
 
 Extract `forge-server/target/forge-server-bin.tar.gz` and run `bin/forge-server` for a local distribution. `bin/forge-server health` checks dispatcher heartbeat freshness without opening a game connection. The daily sync workflow merges upstream snapshots into the fork without rewriting contributor commits, then publishes the rolling `dedicated-daily-snapshot` release and the `latest` container image.
 
-To update the rolling GitHub release tag, configure the repository secret `FORGE_RELEASE_TOKEN` with permission to create or update refs containing workflow changes. Without it, synchronization and image publishing still succeed, but the rolling GitHub release is skipped with a workflow warning.
-
 Before a release, test a two-player Constructed game; two-, four-, and eight-player rooms; each supported base format and variant combination; reconnect; AI takeover; Continue, New Match, QUIT, and postgame timeout decisions; return to the lobby for another match; full-room recovery after disconnection; and SIGTERM while waiting, counting down, playing, and waiting for reconnect. Health checks show that the room dispatcher is alive; they do not prove every card interaction. Keep the tested client version, server image ID, upstream revision, and logs with the release record.
