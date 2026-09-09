@@ -40,6 +40,16 @@ public abstract class GameProtocolHandler<T> extends ChannelInboundHandlerAdapte
         return runInEdt;
     }
 
+    /**
+     * Dispatch lightweight state updates on the channel event loop when their
+     * wire order is significant. The default background dispatch is retained
+     * for interactive protocol calls, which may block while awaiting game
+     * input.
+     */
+    protected boolean shouldDispatchOnChannelEventLoop(final ProtocolMethod protocolMethod) {
+        return false;
+    }
+
     @Override
     public final void channelRead(final ChannelHandlerContext ctx, final Object msg) {
         final String[] catchedError = {""};
@@ -126,7 +136,11 @@ public abstract class GameProtocolHandler<T> extends ChannelInboundHandlerAdapte
                 }
             };
 
-            if (shouldDispatchToGuiThread(protocolMethod)) {
+            if (shouldDispatchOnChannelEventLoop(protocolMethod)) {
+                // Queue instead of invoking inline: this keeps the event loop
+                // responsive while preserving the inbound order for this channel.
+                ctx.executor().execute(toRun);
+            } else if (shouldDispatchToGuiThread(protocolMethod)) {
                 FThreads.invokeInEdtNowOrLater(toRun);
             } else {
                 FThreads.invokeInBackgroundThread(toRun);
