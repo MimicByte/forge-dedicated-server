@@ -211,6 +211,22 @@ public class DedicatedNetworkTest {
             }
         });
     }
+    @Test public void dedicatedValidationAcceptsConfiguredAiSeats() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            FModel.getPreferences().setPref(FPref.ENFORCE_DECK_LEGALITY, false);
+            try {
+                ServerGameLobby room = new ServerGameLobby(4);
+                for (int i = 0; i < 4; i++) {
+                    room.getSlot(i).setType(i < 2 ? LobbySlotType.REMOTE : LobbySlotType.AI);
+                    room.getSlot(i).setName("Player " + i);
+                    room.getSlot(i).setDeck(new Deck("Dedicated seat " + i));
+                }
+                Assert.assertTrue(room.validateDedicatedStart(forge.game.GameType.Constructed).isEmpty());
+            } finally {
+                FModel.getPreferences().setPref(FPref.ENFORCE_DECK_LEGALITY, true);
+            }
+        });
+    }
     @Test public void administrativeActionsValidateRequests() throws Exception {
         Assert.assertEquals(controller.announce(" ").code(), "invalid_message");
         Assert.assertTrue(controller.announce("Maintenance reminder").success());
