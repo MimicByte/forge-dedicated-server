@@ -67,7 +67,7 @@ public record ServerConfig(int port, int adminPort, String adminToken, int maxPl
                 matchLength(env.getOrDefault("FORGE_SERVER_GAMES_PER_MATCH", "3")),
                 number(env, "COMMANDER_BRACKET", 5, 1, 5), bool(env, "ENFORCE_DECK_LEGALITY", true));
         return new ServerConfig(port, adminPort, token, number(env, "MAX_PLAYERS", 4, 2, 8),
-                number(env, "START_DELAY_SECONDS", 15, 1, 300),
+                number(env, "START_DELAY_SECONDS", 10, 1, 300),
                 number(env, "RECONNECT_SECONDS", 300, 1, 3600),
                 number(env, "POSTGAME_SECONDS", 120, 1, 3600),
                 number(env, "AFK_TIMEOUT", 5, 0, 60), allowedPlayers(env),

@@ -24,7 +24,7 @@ services:
       FORGE_SERVER_GAMES_PER_MATCH: "3"
       FORGE_SERVER_COMMANDER_BRACKET: "5"
       FORGE_SERVER_ENFORCE_DECK_LEGALITY: "true"
-      FORGE_SERVER_START_DELAY_SECONDS: "15"
+      FORGE_SERVER_START_DELAY_SECONDS: "10"
       FORGE_SERVER_RECONNECT_SECONDS: "300"
       FORGE_SERVER_POSTGAME_SECONDS: "120"
       FORGE_SERVER_AFK_TIMEOUT: "5"
@@ -61,7 +61,7 @@ The image removes unused campaign and presentation resources, while retaining ca
 | `FORGE_SERVER_GAMES_PER_MATCH` | 3 | 1, 3, or 5 |
 | `FORGE_SERVER_COMMANDER_BRACKET` | 5 | 1–5 |
 | `FORGE_SERVER_ENFORCE_DECK_LEGALITY` | true | true or false |
-| `FORGE_SERVER_START_DELAY_SECONDS` | 15 | 1–300 |
+| `FORGE_SERVER_START_DELAY_SECONDS` | 10 | 1–300; the final five seconds are announced in the lobby |
 | `FORGE_SERVER_RECONNECT_SECONDS` | 300 | 1–3600 |
 | `FORGE_SERVER_POSTGAME_SECONDS` | 120 | 1–3600 |
 | `FORGE_SERVER_AFK_TIMEOUT` | 5 | Minutes before auto-pass; 0 (off)–60 |

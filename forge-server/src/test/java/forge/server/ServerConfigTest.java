@@ -9,7 +9,7 @@ public class ServerConfigTest {
         ServerConfig c = ServerConfig.from(Map.of());
         Assert.assertEquals(c.mode(), ServerConfig.Mode.COMMANDER);
         Assert.assertEquals(c.maxPlayers(), 4);
-        Assert.assertEquals(c.startDelaySeconds(), 15);
+        Assert.assertEquals(c.startDelaySeconds(), 10);
         Assert.assertEquals(c.reconnectSeconds(), 300);
         Assert.assertEquals(c.afkTimeoutMinutes(), 5);
         Assert.assertEquals(c.rules().gamesPerMatch(), 3);

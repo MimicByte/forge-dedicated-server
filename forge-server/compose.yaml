@@ -20,7 +20,7 @@ services:
       # Set a secret to enable the private API on TCP 8080. Do not publish this port.
       FORGE_SERVER_ADMIN_TOKEN: ""
       FORGE_SERVER_ADMIN_PORT: "8080"
-      FORGE_SERVER_START_DELAY_SECONDS: "15"
+      FORGE_SERVER_START_DELAY_SECONDS: "10"
       FORGE_SERVER_RECONNECT_SECONDS: "300"
       FORGE_SERVER_POSTGAME_SECONDS: "120"
       # Minutes before an inactive player is auto-passed; 0 disables this.

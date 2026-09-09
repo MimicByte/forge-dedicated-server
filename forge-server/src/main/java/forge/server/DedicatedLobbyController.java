@@ -27,6 +27,7 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
     private volatile ServerConfig.LobbyRules rules;
     private volatile State state = State.WAITING;
     private long deadline;
+    private int lastCountdownAnnouncement;
     private long emptyDeadline;
     private final Map<RemoteClient, Long> disconnected = new HashMap<>();
     private final Map<Integer, AiSlotConfiguration> aiSlots = new HashMap<>();
@@ -78,9 +79,11 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
             if (current != null && lobby.getHostedMatch() == null) { reset(); }
             if (!acceptsLobbyChanges()) { return; }
             if (state == State.COUNTDOWN) { say("Start countdown cancelled."); }
+            lastCountdownAnnouncement = 0;
             transition(State.WAITING);
             if (ready()) {
                 deadline = now() + config.startDelaySeconds() * 1000L;
+                lastCountdownAnnouncement = Math.min(5, config.startDelaySeconds()) + 1;
                 transition(State.COUNTDOWN);
                 say("Everyone is ready. Starting in " + config.startDelaySeconds() + " seconds.");
             }
@@ -165,6 +168,13 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
     }
     public void tick() {
         long time = now();
+        if (state == State.COUNTDOWN) {
+            int announcement = nextCountdownAnnouncement(deadline, time, lastCountdownAnnouncement);
+            if (announcement > 0) {
+                say(Integer.toString(announcement));
+                lastCountdownAnnouncement = announcement;
+            }
+        }
         if (state == State.COUNTDOWN && time >= deadline && !updateQueued) {
             if (!ready()) { transition(State.WAITING); return; }
             transition(State.STARTING);
@@ -186,6 +196,14 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
             say("Postgame decision timed out; returning to lobby.");
             current.finishDedicatedMatch();
         }
+    }
+
+    /** Returns the next final-five countdown value to announce, or zero when none is due. */
+    static int nextCountdownAnnouncement(long deadline, long time, int lastAnnouncement) {
+        long millisRemaining = deadline - time;
+        if (millisRemaining <= 0) { return 0; }
+        int secondsRemaining = (int) Math.min(Integer.MAX_VALUE, (millisRemaining + 999L) / 1000L);
+        return secondsRemaining <= 5 && secondsRemaining < lastAnnouncement ? secondsRemaining : 0;
     }
     public void abort(String reason) {
         if (state == State.RESETTING || state == State.STOPPING) { return; }
