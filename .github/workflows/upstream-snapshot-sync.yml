@@ -59,8 +59,7 @@ jobs:
           snapshot=$(git rev-parse "$snapshot_ref^{commit}")
           git fetch origin master dedicated-server
 
-          git switch master
-          git reset --hard origin/master
+          git switch --force-create master origin/master
           master=$(git rev-parse master)
           if [ "$master" = "$snapshot" ]; then
             echo 'master is already at the upstream snapshot.'
@@ -71,8 +70,7 @@ jobs:
             exit 1
           fi
 
-          git switch dedicated-server
-          git reset --hard origin/dedicated-server
+          git switch --force-create dedicated-server origin/dedicated-server
           dedicated_updated=false
           if ! git merge-base --is-ancestor master dedicated-server; then
             if ! git merge --no-ff -m "chore: sync dedicated server with upstream snapshot ${snapshot:0:12}" master; then
