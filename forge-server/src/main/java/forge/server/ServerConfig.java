@@ -4,6 +4,7 @@ import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import forge.MulliganDefs;
 import forge.game.GameType;
 
 /** Immutable startup configuration. Lobby rules may be replaced in memory by the admin API. */
@@ -13,6 +14,7 @@ public record ServerConfig(int port, int adminPort, String adminToken, int maxPl
                            Set<String> allowedPlayers, int loginFailureLimit,
                            int loginFailureWindowSeconds, int loginBlockSeconds,
                            int crashReportMaxFiles,
+                           MulliganDefs.MulliganRule mulliganRule,
                            LobbyRules rules) {
     public enum Mode { CONSTRUCTED, COMMANDER, OATHBREAKER, TINY_LEADERS, BRAWL, MOMIR_BASIC, MOJHOSTO }
     public enum Variant { PLANECHASE, VANGUARD, ARCHENEMY, ARCHENEMY_RUMBLE }
@@ -74,12 +76,21 @@ public record ServerConfig(int port, int adminPort, String adminToken, int maxPl
                 number(env, "LOGIN_FAILURE_LIMIT", 5, 1, 100),
                 number(env, "LOGIN_FAILURE_WINDOW_SECONDS", 60, 1, 3600),
                 number(env, "LOGIN_BLOCK_SECONDS", 900, 1, 86400),
-                number(env, "CRASH_REPORT_MAX_FILES", 10, 1, 100), rules);
+                number(env, "CRASH_REPORT_MAX_FILES", 10, 1, 100), mulliganRule(env), rules);
     }
 
     private static Mode mode(String value) {
         try { return Mode.valueOf(value.trim().toUpperCase(Locale.ROOT)); }
         catch (IllegalArgumentException e) { throw new IllegalArgumentException("FORGE_SERVER_MODE must be one of " + java.util.Arrays.toString(Mode.values())); }
+    }
+
+    private static MulliganDefs.MulliganRule mulliganRule(Map<String, String> env) {
+        String value = env.getOrDefault("FORGE_SERVER_MULLIGAN_RULE", MulliganDefs.getDefaultRule().name());
+        for (MulliganDefs.MulliganRule rule : MulliganDefs.MulliganRule.values()) {
+            if (rule.name().equalsIgnoreCase(value.trim())) { return rule; }
+        }
+        throw new IllegalArgumentException("FORGE_SERVER_MULLIGAN_RULE must be one of "
+                + java.util.Arrays.toString(MulliganDefs.MulliganRule.values()));
     }
 
     private static Set<Variant> variants(Map<String, String> env) {

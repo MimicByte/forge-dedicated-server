@@ -52,6 +52,7 @@ public final class DedicatedServerMain {
             preferences.setPref(FPref.ENFORCE_DECK_LEGALITY, config.rules().enforceDeckLegality());
             preferences.setPref(FPref.UI_MATCHES_PER_GAME, Integer.toString(config.rules().gamesPerMatch()));
             preferences.setPref(FPref.DECKGEN_MAXIMUM_COMMANDER_BRACKET, Integer.toString(config.rules().commanderBracket()));
+            preferences.setPref(FPref.MULLIGAN_RULE, config.mulliganRule().name());
             preferences.setPref(FPref.UI_ENABLE_ONLINE_IMAGE_FETCHER, false);
             preferences.setPref(FPref.UI_ENABLE_SOUNDS, false);
             preferences.setPref(FPref.UI_ENABLE_MUSIC, false);
