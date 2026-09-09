@@ -1,7 +1,8 @@
 name: Sync upstream snapshot
 
-# This workflow is intentionally kept on master. Scheduled workflows run from
-# the repository's default branch, then explicitly update dedicated-server.
+# This workflow is intentionally kept on master, which must remain the
+# repository's default branch. GitHub evaluates scheduled workflows from the
+# default branch; the job then explicitly merges master into dedicated-server.
 on:
   schedule:
     - cron: '30 8 * * *'
