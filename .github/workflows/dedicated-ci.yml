@@ -21,6 +21,8 @@ permissions:
 
 jobs:
   test-and-package:
+    outputs:
+      client_version: ${{ steps.client-version.outputs.value }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -97,6 +99,8 @@ jobs:
           context: .
           file: forge-server/Dockerfile
           push: true
+          build-args: |
+            FORGE_CLIENT_VERSION=${{ needs['test-and-package'].outputs.client_version }}
           tags: |
             ${{ steps.image.outputs.name }}:${{ github.sha }}
             ${{ steps.image.outputs.name }}:latest

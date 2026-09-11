@@ -1,7 +1,10 @@
 FROM maven:3.9.11-eclipse-temurin-17 AS build
 WORKDIR /source
 COPY . .
-RUN mvn -B -ntp -Pdedicated -pl forge-server -am -DskipTests -Dlaunch4j.skip=true package
+ARG FORGE_CLIENT_VERSION
+RUN version_arg='' \
+    && if [ -n "$FORGE_CLIENT_VERSION" ]; then version_arg="-Dforge.client.version=$FORGE_CLIENT_VERSION"; fi \
+    && mvn -B -ntp -Pdedicated -pl forge-server -am -DskipTests -Dlaunch4j.skip=true $version_arg package
 # The server supports networked Forge games, but does not need the desktop
 # campaign assets or presentation files. Keep the full Maven artifact intact;
 # this pruning only affects the runtime image copied below. Localization and
