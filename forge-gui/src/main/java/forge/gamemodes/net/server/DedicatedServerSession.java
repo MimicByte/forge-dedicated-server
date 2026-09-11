@@ -130,23 +130,40 @@ final class DedicatedServerSession implements IHasForgeLog {
     private void updateLobby(RemoteClient client, UpdateLobbyPlayerEvent event) {
         if (client == null || !client.hasValidSlot() || !policy.acceptsLobbyChanges()) { return; }
         event.clearServerOwnedFields();
-        event.setName(null); // Names and teams stay fixed for the connection lifetime.
+        event.setName(null); // Names stay fixed for the connection lifetime.
         ServerGameLobby lobby = server.getLocalLobby();
         LobbySlot slot = lobby.getSlot(client.getIndex());
+        boolean teamChanged = validateTeamChoice(client, lobby, event, slot);
         validateArchenemyChoice(client, lobby, event, slot);
         boolean archenemyChanged = event.getArchenemy() != null && slot.isArchenemy() != event.getArchenemy();
-        boolean deckChanged = event.getDeck() != null || event.getSection() != null
-                || event.getCards() != null || archenemyChanged;
+        boolean lobbyConfigurationChanged = event.getDeck() != null || event.getSection() != null
+                || event.getCards() != null || archenemyChanged || teamChanged;
         lobby.applyToSlot(client.getIndex(), event);
         if (Boolean.FALSE.equals(event.getArchenemy())) {
             for (int i = 0; i < lobby.getNumberOfSlots(); i++) { lobby.getSlot(i).setIsArchenemy(false); }
         }
-        slot.setTeam(client.getIndex());
         slot.setIsDevMode(false);
-        if (deckChanged) { slot.setIsReady(false); }
+        if (lobbyConfigurationChanged) { slot.setIsReady(false); }
         lobby.applyToSlot(client.getIndex(), UpdateLobbyPlayerEvent.isReadyUpdate(slot.isReady()));
         server.updateLobbyState();
         policy.connectionsChanged();
+    }
+
+    /** A remote player may select only their own valid team while the lobby is waiting. */
+    private boolean validateTeamChoice(RemoteClient client, ServerGameLobby lobby,
+            UpdateLobbyPlayerEvent event, LobbySlot slot) {
+        int team = event.getTeam();
+        if (team == -1) { return false; }
+        if (lobby.hasVariant(GameType.Archenemy)) {
+            event.setTeam(-1); // Archenemy derives teams from the nominated Archenemy seat.
+            return false;
+        }
+        if (team < 0 || team >= lobby.getNumberOfSlots()) {
+            event.setTeam(-1);
+            client.send(MessageEvent.warning("Team selection is outside this lobby."));
+            return false;
+        }
+        return team != slot.getTeam();
     }
 
     private void validateArchenemyChoice(RemoteClient client, ServerGameLobby lobby,

@@ -121,6 +121,14 @@ Example status response:
 
 Changing settings clears readiness. The base mode cannot change while configured AI seats exist.
 
+`PUT /v1/slots/{slot}/team` changes the team of an occupied human or AI seat while the room is waiting. `{slot}` and its `team` value are both one-based seat numbers:
+
+```json
+{"team":2}
+```
+
+The change clears that seat's Ready state. Open seats are rejected. Archenemy teams are derived from the nominated Archenemy seat and cannot be changed through this endpoint. When used for an AI seat, the selected team persists after the room resets.
+
 `PUT /v1/slots/{slot}/ai` adds or replaces a configured AI in an open seat. `{slot}` is one-based. Its body contains exactly:
 
 ```json
@@ -153,7 +161,7 @@ Use container lifecycle controls to create, stop, and remove rooms. The manageme
 
 Unhandled server failures write timestamped text reports under `/config/crash-reports`. They include build information, safe room configuration, thread name, and stack trace; secrets, allow-list names, and game state are excluded. Heap dumps are off by default and should be enabled only for memory diagnosis.
 
-The image does not support changing connected human-player teams, dev mode, spectators, joining an active match, Draft/Sealed/Limited event hosting, a local host player, or arbitrary host chat commands. AI seats can join a human player's team through their configured `team`. Planechase requires Planes, Vanguard requires an Avatar, and Archenemy requires one nominated player with Schemes.
+The image does not support dev mode, spectators, joining an active match, Draft/Sealed/Limited event hosting, a local host player, or arbitrary host chat commands. Connected players may choose their own teams while waiting; the private API can manage any occupied seat's team. Planechase requires Planes, Vanguard requires an Avatar, and Archenemy requires one nominated player with Schemes.
 
 ## Validation reference
 

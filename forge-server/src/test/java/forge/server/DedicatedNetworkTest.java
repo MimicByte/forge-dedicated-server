@@ -109,6 +109,15 @@ public class DedicatedNetworkTest {
         await(() -> server.connectedPlayers().size() == 2);
         a.writeAndFlush(UpdateLobbyPlayerEvent.isReadyUpdate(true)).sync();
         await(() -> lobby.getSlot(0).isReady());
+        a.writeAndFlush(UpdateLobbyPlayerEvent.teamUpdate(1)).sync();
+        await(() -> lobby.getSlot(0).getTeam() == 1 && !lobby.getSlot(0).isReady());
+        b.writeAndFlush(UpdateLobbyPlayerEvent.teamUpdate(0)).sync();
+        await(() -> lobby.getSlot(0).getTeam() == 1 && lobby.getSlot(1).getTeam() == 0);
+        a.writeAndFlush(UpdateLobbyPlayerEvent.teamUpdate(4)).sync();
+        await(() -> lobby.getSlot(0).getTeam() == 1);
+        Assert.assertTrue(controller.updateSlotTeam(1, 1).success());
+        await(() -> lobby.getSlot(0).getTeam() == 0);
+        Assert.assertEquals(controller.updateSlotTeam(1, 5).code(), "invalid_team");
         a.writeAndFlush(UpdateLobbyPlayerEvent.deckUpdate(new Deck("Invalid test deck"))).sync();
         await(() -> lobby.getSlot(0).getDeck() != null && !lobby.getSlot(0).isReady());
         SwingUtilities.invokeAndWait(() -> Assert.assertFalse(lobby.validateDedicatedStart(forge.game.GameType.Commander).isEmpty()));
@@ -175,6 +184,8 @@ public class DedicatedNetworkTest {
             Assert.assertNotNull(lobby.getSlot(2).getDeck());
             Assert.assertEquals(lobby.getSlot(2).getTeam(), 0);
         });
+        Assert.assertTrue(controller.updateSlotTeam(3, 2).success());
+        SwingUtilities.invokeAndWait(() -> Assert.assertEquals(lobby.getSlot(2).getTeam(), 1));
         Assert.assertEquals(controller.updateAiSlot(new DedicatedLobbyController.AiSlotConfiguration(
                 4, "AI Test", decks.get(0).id(), profiles.get(0), "NONE", 1)).code(), "duplicate_name");
         Assert.assertEquals(controller.updateAiSlot(new DedicatedLobbyController.AiSlotConfiguration(
@@ -183,7 +194,10 @@ public class DedicatedNetworkTest {
                 Set.of(), 3, 5, true)), "Changing modes must require removing persistent AI seats first");
 
         SwingUtilities.invokeAndWait(() -> controller.abort("AI reset test"));
-        SwingUtilities.invokeAndWait(() -> Assert.assertEquals(lobby.getSlot(2).getType(), LobbySlotType.AI));
+        SwingUtilities.invokeAndWait(() -> {
+            Assert.assertEquals(lobby.getSlot(2).getType(), LobbySlotType.AI);
+            Assert.assertEquals(lobby.getSlot(2).getTeam(), 1);
+        });
         Assert.assertTrue(controller.removeAiSlot(3).success());
         SwingUtilities.invokeAndWait(() -> Assert.assertEquals(lobby.getSlot(2).getType(), LobbySlotType.OPEN));
     }

@@ -34,6 +34,7 @@ public final class DedicatedAdminServer {
         private static final int MAX_BODY_BYTES = 16 * 1024;
         private static final Pattern MEMBER = Pattern.compile("\\\"([A-Za-z][A-Za-z0-9]*)\\\"\\s*:\\s*(\\\"[^\\\"\\\\]*\\\"|true|false|-?[0-9]+)");
         private static final Pattern AI_SLOT_PATH = Pattern.compile("/slots/(\\d+)/ai");
+        private static final Pattern TEAM_SLOT_PATH = Pattern.compile("/slots/(\\d+)/team");
         private static final Pattern KICK_PATH = Pattern.compile("/slots/(\\d+)/kick");
         private static final Pattern DISCONNECTED_ACTION_PATH = Pattern.compile("/disconnected/(\\d+)/(takeover|wait-indefinitely)");
         private final byte[] token;
@@ -62,12 +63,17 @@ public final class DedicatedAdminServer {
                 updateRules(request, response);
                 return;
             }
-            Matcher path = AI_SLOT_PATH.matcher(request.getPathInfo());
-            if (!path.matches()) {
-                error(response, HttpServletResponse.SC_NOT_FOUND, "not_found", "Unknown endpoint");
+            Matcher aiPath = AI_SLOT_PATH.matcher(request.getPathInfo());
+            if (aiPath.matches()) {
+                updateAiSlot(Integer.parseInt(aiPath.group(1)), request, response);
                 return;
             }
-            updateAiSlot(Integer.parseInt(path.group(1)), request, response);
+            Matcher teamPath = TEAM_SLOT_PATH.matcher(request.getPathInfo());
+            if (teamPath.matches()) {
+                updateSlotTeam(Integer.parseInt(teamPath.group(1)), request, response);
+                return;
+            }
+            error(response, HttpServletResponse.SC_NOT_FOUND, "not_found", "Unknown endpoint");
         }
 
         @Override protected void doDelete(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -140,6 +146,15 @@ public final class DedicatedAdminServer {
                         string(values, "simulation").toUpperCase(java.util.Locale.ROOT), integer(values, "team"));
             } catch (IllegalArgumentException e) { error(response, 422, "invalid_ai", e.getMessage()); return; }
             writeAiResult(response, controller.updateAiSlot(configuration));
+        }
+
+        private void updateSlotTeam(int slot, HttpServletRequest request, HttpServletResponse response) throws IOException {
+            final int team;
+            try {
+                Map<String, String> values = parseObject(readBody(request), 1);
+                team = integer(values, "team");
+            } catch (IllegalArgumentException e) { error(response, 422, "invalid_team", e.getMessage()); return; }
+            writeActionResult(response, controller.updateSlotTeam(slot, team));
         }
 
         private static void writeAiResult(HttpServletResponse response, DedicatedLobbyController.AiResult result) throws IOException {
@@ -243,12 +258,12 @@ public final class DedicatedAdminServer {
                 DedicatedLobbyController.AiSlotView slot = slots.get(i);
                 if (i > 0) { json.append(','); }
                 json.append("{\"slot\":").append(slot.slot()).append(",\"type\":\"").append(slot.type())
-                        .append("\",\"name\":").append(jsonString(slot.name()));
+                        .append("\",\"name\":").append(jsonString(slot.name()))
+                        .append(",\"team\":").append(slot.team());
                 if (slot.deckId() != null) {
                     json.append(",\"deck\":").append(jsonString(slot.deckId()))
                             .append(",\"profile\":").append(jsonString(slot.profile()))
-                            .append(",\"simulation\":").append(jsonString(slot.simulation()))
-                            .append(",\"team\":").append(slot.team());
+                            .append(",\"simulation\":").append(jsonString(slot.simulation()));
                 }
                 json.append('}');
             }

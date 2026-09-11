@@ -96,14 +96,16 @@ The API can add AI opponents while the lobby is waiting. AI seats persist after 
 curl -X PUT http://localhost:8080/v1/slots/3/ai \
   -H 'Authorization: Bearer your-token' \
   -H 'Content-Type: application/json' \
-  -d '{"name":"AI Atraxa","deck":"commander:Veloci-Ramp-Tor [LCC] [2023]","profile":"Default","simulation":"NONE"}'
+  -d '{"name":"AI Atraxa","deck":"commander:Veloci-Ramp-Tor [LCC] [2023]","profile":"Default","simulation":"NONE","team":1}'
 ```
 
 `simulation` is `NONE`, `HYBRID`, or `FULL`; remove an AI with `DELETE /v1/slots/3/ai`. Commander uses official Commander precons and Constructed uses Forge general precons. Other modes do not currently expose AI seats because no matching bundled catalog exists. Settings updates clear player readiness and are memory-only; restart the container to restore environment values.
 
+While the lobby is waiting, the same private API can set an occupied human or AI seat's team with `PUT /v1/slots/{slot}/team` and `{"team":2}`. Both numbers are one-based seat numbers; the change clears that seat's Ready state. Archenemy teams are derived from the nominated Archenemy seat and cannot be set manually.
+
 The private moderation endpoints are `POST /v1/messages` with `{"message":"text"}`, `POST /v1/match/abort`, `POST /v1/disconnected/{slot}/takeover`, and `POST /v1/disconnected/{slot}/wait-indefinitely`. They cannot start games or bypass player deck/ready requirements. An indefinite reconnect timeout still does not keep an entirely abandoned room alive; if every human disconnects, the normal room reset policy applies.
 
-Every connected player must choose a legal deck and ready up. With at least two ready players, the server starts a countdown. Joins, departures, and lobby changes cancel it. Teams, dev mode, spectators, joining an active match, and replacing a human or disconnected seat with a configured AI are not supported. Planechase requires Planes, Vanguard requires an Avatar, and Archenemy requires the nominated player's Schemes. A reconnect must use exactly the prior display name during the grace period. After the grace period, AI controls the vacated seat for the remainder of the match, including later games. If all humans disconnect, the room resets after the final grace period. Connected players keep their decks after returning to the lobby but must ready again; vacated seats are cleared.
+Every connected player must choose a legal deck and ready up. With at least two ready players, the server starts a countdown. Joins, departures, and lobby changes cancel it. Players can choose their own teams while waiting, and the private API can manage any occupied seat's team. Dev mode, spectators, joining an active match, and replacing a human or disconnected seat with a configured AI are not supported. Planechase requires Planes, Vanguard requires an Avatar, and Archenemy requires the nominated player's Schemes. A reconnect must use exactly the prior display name during the grace period. After the grace period, AI controls the vacated seat for the remainder of the match, including later games. If all humans disconnect, the room resets after the final grace period. Connected players keep their decks after returning to the lobby but must ready again; vacated seats are cleared.
 
 ## Crash reports, builds, and validation
 

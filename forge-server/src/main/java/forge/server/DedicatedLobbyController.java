@@ -396,6 +396,39 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
 
     public boolean hasAiSlots() { return callOnEdt(() -> !aiSlots.isEmpty()); }
 
+    /** Changes an occupied seat's one-based team through the private management API. */
+    public ActionResult updateSlotTeam(int oneBasedSlot, int oneBasedTeam) {
+        return callOnEdt(() -> {
+            if (state != State.WAITING) {
+                return ActionResult.failure("lobby_not_waiting", "Teams may only change while the lobby is waiting.");
+            }
+            int slotIndex = oneBasedSlot - 1;
+            if (slotIndex < 0 || slotIndex >= lobby.getNumberOfSlots()) {
+                return ActionResult.failure("invalid_slot", "Slot is outside this lobby.");
+            }
+            if (oneBasedTeam < 1 || oneBasedTeam > lobby.getNumberOfSlots()) {
+                return ActionResult.failure("invalid_team", "team must be a one-based lobby slot number.");
+            }
+            if (lobby.hasVariant(GameType.Archenemy)) {
+                return ActionResult.failure("derived_team", "Archenemy teams are derived from the nominated Archenemy seat.");
+            }
+            LobbySlot slot = lobby.getSlot(slotIndex);
+            if (slot.getType() == LobbySlotType.OPEN) {
+                return ActionResult.failure("slot_open", "An open seat has no team to change.");
+            }
+            slot.setTeam(oneBasedTeam - 1);
+            slot.setIsReady(false);
+            AiSlotConfiguration ai = aiSlots.get(slotIndex);
+            if (ai != null) {
+                aiSlots.put(slotIndex, new AiSlotConfiguration(ai.slot(), ai.name(), ai.deckId(),
+                        ai.profile(), ai.simulation(), oneBasedTeam));
+            }
+            server.updateLobbyState();
+            lobbyChanged();
+            return ActionResult.ok();
+        });
+    }
+
     /** Adds or replaces an AI only while the room is a stable lobby. */
     public AiResult updateAiSlot(AiSlotConfiguration configuration) {
         return callOnEdt(() -> updateAiSlotOnEdt(configuration));

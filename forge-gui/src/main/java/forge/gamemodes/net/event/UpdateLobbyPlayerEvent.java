@@ -193,6 +193,10 @@ public final class UpdateLobbyPlayerEvent implements NetEvent {
     public void setName(String name) {
         this.name = name;
     }
+    /** Lets the server discard an invalid or inapplicable team selection. */
+    public void setTeam(int team) {
+        this.team = team;
+    }
     public void setArchenemy(Boolean isArchenemy) {
         this.isArchenemy = isArchenemy;
     }
