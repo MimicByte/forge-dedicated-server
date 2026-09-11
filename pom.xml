@@ -31,7 +31,7 @@
         <snapshotName>-SNAPSHOT</snapshotName>
         <!-- revision will be the global version string -->
         <revision>${versionCode}${snapshotName}</revision>
-        <forge.client.version>2.0.15-SNAPSHOT-09.05</forge.client.version>
+        <forge.client.version>${revision}-${dedicated.snapshot.date}</forge.client.version>
     </properties>
 
     <licenses>
@@ -375,12 +375,33 @@
             <modules>
                 <module>forge-server</module>
             </modules>
-            <build><plugins><plugin>
-                <artifactId>maven-jar-plugin</artifactId>
-                <configuration><archive><manifestEntries>
-                    <Implementation-Version>${forge.client.version}</Implementation-Version>
-                </manifestEntries></archive></configuration>
-            </plugin></plugins></build>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <version>3.6.0</version>
+                        <executions>
+                            <execution>
+                                <id>dedicated-snapshot-date</id>
+                                <phase>initialize</phase>
+                                <goals><goal>timestamp-property</goal></goals>
+                                <configuration>
+                                    <name>dedicated.snapshot.date</name>
+                                    <pattern>MM.dd</pattern>
+                                    <timeZone>UTC</timeZone>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <configuration><archive><manifestEntries>
+                            <Implementation-Version>${forge.client.version}</Implementation-Version>
+                        </manifestEntries></archive></configuration>
+                    </plugin>
+                </plugins>
+            </build>
         </profile>
         <!--
           The iOS module is intentionally NOT in the default <modules> reactor.

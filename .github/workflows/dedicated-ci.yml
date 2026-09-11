@@ -28,6 +28,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Resolve compatible snapshot version
+        id: client-version
+        run: |
+          set -euo pipefail
+          git fetch origin master:refs/remotes/origin/master
+          version_code=$(sed -n 's|.*<versionCode>\([^<]*\)</versionCode>.*|\1|p' pom.xml)
+          snapshot_date=$(git show -s --format=%cd --date=format:%m.%d origin/master)
+          test -n "$version_code"
+          echo "value=${version_code}-SNAPSHOT-${snapshot_date}" >> "$GITHUB_OUTPUT"
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -40,11 +50,13 @@ jobs:
           mvn -B -ntp -Pdedicated -pl forge-server -am test
           -Dtest=ServerConfigTest,ReplyPoolTest,DedicatedNetworkTest
           -Dsurefire.failIfNoSpecifiedTests=false
+          -Dforge.client.version=${{ steps.client-version.outputs.value }}
 
       - name: Build dedicated distribution
         run: >-
           mvn -B -ntp -Pdedicated -pl forge-server -am
           -DskipTests -Dlaunch4j.skip=true package
+          -Dforge.client.version=${{ steps.client-version.outputs.value }}
 
       - name: Verify launcher is packaged
         run: test -x forge-server/target/forge-server-bin/bin/forge-server

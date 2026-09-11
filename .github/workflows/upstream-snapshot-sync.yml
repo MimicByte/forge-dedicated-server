@@ -5,7 +5,8 @@ name: Sync upstream snapshot
 # mirror into dedicated-server. Do not add fork-specific commits to master.
 on:
   schedule:
-    - cron: '30 8 * * *'
+    # Upstream creates its snapshot at 18:00 UTC; allow it time to publish the tag.
+    - cron: '30 19 * * *'
   workflow_dispatch:
 
 permissions:
