@@ -24,6 +24,10 @@ services:
       FORGE_SERVER_GAMES_PER_MATCH: "3"
       FORGE_SERVER_COMMANDER_BRACKET: "5"
       FORGE_SERVER_ENFORCE_DECK_LEGALITY: "true"
+      FORGE_SERVER_MANA_BURN: "false"
+      FORGE_SERVER_LEGACY_ORDER_COMBATANTS: "false"
+      FORGE_SERVER_FILTERED_HANDS: "false"
+      FORGE_SERVER_AI_TIMEOUT_SECONDS: "5"
       FORGE_SERVER_START_DELAY_SECONDS: "10"
       FORGE_SERVER_RECONNECT_SECONDS: "300"
       FORGE_SERVER_POSTGAME_SECONDS: "120"
@@ -61,6 +65,10 @@ The image removes unused campaign and presentation resources, while retaining ca
 | `FORGE_SERVER_GAMES_PER_MATCH` | 3 | 1, 3, or 5 |
 | `FORGE_SERVER_COMMANDER_BRACKET` | 5 | 1–5 |
 | `FORGE_SERVER_ENFORCE_DECK_LEGALITY` | true | true or false |
+| `FORGE_SERVER_MANA_BURN` | false | true or false; apply pre-Magic 2010 mana-burn rules |
+| `FORGE_SERVER_LEGACY_ORDER_COMBATANTS` | false | true or false; use legacy combat-damage ordering |
+| `FORGE_SERVER_FILTERED_HANDS` | false | true or false; each player chooses from two opening hands |
+| `FORGE_SERVER_AI_TIMEOUT_SECONDS` | 5 | 1–600 seconds per AI decision |
 | `FORGE_SERVER_START_DELAY_SECONDS` | 10 | 1–300; the final five seconds are announced in the lobby |
 | `FORGE_SERVER_RECONNECT_SECONDS` | 300 | 1–3600 |
 | `FORGE_SERVER_POSTGAME_SECONDS` | 120 | 1–3600 |
@@ -87,7 +95,7 @@ For the complete contract intended for service integrations, see [Dedicated Serv
 `GET /v1/status` reports state, occupancy, and disconnected players with their one-based slot and reconnect deadline. `GET /v1/settings` reports mutable rules. While the lobby is waiting, `PUT /v1/settings` accepts:
 
 ```json
-{"mode":"COMMANDER","variants":"PLANECHASE","gamesPerMatch":3,"commanderBracket":5,"enforceDeckLegality":true}
+{"mode":"COMMANDER","variants":"PLANECHASE","gamesPerMatch":3,"commanderBracket":5,"enforceDeckLegality":true,"manaBurn":false,"legacyOrderCombatants":false,"filteredHands":false,"aiTimeoutSeconds":5}
 ```
 
 The API can add AI opponents while the lobby is waiting. AI seats persist after a match returns to the lobby, but at least two connected human players are still required to start. `GET /v1/ai/decks` lists the bundled deck IDs valid for the current format, `GET /v1/ai/profiles` lists profiles and simulation modes, and `GET /v1/slots` lists one-based seats.

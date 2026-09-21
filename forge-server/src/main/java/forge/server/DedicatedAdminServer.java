@@ -187,9 +187,9 @@ public final class DedicatedAdminServer {
         }
 
         private static ServerConfig.LobbyRules parseRules(String json) {
-            Map<String, String> values = parseObject(json, 5);
-            if (values.size() != 5) {
-                throw new IllegalArgumentException("Provide mode, variants, gamesPerMatch, commanderBracket, and enforceDeckLegality");
+            Map<String, String> values = parseObject(json, 9);
+            if (values.size() != 9) {
+                throw new IllegalArgumentException("Provide mode, variants, gamesPerMatch, commanderBracket, enforceDeckLegality, manaBurn, legacyOrderCombatants, filteredHands, and aiTimeoutSeconds");
             }
             try {
                 ServerConfig.Mode mode = ServerConfig.Mode.valueOf(string(values, "mode").toUpperCase(java.util.Locale.ROOT));
@@ -199,7 +199,9 @@ public final class DedicatedAdminServer {
                     variants.add(ServerConfig.Variant.valueOf(value.trim().toUpperCase(java.util.Locale.ROOT)));
                 }
                 return new ServerConfig.LobbyRules(mode, variants, integer(values, "gamesPerMatch"),
-                        integer(values, "commanderBracket"), bool(values, "enforceDeckLegality"));
+                        integer(values, "commanderBracket"), bool(values, "enforceDeckLegality"),
+                        bool(values, "manaBurn"), bool(values, "legacyOrderCombatants"),
+                        bool(values, "filteredHands"), integer(values, "aiTimeoutSeconds"));
             } catch (IllegalArgumentException e) { throw new IllegalArgumentException(e.getMessage()); }
         }
         private static Map<String, String> parseObject(String json, int expectedMembers) {
@@ -296,7 +298,11 @@ public final class DedicatedAdminServer {
             String variants = rules.variants().stream().map(Enum::name).sorted().reduce((a, b) -> a + "," + b).orElse("");
             return "{\"mode\":\"" + rules.mode() + "\",\"variants\":\"" + variants + "\",\"gamesPerMatch\":"
                     + rules.gamesPerMatch() + ",\"commanderBracket\":" + rules.commanderBracket()
-                    + ",\"enforceDeckLegality\":" + rules.enforceDeckLegality() + "}";
+                    + ",\"enforceDeckLegality\":" + rules.enforceDeckLegality()
+                    + ",\"manaBurn\":" + rules.manaBurn()
+                    + ",\"legacyOrderCombatants\":" + rules.legacyOrderCombatants()
+                    + ",\"filteredHands\":" + rules.filteredHands()
+                    + ",\"aiTimeoutSeconds\":" + rules.aiTimeoutSeconds() + "}";
         }
         private static void error(HttpServletResponse response, int status, String code, String message) throws IOException {
             write(response, status, "{\"error\":\"" + code + "\",\"message\":\"" + message.replace("\"", "'") + "\"}");

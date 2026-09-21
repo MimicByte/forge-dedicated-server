@@ -38,6 +38,10 @@ All configuration is read once from environment variables at container startup. 
 | `FORGE_SERVER_GAMES_PER_MATCH` | `3` | `1`, `3`, or `5` |
 | `FORGE_SERVER_COMMANDER_BRACKET` | `5` | `1`–`5` |
 | `FORGE_SERVER_ENFORCE_DECK_LEGALITY` | `true` | `true` or `false` |
+| `FORGE_SERVER_MANA_BURN` | `false` | `true` or `false`; apply pre-Magic 2010 mana-burn rules |
+| `FORGE_SERVER_LEGACY_ORDER_COMBATANTS` | `false` | `true` or `false`; use legacy combat-damage ordering |
+| `FORGE_SERVER_FILTERED_HANDS` | `false` | `true` or `false`; each player chooses from two opening hands |
+| `FORGE_SERVER_AI_TIMEOUT_SECONDS` | `5` | `1`–`600`; seconds per AI decision |
 | `FORGE_SERVER_MULLIGAN_RULE` | `London` | `Original`, `Paris`, `Vancouver`, `London`, or `Houston` |
 | `FORGE_SERVER_START_DELAY_SECONDS` | `10` | `1`–`300`; final five seconds are announced in the lobby |
 | `FORGE_SERVER_RECONNECT_SECONDS` | `300` | `1`–`3600` |
@@ -100,7 +104,7 @@ Example status response:
   "state":"PLAYING",
   "players":3,
   "seats":4,
-  "settings":{"mode":"COMMANDER","variants":"PLANECHASE","gamesPerMatch":3,"commanderBracket":5,"enforceDeckLegality":true},
+  "settings":{"mode":"COMMANDER","variants":"PLANECHASE","gamesPerMatch":3,"commanderBracket":5,"enforceDeckLegality":true,"manaBurn":false,"legacyOrderCombatants":false,"filteredHands":false,"aiTimeoutSeconds":5},
   "disconnected":[{"slot":2,"name":"Alice","reconnectSecondsRemaining":184}]
 }
 ```
@@ -113,10 +117,10 @@ Example status response:
 
 ### Lobby and AI endpoints
 
-`PUT /v1/settings` works only in `WAITING`. Its body must contain exactly all five fields:
+`PUT /v1/settings` works only in `WAITING`. Its body must contain exactly all nine fields:
 
 ```json
-{"mode":"COMMANDER","variants":"PLANECHASE","gamesPerMatch":3,"commanderBracket":5,"enforceDeckLegality":true}
+{"mode":"COMMANDER","variants":"PLANECHASE","gamesPerMatch":3,"commanderBracket":5,"enforceDeckLegality":true,"manaBurn":false,"legacyOrderCombatants":false,"filteredHands":false,"aiTimeoutSeconds":5}
 ```
 
 Changing settings clears readiness. The base mode cannot change while configured AI seats exist.
