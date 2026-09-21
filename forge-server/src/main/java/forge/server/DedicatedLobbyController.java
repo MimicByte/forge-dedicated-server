@@ -3,6 +3,7 @@ package forge.server;
 import forge.game.Game;
 import forge.game.GameEndReason;
 import forge.game.GameType;
+import forge.StaticData;
 import forge.ai.AIOption;
 import forge.ai.AiProfileUtil;
 import forge.gamemodes.match.GameLobby.GameStartError;
@@ -362,9 +363,6 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
         if (state != State.WAITING) { return false; }
         if (!aiSlots.isEmpty() && next.mode() != rules.mode()) { return false; }
         applyRules(lobby, next);
-        FModel.getPreferences().setPref(FPref.UI_MATCHES_PER_GAME, Integer.toString(next.gamesPerMatch()));
-        FModel.getPreferences().setPref(FPref.DECKGEN_MAXIMUM_COMMANDER_BRACKET, Integer.toString(next.commanderBracket()));
-        FModel.getPreferences().setPref(FPref.ENFORCE_DECK_LEGALITY, next.enforceDeckLegality());
         for (int i = 0; i < lobby.getNumberOfSlots(); i++) { lobby.getSlot(i).setIsReady(false); }
         rules = next;
         server.updateLobbyState();
@@ -529,6 +527,14 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
     }
 
     static void applyRules(ServerGameLobby lobby, ServerConfig.LobbyRules rules) {
+        FModel.getPreferences().setPref(FPref.UI_MATCHES_PER_GAME, Integer.toString(rules.gamesPerMatch()));
+        FModel.getPreferences().setPref(FPref.DECKGEN_MAXIMUM_COMMANDER_BRACKET, Integer.toString(rules.commanderBracket()));
+        FModel.getPreferences().setPref(FPref.ENFORCE_DECK_LEGALITY, rules.enforceDeckLegality());
+        FModel.getPreferences().setPref(FPref.LEGACY_MANABURN, rules.manaBurn());
+        FModel.getPreferences().setPref(FPref.LEGACY_ORDER_COMBATANTS, rules.legacyOrderCombatants());
+        FModel.getPreferences().setPref(FPref.FILTERED_HANDS, rules.filteredHands());
+        FModel.getPreferences().setPref(FPref.MATCH_AI_TIMEOUT, Integer.toString(rules.aiTimeoutSeconds()));
+        StaticData.instance().setFilteredHandsEnabled(rules.filteredHands());
         lobby.clearVariants();
         GameType baseGameType = rules.baseGameType();
         if (baseGameType != GameType.Constructed) { lobby.applyVariant(baseGameType); }

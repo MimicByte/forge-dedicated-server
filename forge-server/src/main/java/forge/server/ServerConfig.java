@@ -24,7 +24,9 @@ public record ServerConfig(int port, int adminPort, String adminToken, int maxPl
     }
 
     public record LobbyRules(Mode mode, Set<Variant> variants, int gamesPerMatch,
-                             int commanderBracket, boolean enforceDeckLegality) {
+                             int commanderBracket, boolean enforceDeckLegality,
+                             boolean manaBurn, boolean legacyOrderCombatants,
+                             boolean filteredHands, int aiTimeoutSeconds) {
         public LobbyRules {
             variants = Set.copyOf(variants);
             validateCombination(mode, variants);
@@ -33,6 +35,9 @@ public record ServerConfig(int port, int adminPort, String adminToken, int maxPl
             }
             if (commanderBracket < 1 || commanderBracket > 5) {
                 throw new IllegalArgumentException("FORGE_SERVER_COMMANDER_BRACKET must be 1..5");
+            }
+            if (aiTimeoutSeconds < 1 || aiTimeoutSeconds > 600) {
+                throw new IllegalArgumentException("FORGE_SERVER_AI_TIMEOUT_SECONDS must be 1..600");
             }
         }
         public GameType baseGameType() {
@@ -67,7 +72,9 @@ public record ServerConfig(int port, int adminPort, String adminToken, int maxPl
         }
         LobbyRules rules = new LobbyRules(mode, variants(env),
                 matchLength(env.getOrDefault("FORGE_SERVER_GAMES_PER_MATCH", "3")),
-                number(env, "COMMANDER_BRACKET", 5, 1, 5), bool(env, "ENFORCE_DECK_LEGALITY", true));
+                number(env, "COMMANDER_BRACKET", 5, 1, 5), bool(env, "ENFORCE_DECK_LEGALITY", true),
+                bool(env, "MANA_BURN", false), bool(env, "LEGACY_ORDER_COMBATANTS", false),
+                bool(env, "FILTERED_HANDS", false), number(env, "AI_TIMEOUT_SECONDS", 5, 1, 600));
         return new ServerConfig(port, adminPort, token, number(env, "MAX_PLAYERS", 4, 2, 8),
                 number(env, "START_DELAY_SECONDS", 10, 1, 300),
                 number(env, "RECONNECT_SECONDS", 300, 1, 3600),
