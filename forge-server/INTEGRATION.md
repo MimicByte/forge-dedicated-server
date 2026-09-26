@@ -141,6 +141,17 @@ The change clears that seat's Ready state. Open seats are rejected. Archenemy te
 
 Use IDs returned by `GET /v1/ai/decks` and a profile returned by `GET /v1/ai/profiles`. `simulation` is `NONE`, `HYBRID`, or `FULL`. `team` is a one-based seat number; use a human player's slot number to put an AI on that player's team. AI seat changes work only in `WAITING`, cannot replace a human or disconnected player, and are presently available only for Commander and Constructed. Remove an AI seat with `DELETE /v1/slots/{slot}/ai`.
 
+`POST /v1/slots/{slot}/ai/upload` adds or replaces an AI using a Forge-native `.dck` file instead of a bundled precon. Send `multipart/form-data` with exactly these fields: `deck` (one `.dck` file), `name`, `profile`, `simulation`, and `team`. Uploads are limited to 256 KiB. The server parses and holds the deck only in memory: it survives normal postgame/lobby resets, but is discarded on container restart and is never saved under `/config`. When deck-legality enforcement is enabled, the upload is checked immediately against the room's mode and applicable Planechase/Vanguard requirements; an invalid upload does not alter the existing AI seat. Uploaded AI decks are available only for Commander and Constructed.
+
+```sh
+curl --fail-with-body -X POST http://server:8080/v1/slots/3/ai/upload \
+  -H "Authorization: Bearer $FORGE_SERVER_ADMIN_TOKEN" \
+  -F 'deck=@my-ai-deck.dck' -F 'name=AI Atraxa' -F 'profile=Default' \
+  -F 'simulation=NONE' -F 'team=1'
+```
+
+`GET /v1/slots` includes `deckSource: "upload"` for uploaded AI decks and `"built_in"` for bundled precons.
+
 ### Moderation endpoints
 
 | Method and path | Effect |

@@ -9,9 +9,16 @@ import java.util.Map;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.servlet.ServletException;
+import javax.servlet.MultipartConfigElement;
+import javax.servlet.annotation.MultipartConfig;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.Part;
+import forge.deck.Deck;
+import forge.deck.io.DeckSerializer;
+import forge.util.FileSection;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
@@ -24,16 +31,24 @@ public final class DedicatedAdminServer {
         server = new Server(config.adminPort());
         ServletContextHandler context = new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
         context.setContextPath("/");
-        context.addServlet(new ServletHolder(new ApiServlet(config.adminToken(), controller)), "/v1/*");
+        ServletHolder api = new ServletHolder(new ApiServlet(config.adminToken(), controller));
+        // This embedded registration uses an already-created servlet, so Jetty does not
+        // discover @MultipartConfig. Configure the holder explicitly for request.getParts().
+        api.getRegistration().setMultipartConfig(new MultipartConfigElement("", 256 * 1024,
+                256 * 1024, 256 * 1024));
+        context.addServlet(api, "/v1/*");
         server.setHandler(context);
     }
     public void start() throws Exception { server.start(); }
     public void stop() throws Exception { server.stop(); }
 
+    @MultipartConfig(fileSizeThreshold = 256 * 1024, maxFileSize = 256 * 1024, maxRequestSize = 256 * 1024)
     private static final class ApiServlet extends HttpServlet {
         private static final int MAX_BODY_BYTES = 16 * 1024;
+        private static final int MAX_UPLOAD_BYTES = 256 * 1024;
         private static final Pattern MEMBER = Pattern.compile("\\\"([A-Za-z][A-Za-z0-9]*)\\\"\\s*:\\s*(\\\"[^\\\"\\\\]*\\\"|true|false|-?[0-9]+)");
         private static final Pattern AI_SLOT_PATH = Pattern.compile("/slots/(\\d+)/ai");
+        private static final Pattern AI_UPLOAD_PATH = Pattern.compile("/slots/(\\d+)/ai/upload");
         private static final Pattern TEAM_SLOT_PATH = Pattern.compile("/slots/(\\d+)/team");
         private static final Pattern KICK_PATH = Pattern.compile("/slots/(\\d+)/kick");
         private static final Pattern DISCONNECTED_ACTION_PATH = Pattern.compile("/disconnected/(\\d+)/(takeover|wait-indefinitely)");
@@ -88,6 +103,11 @@ public final class DedicatedAdminServer {
 
         @Override protected void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
             if (!authorized(request, response)) { return; }
+            Matcher upload = AI_UPLOAD_PATH.matcher(request.getPathInfo());
+            if (upload.matches()) {
+                uploadAiSlot(Integer.parseInt(upload.group(1)), request, response);
+                return;
+            }
             if ("/messages".equals(request.getPathInfo())) {
                 final Map<String, String> values;
                 try { values = parseObject(readBody(request), 1); }
@@ -148,6 +168,79 @@ public final class DedicatedAdminServer {
             writeAiResult(response, controller.updateAiSlot(configuration));
         }
 
+        private void uploadAiSlot(int slot, HttpServletRequest request, HttpServletResponse response) throws IOException {
+            if (request.getContentLengthLong() > MAX_UPLOAD_BYTES) {
+                error(response, HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE, "upload_too_large", "Upload must be at most 256 KiB.");
+                return;
+            }
+            final Map<String, String> fields = new LinkedHashMap<>();
+            Part deckPart = null;
+            try {
+                for (Part part : request.getParts()) {
+                    if ("deck".equals(part.getName())) {
+                        if (deckPart != null || part.getSubmittedFileName() == null) { throw new IllegalArgumentException("Provide exactly one deck file."); }
+                        deckPart = part;
+                    } else {
+                        if (part.getSubmittedFileName() != null || fields.put(part.getName(), readPart(part)) != null) {
+                            throw new IllegalArgumentException("Duplicate or invalid multipart field " + part.getName());
+                        }
+                    }
+                }
+            } catch (IllegalStateException e) {
+                error(response, HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE, "upload_too_large", "Upload must be at most 256 KiB.");
+                return;
+            } catch (ServletException | IllegalArgumentException e) {
+                error(response, 422, "invalid_upload", e.getMessage());
+                return;
+            }
+            if (deckPart == null || fields.size() != 4 || !fields.keySet().containsAll(java.util.Set.of("name", "profile", "simulation", "team"))) {
+                error(response, 422, "invalid_upload", "Provide deck, name, profile, simulation, and team multipart fields.");
+                return;
+            }
+            String filename = deckPart.getSubmittedFileName();
+            if (!filename.toLowerCase(java.util.Locale.ROOT).endsWith(".dck")) {
+                error(response, 422, "invalid_upload", "deck must have a .dck filename.");
+                return;
+            }
+            final Deck deck;
+            try {
+                byte[] contents = deckPart.getInputStream().readNBytes(MAX_UPLOAD_BYTES + 1);
+                if (contents.length > MAX_UPLOAD_BYTES) { throw new UploadTooLargeException(); }
+                deck = DeckSerializer.fromSections(FileSection.parseSections(java.util.Arrays.asList(
+                        new String(contents, StandardCharsets.UTF_8).split("\\R", -1))));
+                if (deck == null) { throw new IllegalArgumentException("deck is not a valid Forge .dck file."); }
+            } catch (UploadTooLargeException e) {
+                error(response, HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE, "upload_too_large", "Upload must be at most 256 KiB.");
+                return;
+            } catch (RuntimeException e) {
+                error(response, 422, "invalid_deck", "deck could not be parsed as a Forge .dck file.");
+                return;
+            }
+            final DedicatedLobbyController.UploadedAiSlotConfiguration configuration;
+            try {
+                configuration = new DedicatedLobbyController.UploadedAiSlotConfiguration(slot,
+                        requiredField(fields, "name"), requiredField(fields, "profile"),
+                        requiredField(fields, "simulation").toUpperCase(java.util.Locale.ROOT),
+                        Integer.parseInt(requiredField(fields, "team")), deck);
+            } catch (IllegalArgumentException e) {
+                error(response, 422, "invalid_ai", e.getMessage());
+                return;
+            }
+            writeUploadAiResult(response, controller.updateUploadedAiSlot(configuration));
+        }
+
+        private static String readPart(Part part) throws IOException {
+            byte[] bytes = part.getInputStream().readNBytes(MAX_BODY_BYTES + 1);
+            if (bytes.length > MAX_BODY_BYTES) { throw new IllegalArgumentException(part.getName() + " is too large"); }
+            return new String(bytes, StandardCharsets.UTF_8);
+        }
+        private static String requiredField(Map<String, String> fields, String name) {
+            String value = fields.get(name);
+            if (value == null || value.isBlank()) { throw new IllegalArgumentException(name + " is required"); }
+            return value;
+        }
+        private static final class UploadTooLargeException extends RuntimeException { }
+
         private void updateSlotTeam(int slot, HttpServletRequest request, HttpServletResponse response) throws IOException {
             final int team;
             try {
@@ -160,6 +253,12 @@ public final class DedicatedAdminServer {
         private static void writeAiResult(HttpServletResponse response, DedicatedLobbyController.AiResult result) throws IOException {
             if (result.success()) { write(response, HttpServletResponse.SC_OK, "{\"status\":\"ok\"}"); }
             else { error(response, HttpServletResponse.SC_CONFLICT, result.code(), result.message()); }
+        }
+        private static void writeUploadAiResult(HttpServletResponse response, DedicatedLobbyController.AiResult result) throws IOException {
+            if (result.success()) { write(response, HttpServletResponse.SC_OK, "{\"status\":\"ok\"}"); return; }
+            int status = "lobby_not_waiting".equals(result.code()) || "slot_occupied".equals(result.code())
+                    ? HttpServletResponse.SC_CONFLICT : 422;
+            error(response, status, result.code(), result.message());
         }
         private static void writeActionResult(HttpServletResponse response, DedicatedLobbyController.ActionResult result) throws IOException {
             if (result.success()) { write(response, HttpServletResponse.SC_OK, "{\"status\":\"ok\"}"); }
@@ -264,6 +363,7 @@ public final class DedicatedAdminServer {
                         .append(",\"team\":").append(slot.team());
                 if (slot.deckId() != null) {
                     json.append(",\"deck\":").append(jsonString(slot.deckId()))
+                            .append(",\"deckSource\":").append(jsonString(slot.deckId().startsWith("upload:") ? "upload" : "built_in"))
                             .append(",\"profile\":").append(jsonString(slot.profile()))
                             .append(",\"simulation\":").append(jsonString(slot.simulation()));
                 }
@@ -292,7 +392,28 @@ public final class DedicatedAdminServer {
         }
         private static String jsonString(String value) {
             if (value == null) { return "null"; }
-            return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+            StringBuilder escaped = new StringBuilder(value.length() + 2).append('"');
+            for (int i = 0; i < value.length(); i++) {
+                char ch = value.charAt(i);
+                switch (ch) {
+                case '\\' -> escaped.append("\\\\");
+                case '"' -> escaped.append("\\\"");
+                case '\b' -> escaped.append("\\b");
+                case '\f' -> escaped.append("\\f");
+                case '\n' -> escaped.append("\\n");
+                case '\r' -> escaped.append("\\r");
+                case '\t' -> escaped.append("\\t");
+                default -> {
+                    if (ch < 0x20) {
+                        escaped.append("\\u").append(Character.forDigit((ch >>> 12) & 0xf, 16))
+                                .append(Character.forDigit((ch >>> 8) & 0xf, 16))
+                                .append(Character.forDigit((ch >>> 4) & 0xf, 16))
+                                .append(Character.forDigit(ch & 0xf, 16));
+                    } else { escaped.append(ch); }
+                }
+                }
+            }
+            return escaped.append('"').toString();
         }
         private static String settingsJson(ServerConfig.LobbyRules rules) {
             String variants = rules.variants().stream().map(Enum::name).sorted().reduce((a, b) -> a + "," + b).orElse("");
