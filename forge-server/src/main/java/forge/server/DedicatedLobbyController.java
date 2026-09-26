@@ -3,6 +3,9 @@ package forge.server;
 import forge.game.Game;
 import forge.game.GameEndReason;
 import forge.game.GameType;
+import forge.deck.Deck;
+import forge.deck.DeckFormat;
+import forge.deck.DeckSection;
 import forge.StaticData;
 import forge.ai.AIOption;
 import forge.ai.AiProfileUtil;
@@ -33,6 +36,8 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
     private final Map<RemoteClient, Long> disconnected = new HashMap<>();
     private final Set<RemoteClient> kicked = new HashSet<>();
     private final Map<Integer, AiSlotConfiguration> aiSlots = new HashMap<>();
+    /** Uploaded decks are deliberately process-local and are never written to storage. */
+    private final Map<Integer, Deck> uploadedAiDecks = new HashMap<>();
     private volatile HostedMatch current;
     private boolean updateQueued;
     private long generation;
@@ -49,6 +54,7 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
     public int connectedPlayerCount() { return server.connectedPlayers().size(); }
     public int seatCapacity() { return lobby.getNumberOfSlots(); }
     public record AiSlotConfiguration(int slot, String name, String deckId, String profile, String simulation, int team) { }
+    public record UploadedAiSlotConfiguration(int slot, String name, String profile, String simulation, int team, Deck deck) { }
     public record AiSlotView(int slot, String type, String name, String deckId, String profile, String simulation, int team) { }
     public record DisconnectedPlayerView(int slot, String name, Long reconnectSecondsRemaining) { }
     public record AiResult(boolean success, String code, String message) {
@@ -384,8 +390,10 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
             for (int index = 0; index < lobby.getNumberOfSlots(); index++) {
                 LobbySlot slot = lobby.getSlot(index);
                 AiSlotConfiguration ai = aiSlots.get(index);
+                String deckId = ai == null ? null : ai.deckId();
+                if (uploadedAiDecks.containsKey(index)) { deckId = "upload:" + slot.getDeckName(); }
                 views.add(new AiSlotView(index + 1, slot.getType().name(), slot.getName(),
-                        ai == null ? null : ai.deckId(), ai == null ? null : ai.profile(),
+                        deckId, ai == null ? null : ai.profile(),
                         ai == null ? null : ai.simulation(), slot.getTeam() + 1));
             }
             return views;
@@ -432,6 +440,11 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
         return callOnEdt(() -> updateAiSlotOnEdt(configuration));
     }
 
+    /** Assigns a parsed, in-memory .dck to an AI seat. */
+    public AiResult updateUploadedAiSlot(UploadedAiSlotConfiguration configuration) {
+        return callOnEdt(() -> updateUploadedAiSlotOnEdt(configuration));
+    }
+
     public AiResult removeAiSlot(int oneBasedSlot) {
         return callOnEdt(() -> {
             int index = oneBasedSlot - 1;
@@ -439,6 +452,7 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
             if (index < 0 || index >= lobby.getNumberOfSlots()) { return AiResult.failure("invalid_slot", "Slot is outside this lobby."); }
             if (!aiSlots.containsKey(index)) { return AiResult.failure("not_ai", "The selected slot is not an AI seat."); }
             aiSlots.remove(index);
+            uploadedAiDecks.remove(index);
             lobby.disconnectPlayer(index);
             server.updateLobbyState();
             lobbyChanged();
@@ -450,9 +464,7 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
         int index = configuration.slot() - 1;
         if (state != State.WAITING) { return AiResult.failure("lobby_not_waiting", "AI seats may only change while the lobby is waiting."); }
         if (index < 0 || index >= lobby.getNumberOfSlots()) { return AiResult.failure("invalid_slot", "Slot is outside this lobby."); }
-        if (rules.mode() != ServerConfig.Mode.COMMANDER && rules.mode() != ServerConfig.Mode.CONSTRUCTED) {
-            return AiResult.failure("unsupported_mode", "Built-in AI precons are available only for Commander and Constructed.");
-        }
+        if (!supportsConfiguredAi()) { return AiResult.failure("unsupported_mode", "Configured AI decks are available only for Commander and Constructed."); }
         LobbySlot slot = lobby.getSlot(index);
         if (slot.getType() != LobbySlotType.OPEN && slot.getType() != LobbySlotType.AI) {
             return AiResult.failure("slot_occupied", "AI cannot replace a human or disconnected player.");
@@ -490,9 +502,81 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
         slot.setDeck(deck.deck());
         slot.setDeckName(deck.name());
         aiSlots.put(index, configuration);
+        uploadedAiDecks.remove(index);
         server.updateLobbyState();
         lobbyChanged();
         return AiResult.ok();
+    }
+
+    private AiResult updateUploadedAiSlotOnEdt(UploadedAiSlotConfiguration configuration) {
+        if (!supportsConfiguredAi()) { return AiResult.failure("unsupported_mode", "Configured AI decks are available only for Commander and Constructed."); }
+        Deck deck = configuration.deck();
+        if (deck == null || deck.getName() == null || deck.getName().isBlank()) {
+            return AiResult.failure("invalid_deck", "The uploaded .dck must include a deck name.");
+        }
+        // Force deferred deck sections to resolve before checking card counts and legality.
+        if (deck.getMain().isEmpty()) { return AiResult.failure("invalid_deck", "The uploaded .dck has no playable main deck."); }
+        if (rules.enforceDeckLegality()) {
+            String problem = rules.baseGameType().getDeckFormat().getDeckConformanceProblem(deck);
+            if (problem != null) { return AiResult.failure("invalid_deck", problem); }
+            if (lobby.hasVariant(GameType.Planechase)) {
+                problem = DeckFormat.getPlaneSectionConformanceProblem(deck.get(DeckSection.Planes));
+                if (problem != null) { return AiResult.failure("invalid_deck", problem); }
+            }
+            if (lobby.hasVariant(GameType.Vanguard)) {
+                var avatars = deck.get(DeckSection.Avatar);
+                if (avatars == null || avatars.countAll() == 0) {
+                    return AiResult.failure("invalid_deck", "choose a Vanguard avatar.");
+                }
+            }
+        }
+        AiSlotConfiguration settings = new AiSlotConfiguration(configuration.slot(), configuration.name(),
+                "upload:" + deck.getName(), configuration.profile(), configuration.simulation(), configuration.team());
+        AiResult result = validateAiSlotSettings(settings);
+        if (!result.success()) { return result; }
+        int index = configuration.slot() - 1;
+        LobbySlot slot = lobby.getSlot(index);
+        applyAiSlot(slot, settings.name(), settings.team(), settings.profile(), settings.simulation(), deck, deck.getName());
+        aiSlots.put(index, settings);
+        uploadedAiDecks.put(index, deck);
+        server.updateLobbyState();
+        lobbyChanged();
+        return AiResult.ok();
+    }
+
+    private boolean supportsConfiguredAi() {
+        return rules.mode() == ServerConfig.Mode.COMMANDER || rules.mode() == ServerConfig.Mode.CONSTRUCTED;
+    }
+
+    private AiResult validateAiSlotSettings(AiSlotConfiguration configuration) {
+        int index = configuration.slot() - 1;
+        if (state != State.WAITING) { return AiResult.failure("lobby_not_waiting", "AI seats may only change while the lobby is waiting."); }
+        if (index < 0 || index >= lobby.getNumberOfSlots()) { return AiResult.failure("invalid_slot", "Slot is outside this lobby."); }
+        LobbySlot slot = lobby.getSlot(index);
+        if (slot.getType() != LobbySlotType.OPEN && slot.getType() != LobbySlotType.AI) { return AiResult.failure("slot_occupied", "AI cannot replace a human or disconnected player."); }
+        if (configuration.name() == null || configuration.name().isBlank() || configuration.name().length() > 30) { return AiResult.failure("invalid_name", "AI name must be 1 to 30 characters."); }
+        if (configuration.team() < 1 || configuration.team() > lobby.getNumberOfSlots()) { return AiResult.failure("invalid_team", "team must be a one-based lobby slot number."); }
+        for (int other = 0; other < lobby.getNumberOfSlots(); other++) {
+            LobbySlot otherSlot = lobby.getSlot(other);
+            if (other != index && otherSlot.getType() != LobbySlotType.OPEN && configuration.name().trim().equalsIgnoreCase(otherSlot.getName())) { return AiResult.failure("duplicate_name", "AI name is already in use by another seat."); }
+        }
+        if (!AiProfileUtil.getProfilesDisplayList().contains(configuration.profile())) { return AiResult.failure("invalid_profile", "Unknown AI profile."); }
+        if (simulationOptions(configuration.simulation()) == null) { return AiResult.failure("invalid_simulation", "simulation must be NONE, HYBRID, or FULL."); }
+        return AiResult.ok();
+    }
+
+    private void applyAiSlot(LobbySlot slot, String name, int team, String profile, String simulation, Deck deck, String deckName) {
+        slot.setType(LobbySlotType.AI);
+        slot.setName(name.trim());
+        slot.setAvatarIndex(0);
+        slot.setSleeveIndex(0);
+        slot.setTeam(team - 1);
+        slot.setIsArchenemy(false);
+        slot.setIsReady(false);
+        slot.setAiOptions(simulationOptions(simulation));
+        slot.setAiProfile(profile);
+        slot.setDeck(deck);
+        slot.setDeckName(deckName);
     }
 
     private static Set<AIOption> simulationOptions(String simulation) {
