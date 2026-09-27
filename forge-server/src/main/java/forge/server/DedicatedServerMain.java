@@ -72,6 +72,7 @@ public final class DedicatedServerMain {
             DedicatedLobbyController controller = new DedicatedLobbyController(config, lobby, server);
             controllerRef.set(controller);
             gui.setOnMatch(controller::attachMatch);
+            gui.setOnFatalMatchError(controller::recoverFromFatalMatchError);
             server.setLobby(lobby);
             server.setDedicatedPolicy(controller);
             lobby.setListener(new IUpdateable() {
