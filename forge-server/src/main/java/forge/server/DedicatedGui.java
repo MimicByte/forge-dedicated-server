@@ -13,8 +13,13 @@ import java.util.function.Consumer;
 public final class DedicatedGui extends GuiDesktop {
     private final Path assets;
     private Consumer<HostedMatch> onMatch = match -> { };
+    private Consumer<String> onFatalMatchError = error -> { };
     public DedicatedGui(Path assets) { this.assets = assets.toAbsolutePath(); }
     public void setOnMatch(Consumer<HostedMatch> onMatch) { this.onMatch = onMatch; }
+    /** Called when base Forge catches a fatal game-worker exception. */
+    public void setOnFatalMatchError(Consumer<String> onFatalMatchError) {
+        this.onFatalMatchError = onFatalMatchError;
+    }
     @Override public String getAssetsDir() { return assets + java.io.File.separator; }
     @Override public HostedMatch hostMatch() {
         HostedMatch match = new HostedMatch();
@@ -36,6 +41,17 @@ public final class DedicatedGui extends GuiDesktop {
     @Override public String showFileDialog(String title, String directory) { throw new IllegalStateException(title); }
     @Override public void showBugReportDialog(String title, String text, boolean exit) {
         System.err.println("[server] " + title + ": " + text);
+        // BugReporter sets exit for an exception that ended normal game flow.
+        // A headless server has no dialog for the players to acknowledge, so
+        // recover the room instead of leaving them waiting indefinitely.
+        if (exit) {
+            try {
+                onFatalMatchError.accept(text);
+            } catch (Throwable error) {
+                System.err.println("[server] Fatal-match recovery failed: " + error);
+                error.printStackTrace();
+            }
+        }
     }
     @Override public forge.sound.IAudioClip createAudioClip(String filename) { return null; }
     @Override public forge.sound.IAudioMusic createAudioMusic(String filename) { return null; }

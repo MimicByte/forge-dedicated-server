@@ -52,18 +52,37 @@ public final class DedicatedCrashReporter {
         }
     }
 
+    /**
+     * Persist an error that Forge has already rendered into its headless crash
+     * dialog. Game-worker failures reach that dialog after being caught by the
+     * base game, so they are not necessarily uncaught exceptions.
+     */
+    static void reportText(String reason, String detail) {
+        if (reportDirectory == null) { return; }
+        try {
+            Path report = writeTextReport(reportDirectory, maxReports, safeContext(), reason, detail);
+            System.err.println("[server] Crash report written to " + report);
+        } catch (Throwable writeFailure) {
+            System.err.println("[server] Could not write crash report: " + writeFailure);
+        }
+    }
+
     static Path writeReport(Path directory, int maximumReports, String reportContext, Throwable error, String reason)
             throws java.io.IOException {
-        Files.createDirectories(directory);
-        Path report = nextReportPath(directory);
         StringWriter trace = new StringWriter();
         error.printStackTrace(new PrintWriter(trace));
+        return writeTextReport(directory, maximumReports, reportContext, reason, trace.toString());
+    }
+
+    private static Path writeTextReport(Path directory, int maximumReports, String reportContext, String reason,
+            String detail) throws java.io.IOException {
+        Files.createDirectories(directory);
+        Path report = nextReportPath(directory);
         String content = "Forge Dedicated Server crash report\n"
                 + "timestamp_utc=" + Instant.now() + "\n"
                 + "reason=" + reason + "\n"
                 + "thread=" + Thread.currentThread().getName() + "\n"
-                + reportContext + "\n\n"
-                + trace;
+                + reportContext + "\n\n" + (detail == null ? "" : detail);
         Files.writeString(report, content, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
         pruneReports(directory, maximumReports);
         return report;
