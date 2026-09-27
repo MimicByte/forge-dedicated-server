@@ -5,7 +5,10 @@ import forge.gamemodes.match.LobbySlot;
 import forge.gamemodes.match.LobbySlotType;
 import forge.gamemodes.net.event.LoginEvent;
 import forge.gamemodes.net.event.MessageEvent;
+import forge.gamemodes.net.event.DraftPickEvent;
 import forge.gamemodes.net.event.UpdateLobbyPlayerEvent;
+import forge.gamemodes.net.EventPhase;
+import forge.gamemodes.net.draft.BoosterDraftHost;
 import forge.util.BuildInfo;
 import forge.util.IHasForgeLog;
 import forge.util.LogSafe;
@@ -36,6 +39,15 @@ final class DedicatedServerSession implements IHasForgeLog {
         onDispatcher(() -> updateLobby(client, event));
     }
 
+    void handleDraftPick(RemoteClient client, DraftPickEvent event) {
+        onDispatcher(() -> {
+            if (client == null || !client.hasValidSlot() || !policy.acceptsDraftActions()) {
+                return;
+            }
+            server.getLocalLobby().handleDraftPick(event, client.getIndex());
+        });
+    }
+
     void handleDisconnect(RemoteClient client) {
         SwingUtilities.invokeLater(() -> {
             if (!client.hasValidSlot() || server.isDedicatedShuttingDown()) { return; }
@@ -45,6 +57,7 @@ final class DedicatedServerSession implements IHasForgeLog {
                 return;
             }
             if (!policy.acceptsLobbyChanges()) {
+                notifyDraftDisconnected(client);
                 server.pauseRemoteClientGuiGame(client);
                 server.parkDisconnectedClient(client);
             } else {
@@ -78,11 +91,16 @@ final class DedicatedServerSession implements IHasForgeLog {
 
         RemoteClient parked = server.takeParkedDedicatedClient(name);
         if (parked != null) {
+            boolean draftInProgress = draftInProgress();
             server.replaceClientChannel(context, parked);
             server.updateLobbyState();
             policy.reconnected(parked);
             server.resumeAndResync(parked);
-            server.broadcast(new MessageEvent(name + " reconnected."));
+            if (draftInProgress) {
+                notifyDraftReconnected(parked);
+            } else {
+                server.broadcast(new MessageEvent(name + " reconnected."));
+            }
         } else {
             if (!policy.acceptsNewPlayers()) {
                 client.send(MessageEvent.warning("A match is in progress. Join again when it ends."));
@@ -128,11 +146,23 @@ final class DedicatedServerSession implements IHasForgeLog {
     }
 
     private void updateLobby(RemoteClient client, UpdateLobbyPlayerEvent event) {
-        if (client == null || !client.hasValidSlot() || !policy.acceptsLobbyChanges()) { return; }
+        boolean normalLobbyChanges = policy.acceptsLobbyChanges();
+        boolean limitedDeckUpdates = policy.acceptsLimitedDeckUpdates();
+        if (client == null || !client.hasValidSlot() || (!normalLobbyChanges && !limitedDeckUpdates)) { return; }
         event.clearServerOwnedFields();
         event.setName(null); // Names stay fixed for the connection lifetime.
         ServerGameLobby lobby = server.getLocalLobby();
         LobbySlot slot = lobby.getSlot(client.getIndex());
+        if (limitedDeckUpdates) {
+            event.clearFieldsExceptDeckAndReady();
+            boolean deckChanged = event.getDeck() != null || event.getSection() != null || event.getCards() != null;
+            lobby.applyToSlot(client.getIndex(), event);
+            if (deckChanged) { slot.setIsReady(false); }
+            lobby.applyToSlot(client.getIndex(), UpdateLobbyPlayerEvent.isReadyUpdate(slot.isReady()));
+            server.updateLobbyState();
+            policy.connectionsChanged();
+            return;
+        }
         boolean teamChanged = validateTeamChoice(client, lobby, event, slot);
         validateArchenemyChoice(client, lobby, event, slot);
         boolean archenemyChanged = event.getArchenemy() != null && slot.isArchenemy() != event.getArchenemy();
@@ -147,6 +177,25 @@ final class DedicatedServerSession implements IHasForgeLog {
         lobby.applyToSlot(client.getIndex(), UpdateLobbyPlayerEvent.isReadyUpdate(slot.isReady()));
         server.updateLobbyState();
         policy.connectionsChanged();
+    }
+
+    private boolean draftInProgress() {
+        return server.getLocalLobby().getCurrentEvent() != null
+                && server.getLocalLobby().getCurrentEvent().getPhase() == EventPhase.DRAFTING;
+    }
+
+    private void notifyDraftDisconnected(RemoteClient client) {
+        if (!draftInProgress()) { return; }
+        int seat = server.getLocalLobby().findSeatForLobbySlot(client.getIndex());
+        BoosterDraftHost host = server.getLocalLobby().getDraftHost();
+        if (seat >= 0 && host != null) { host.onSeatDisconnected(seat); }
+    }
+
+    private void notifyDraftReconnected(RemoteClient client) {
+        if (!draftInProgress()) { return; }
+        int seat = server.getLocalLobby().findSeatForLobbySlot(client.getIndex());
+        BoosterDraftHost host = server.getLocalLobby().getDraftHost();
+        if (seat >= 0 && host != null) { host.onSeatReconnected(seat); }
     }
 
     /** A remote player may select only their own valid team while the lobby is waiting. */

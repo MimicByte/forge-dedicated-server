@@ -61,7 +61,7 @@ All configuration is read once from environment variables at container startup. 
 
 ## Room lifecycle
 
-The management API reports one of these states: `WAITING`, `COUNTDOWN`, `STARTING`, `PLAYING`, `POSTGAME`, `RESETTING`, or `STOPPING`.
+The management API reports one of these states: `WAITING`, `COUNTDOWN`, `LIMITED_DRAFTING`, `LIMITED_BUILDING`, `STARTING`, `PLAYING`, `POSTGAME`, `RESETTING`, or `STOPPING`.
 
 While waiting, connected players select decks and ready themselves. At least two connected human players with valid decks must be ready before the countdown begins. A player joining, leaving, changing deck, changing lobby settings, or changing an AI seat cancels the countdown. The API cannot start a game or make a player ready.
 
@@ -96,6 +96,7 @@ Authentication failure is `401`; unknown paths are `404`; malformed JSON or inva
 | `GET /v1/slots` | One-based seat list, including type and AI details where configured. |
 | `GET /v1/ai/decks` | Built-in AI decks allowed by the current base format. |
 | `GET /v1/ai/profiles` | Available AI profiles and simulations. |
+| `GET /v1/limited/catalog` | Supported Limited event formats, product sources, and bounds. |
 
 Example status response:
 
@@ -152,6 +153,20 @@ curl --fail-with-body -X POST http://server:8080/v1/slots/3/ai/upload \
 
 `GET /v1/slots` includes `deckSource: "upload"` for uploaded AI decks and `"built_in"` for bundled precons.
 
+### Limited events
+
+Limited events are administered entirely through the private API. They are in-memory only: event configuration and uploaded cube contents disappear when the container exits. `GET /v1/status` includes `limited: null` when no event is configured, otherwise its format, phase, product, pod size, and participant count.
+
+`POST /v1/limited/assets` accepts one multipart `cube` field containing a Forge `.dck` (maximum 5 MiB) and returns an opaque asset ID. The server does not download CubeCobra or save the upload under `/config`.
+
+`PUT /v1/limited/event` configures an unstarted event. It requires exactly these fields. `source` is `FULL`, `SET`, or `CUBE`; `SET` requires an available Forge booster `setCode`, and `CUBE` requires the asset ID returned by the upload endpoint. `setCode` and `assetId` must be present as strings even when unused (use `""`).
+
+```json
+{"format":"BOOSTER_DRAFT","source":"SET","setCode":"DMU","assetId":"","packs":3,"podSize":8,"pickTimerSeconds":60,"disconnectGraceSeconds":120}
+```
+
+`POST /v1/limited/event/start` starts the configured event only when at least two connected human players are ready. Draft pick traffic is then accepted from the owning desktop client; empty pod places are filled with draft-only bots. After a draft or sealed pool distribution, players build their decks in their desktop clients and ready again to start the match. Configured AI seats receive generated Limited decks; draft-only filler bots do not become match opponents. `DELETE /v1/limited/event` cancels an event only before it starts.
+
 ### Moderation endpoints
 
 | Method and path | Effect |
@@ -176,7 +191,7 @@ Use container lifecycle controls to create, stop, and remove rooms. The manageme
 
 Unhandled server failures write timestamped text reports under `/config/crash-reports`. They include build information, safe room configuration, thread name, and stack trace; secrets, allow-list names, and game state are excluded. Heap dumps are off by default and should be enabled only for memory diagnosis.
 
-The image does not support dev mode, spectators, joining an active match, Draft/Sealed/Limited event hosting, a local host player, or arbitrary host chat commands. Connected players may choose their own teams while waiting; the private API can manage any occupied seat's team. Planechase requires Planes, Vanguard requires an Avatar, and Archenemy requires one nominated player with Schemes.
+The image does not support dev mode, spectators, joining an active match, a local host player, or arbitrary host chat commands. It supports API-configured Sealed and Booster Draft events with Full, single-set, and uploaded-cube products. Connected players may choose their own teams while waiting; the private API can manage any occupied seat's team. Planechase requires Planes, Vanguard requires an Avatar, and Archenemy requires one nominated player with Schemes.
 
 ## Validation reference
 

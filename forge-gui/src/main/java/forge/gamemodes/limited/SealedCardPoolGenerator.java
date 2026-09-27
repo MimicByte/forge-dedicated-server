@@ -371,6 +371,17 @@ public class SealedCardPoolGenerator {
         }
     }
 
+    /** Build a sealed generator from products selected by a non-GUI host. */
+    public SealedCardPoolGenerator(final List<IUnOpenedProduct> products,
+            final String landSetCode, final String productName) {
+        if (products == null || products.isEmpty()) {
+            throw new IllegalArgumentException("A sealed event needs at least one product");
+        }
+        this.product.addAll(products);
+        this.landSetCode = landSetCode;
+        this.productName = productName;
+    }
+
     private boolean chooseNumberOfBoosters(final IUnOpenedProduct product1) {
         Integer boosterCount = SGuiChoose.getInteger(Localizer.getInstance().getMessage("lblHowManyBoosterPacks"), 3, 12);
         if (boosterCount == null) { return false; }

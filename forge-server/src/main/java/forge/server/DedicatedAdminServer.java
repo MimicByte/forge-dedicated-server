@@ -34,15 +34,15 @@ public final class DedicatedAdminServer {
         ServletHolder api = new ServletHolder(new ApiServlet(config.adminToken(), controller));
         // This embedded registration uses an already-created servlet, so Jetty does not
         // discover @MultipartConfig. Configure the holder explicitly for request.getParts().
-        api.getRegistration().setMultipartConfig(new MultipartConfigElement("", 256 * 1024,
-                256 * 1024, 256 * 1024));
+        api.getRegistration().setMultipartConfig(new MultipartConfigElement("", 5 * 1024 * 1024,
+                5 * 1024 * 1024, 5 * 1024 * 1024));
         context.addServlet(api, "/v1/*");
         server.setHandler(context);
     }
     public void start() throws Exception { server.start(); }
     public void stop() throws Exception { server.stop(); }
 
-    @MultipartConfig(fileSizeThreshold = 256 * 1024, maxFileSize = 256 * 1024, maxRequestSize = 256 * 1024)
+    @MultipartConfig(fileSizeThreshold = 256 * 1024, maxFileSize = 5 * 1024 * 1024, maxRequestSize = 5 * 1024 * 1024)
     private static final class ApiServlet extends HttpServlet {
         private static final int MAX_BODY_BYTES = 16 * 1024;
         private static final int MAX_UPLOAD_BYTES = 256 * 1024;
@@ -68,6 +68,7 @@ public final class DedicatedAdminServer {
             case "/slots" -> write(response, HttpServletResponse.SC_OK, slotsJson());
             case "/ai/decks" -> write(response, HttpServletResponse.SC_OK, decksJson());
             case "/ai/profiles" -> write(response, HttpServletResponse.SC_OK, profilesJson());
+            case "/limited/catalog" -> write(response, HttpServletResponse.SC_OK, limitedCatalogJson());
             default -> error(response, HttpServletResponse.SC_NOT_FOUND, "not_found", "Unknown endpoint");
             }
         }
@@ -76,6 +77,10 @@ public final class DedicatedAdminServer {
             if (!authorized(request, response)) { return; }
             if ("/settings".equals(request.getPathInfo())) {
                 updateRules(request, response);
+                return;
+            }
+            if ("/limited/event".equals(request.getPathInfo())) {
+                updateLimitedEvent(request, response);
                 return;
             }
             Matcher aiPath = AI_SLOT_PATH.matcher(request.getPathInfo());
@@ -93,6 +98,10 @@ public final class DedicatedAdminServer {
 
         @Override protected void doDelete(HttpServletRequest request, HttpServletResponse response) throws IOException {
             if (!authorized(request, response)) { return; }
+            if ("/limited/event".equals(request.getPathInfo())) {
+                writeActionResult(response, controller.cancelLimited());
+                return;
+            }
             Matcher path = AI_SLOT_PATH.matcher(request.getPathInfo());
             if (!path.matches()) {
                 error(response, HttpServletResponse.SC_NOT_FOUND, "not_found", "Unknown endpoint");
@@ -120,6 +129,14 @@ public final class DedicatedAdminServer {
             }
             if ("/match/abort".equals(request.getPathInfo())) {
                 writeActionResult(response, controller.abortByAdministrator());
+                return;
+            }
+            if ("/limited/event/start".equals(request.getPathInfo())) {
+                writeActionResult(response, controller.startLimited());
+                return;
+            }
+            if ("/limited/assets".equals(request.getPathInfo())) {
+                uploadLimitedAsset(request, response);
                 return;
             }
             Matcher kick = KICK_PATH.matcher(request.getPathInfo());
@@ -153,6 +170,64 @@ public final class DedicatedAdminServer {
                 return;
             }
             write(response, HttpServletResponse.SC_OK, settingsJson(rules));
+        }
+
+        private void updateLimitedEvent(HttpServletRequest request, HttpServletResponse response) throws IOException {
+            final Map<String, String> values;
+            try { values = parseObject(readBody(request), 8); }
+            catch (IllegalArgumentException e) { error(response, 422, "invalid_event", e.getMessage()); return; }
+            try {
+                forge.gamemodes.net.EventFormat format = forge.gamemodes.net.EventFormat.valueOf(
+                        string(values, "format").toUpperCase(java.util.Locale.ROOT));
+                if (format != forge.gamemodes.net.EventFormat.SEALED
+                        && format != forge.gamemodes.net.EventFormat.BOOSTER_DRAFT) {
+                    throw new IllegalArgumentException("format must be SEALED or BOOSTER_DRAFT");
+                }
+                DedicatedLobbyController.LimitedConfiguration configuration =
+                        new DedicatedLobbyController.LimitedConfiguration(format,
+                                string(values, "source"), string(values, "setCode"), string(values, "assetId"),
+                                integer(values, "packs"), integer(values, "podSize"),
+                                integer(values, "pickTimerSeconds"), integer(values, "disconnectGraceSeconds"));
+                writeActionResult(response, controller.configureLimited(configuration));
+            } catch (IllegalArgumentException e) {
+                error(response, 422, "invalid_event", e.getMessage());
+            }
+        }
+
+        private void uploadLimitedAsset(HttpServletRequest request, HttpServletResponse response) throws IOException {
+            if (request.getContentLengthLong() > 5L * 1024 * 1024) {
+                error(response, HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE, "upload_too_large", "Upload must be at most 5 MiB.");
+                return;
+            }
+            Part cube = null;
+            try {
+                for (Part part : request.getParts()) {
+                    if (!"cube".equals(part.getName()) || part.getSubmittedFileName() == null || cube != null) {
+                        throw new IllegalArgumentException("Provide exactly one cube file.");
+                    }
+                    cube = part;
+                }
+                if (cube == null || !cube.getSubmittedFileName().toLowerCase(java.util.Locale.ROOT).endsWith(".dck")) {
+                    throw new IllegalArgumentException("cube must have a .dck filename.");
+                }
+                byte[] contents = cube.getInputStream().readNBytes(5 * 1024 * 1024 + 1);
+                if (contents.length > 5 * 1024 * 1024) { throw new UploadTooLargeException(); }
+                Deck deck = DeckSerializer.fromSections(FileSection.parseSections(java.util.Arrays.asList(
+                        new String(contents, StandardCharsets.UTF_8).split("\\R", -1))));
+                if (deck == null) { throw new IllegalArgumentException("cube is not a valid Forge .dck file."); }
+                DedicatedLobbyController.LimitedAssetResult result = controller.uploadLimitedCube(deck);
+                if (result.success()) {
+                    write(response, HttpServletResponse.SC_OK, "{\"status\":\"ok\",\"id\":" + jsonString(result.id()) + "}");
+                } else {
+                    error(response, HttpServletResponse.SC_CONFLICT, result.code(), result.message());
+                }
+            } catch (UploadTooLargeException | IllegalStateException e) {
+                error(response, HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE, "upload_too_large", "Upload must be at most 5 MiB.");
+            } catch (ServletException | IllegalArgumentException e) {
+                error(response, 422, "invalid_upload", e.getMessage());
+            } catch (RuntimeException e) {
+                error(response, 422, "invalid_deck", "cube could not be parsed as a Forge .dck file.");
+            }
         }
 
         private void updateAiSlot(int slot, HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -336,7 +411,18 @@ public final class DedicatedAdminServer {
         private String statusJson() {
             return "{\"state\":\"" + controller.state() + "\",\"players\":" + controller.connectedPlayerCount()
                     + ",\"seats\":" + controller.seatCapacity() + ",\"settings\":" + settingsJson(controller.rules())
-                    + ",\"disconnected\":" + disconnectedJson() + "}";
+                    + ",\"limited\":" + limitedJson() + ",\"disconnected\":" + disconnectedJson() + "}";
+        }
+        private String limitedJson() {
+            DedicatedLobbyController.LimitedView event = controller.limitedView();
+            if (event == null) { return "null"; }
+            return "{\"format\":" + jsonString(event.format()) + ",\"phase\":" + jsonString(event.phase())
+                    + ",\"source\":" + jsonString(event.source()) + ",\"product\":" + jsonString(event.product())
+                    + ",\"podSize\":" + event.podSize() + ",\"participants\":" + event.participants() + "}";
+        }
+        private static String limitedCatalogJson() {
+            return "{\"formats\":[\"SEALED\",\"BOOSTER_DRAFT\"],\"sources\":[\"FULL\",\"SET\",\"CUBE\"],"
+                    + "\"limits\":{\"packs\":\"1-12\",\"podSize\":\"2-8\",\"pickTimerSeconds\":\"0-600\",\"disconnectGraceSeconds\":\"0-3600\"}}";
         }
         private String disconnectedJson() {
             List<DedicatedLobbyController.DisconnectedPlayerView> players = controller.disconnectedPlayerViews();
