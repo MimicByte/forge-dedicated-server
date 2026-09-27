@@ -4,7 +4,11 @@ package forge.gamemodes.net.server;
 public interface DedicatedServerPolicy {
     boolean acceptsNewPlayers();
     boolean acceptsLobbyChanges();
+    /** Whether a Limited player may submit a completed deck and change ready state. */
+    boolean acceptsLimitedDeckUpdates();
     boolean acceptsGameActions();
+    /** Whether the current dedicated event accepts draft picks. */
+    boolean acceptsDraftActions();
     boolean allowsPlayer(String name);
     int loginFailureLimit();
     int loginFailureWindowSeconds();

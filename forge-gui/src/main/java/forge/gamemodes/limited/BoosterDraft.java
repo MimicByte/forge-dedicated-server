@@ -107,6 +107,27 @@ public class BoosterDraft implements IBoosterDraft {
         return draft;
     }
 
+    /**
+     * Create a network draft from products selected by a non-GUI host. This is
+     * intentionally separate from {@link #createDraftForNetwork(LimitedPoolType)},
+     * whose legacy implementation asks the desktop user to choose a source.
+     */
+    public static BoosterDraft createDraftForNetwork(final LimitedPoolType draftType,
+            final List<IUnOpenedProduct> products, final String productName,
+            final String landSetCode, final int podSize) {
+        if (products == null || products.isEmpty()) {
+            throw new IllegalArgumentException("A draft needs at least one product");
+        }
+        final BoosterDraft draft = new BoosterDraft(draftType, podSize);
+        draft.forNetwork = true;
+        draft.product.addAll(products);
+        draft.productName = productName;
+        IBoosterDraft.LAND_SET_CODE[0] = landSetCode == null ? null
+                : FModel.getMagicDb().getEditions().get(landSetCode);
+        IBoosterDraft.CUSTOM_RANKINGS_FILE[0] = null;
+        return draft;
+    }
+
     protected boolean generateProduct() {
         switch (this.draftFormat) {
             case Full: // Draft from all cards in Forge
@@ -415,6 +436,11 @@ public class BoosterDraft implements IBoosterDraft {
     /** Human-readable name of the chosen block / theme / cube (null for Full). */
     public String getProductName() {
         return productName;
+    }
+
+    /** Basic-land edition selected for this draft's generated decks. */
+    public String getLandSetCode() {
+        return IBoosterDraft.LAND_SET_CODE[0] == null ? null : IBoosterDraft.LAND_SET_CODE[0].getCode();
     }
 
     public int getPodSize() {

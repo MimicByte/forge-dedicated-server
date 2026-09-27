@@ -6,6 +6,7 @@ import forge.game.GameType;
 import forge.deck.Deck;
 import forge.deck.DeckFormat;
 import forge.deck.DeckSection;
+import forge.deck.CardPool;
 import forge.StaticData;
 import forge.ai.AIOption;
 import forge.ai.AiProfileUtil;
@@ -15,6 +16,18 @@ import forge.gamemodes.match.HostedMatch;
 import forge.gamemodes.match.LobbySlot;
 import forge.gamemodes.match.LobbySlotType;
 import forge.gamemodes.net.event.MessageEvent;
+import forge.gamemodes.net.EventFormat;
+import forge.gamemodes.net.EventPhase;
+import forge.gamemodes.net.NetworkEvent;
+import forge.gamemodes.limited.BoosterDraft;
+import forge.gamemodes.limited.LimitedPoolType;
+import forge.gamemodes.limited.SealedCardPoolGenerator;
+import forge.item.SealedTemplate;
+import forge.item.generation.IUnOpenedProduct;
+import forge.item.generation.UnOpenedProduct;
+import forge.gamemodes.limited.LimitedPlayer;
+import forge.gamemodes.limited.LimitedPlayerAI;
+import forge.gamemodes.limited.SealedDeckBuilder;
 import forge.gamemodes.net.server.*;
 import forge.player.PlayerControllerHuman;
 import forge.localinstance.properties.ForgePreferences.FPref;
@@ -24,7 +37,7 @@ import java.util.*;
 
 /** The EDT owns room state. Game mutations run through Forge's game executor. */
 public final class DedicatedLobbyController implements DedicatedServerPolicy {
-    public enum State { WAITING, COUNTDOWN, STARTING, PLAYING, POSTGAME, RESETTING, STOPPING }
+    public enum State { WAITING, COUNTDOWN, LIMITED_DRAFTING, LIMITED_BUILDING, STARTING, PLAYING, POSTGAME, RESETTING, STOPPING }
     private final ServerConfig config;
     private final ServerGameLobby lobby;
     private final FServerManager server;
@@ -34,10 +47,16 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
     private int lastCountdownAnnouncement;
     private long emptyDeadline;
     private final Map<RemoteClient, Long> disconnected = new HashMap<>();
+    /** Drafters are held by BoosterDraftHost grace until pool distribution. */
+    private final Set<RemoteClient> draftDisconnected = new HashSet<>();
     private final Set<RemoteClient> kicked = new HashSet<>();
     private final Map<Integer, AiSlotConfiguration> aiSlots = new HashMap<>();
     /** Uploaded decks are deliberately process-local and are never written to storage. */
     private final Map<Integer, Deck> uploadedAiDecks = new HashMap<>();
+    /** Uploaded cube decks are process-local and discarded on server exit. */
+    private final Map<String, Deck> limitedAssets = new HashMap<>();
+    /** API source name for the configured Limited event; not inferred from pool type. */
+    private String limitedSource;
     private volatile HostedMatch current;
     private boolean updateQueued;
     private long generation;
@@ -72,7 +91,9 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
     private void say(String message) { server.broadcast(new MessageEvent(message)); }
     @Override public boolean acceptsNewPlayers() { return acceptsLobbyChanges(); }
     @Override public boolean acceptsLobbyChanges() { return state == State.WAITING || state == State.COUNTDOWN; }
+    @Override public boolean acceptsLimitedDeckUpdates() { return state == State.LIMITED_BUILDING; }
     @Override public boolean acceptsGameActions() { return state == State.PLAYING || state == State.POSTGAME; }
+    @Override public boolean acceptsDraftActions() { return state == State.LIMITED_DRAFTING; }
     @Override public boolean allowsPlayer(String name) { return config.allowsPlayer(name); }
     @Override public int loginFailureLimit() { return config.loginFailureLimit(); }
     @Override public int loginFailureWindowSeconds() { return config.loginFailureWindowSeconds(); }
@@ -85,6 +106,14 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
         SwingUtilities.invokeLater(() -> {
             updateQueued = false;
             if (current != null && lobby.getHostedMatch() == null) { reset(); }
+            if (state == State.LIMITED_BUILDING) {
+                if (limitedPlayersReady()) { startLimitedMatch(); }
+                return;
+            }
+            // A configured Limited event is started only by its explicit API
+            // action. In particular, do not run constructed deck validation or
+            // the ordinary ready countdown while players are preparing a pod.
+            if (state == State.WAITING && lobby.getCurrentEvent() != null) { return; }
             if (!acceptsLobbyChanges()) { return; }
             if (state == State.COUNTDOWN) { say("Start countdown cancelled."); }
             lastCountdownAnnouncement = 0;
@@ -114,18 +143,170 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
         }
         return true;
     }
+
+    private boolean limitedPlayersReady() {
+        List<RemoteClient> players = server.connectedPlayers();
+        return players.size() >= 2 && players.stream()
+                .allMatch(client -> lobby.getSlot(client.getIndex()).isReady());
+    }
+
+    private void startLimitedMatch() {
+        if (state != State.LIMITED_BUILDING) { return; }
+        transition(State.STARTING);
+        Runnable start = lobby.startGame();
+        if (start == null) {
+            transition(State.LIMITED_BUILDING);
+            return;
+        }
+        start.run();
+    }
+
+    /** Configuration accepted from the private API; products never pass through a GUI dialog. */
+    public record LimitedConfiguration(EventFormat format, String source, String setCode, String assetId,
+            int packs, int podSize, int pickTimerSeconds, int disconnectGraceSeconds) { }
+    public record LimitedView(String format, String phase, String source, String product,
+            int podSize, int participants) { }
+    public record LimitedAssetResult(boolean success, String code, String message, String id) {
+        static LimitedAssetResult ok(String id) { return new LimitedAssetResult(true, "ok", "", id); }
+        static LimitedAssetResult failure(String code, String message) { return new LimitedAssetResult(false, code, message, null); }
+    }
+
+    public LimitedAssetResult uploadLimitedCube(Deck deck) {
+        return callOnEdt(() -> {
+            if (state != State.WAITING) { return LimitedAssetResult.failure("lobby_not_waiting", "Assets may only be uploaded while the lobby is waiting."); }
+            if (deck == null || deck.getMain().isEmpty()) { return LimitedAssetResult.failure("invalid_deck", "The cube .dck must contain cards in its main deck."); }
+            String id = UUID.randomUUID().toString().substring(0, 12);
+            limitedAssets.put(id, deck);
+            return LimitedAssetResult.ok(id);
+        });
+    }
+
+    public ActionResult configureLimited(LimitedConfiguration configuration) {
+        return callOnEdt(() -> configureLimitedOnEdt(configuration));
+    }
+
+    private ActionResult configureLimitedOnEdt(LimitedConfiguration configuration) {
+        if (state != State.WAITING) {
+            return ActionResult.failure("lobby_not_waiting", "Limited events may only be configured while the lobby is waiting.");
+        }
+        if (configuration.packs() < 1 || configuration.packs() > 12
+                || configuration.podSize() < 2 || configuration.podSize() > 8
+                || configuration.pickTimerSeconds() < 0 || configuration.pickTimerSeconds() > 600
+                || configuration.disconnectGraceSeconds() < 0 || configuration.disconnectGraceSeconds() > 3600) {
+            return ActionResult.failure("invalid_event", "Invalid pack, pod, timer, or reconnect-grace value.");
+        }
+        List<IUnOpenedProduct> products = new ArrayList<>();
+        String source = configuration.source() == null ? "" : configuration.source().toUpperCase(Locale.ROOT);
+        String label;
+        String landSet;
+        if ("FULL".equals(source)) {
+            IUnOpenedProduct product = new UnOpenedProduct(SealedTemplate.genericDraftBooster);
+            for (int i = 0; i < configuration.packs(); i++) { products.add(product); }
+            landSet = forge.card.CardEdition.Predicates.getRandomSetWithAllBasicLands(
+                    FModel.getMagicDb().getEditions()).getCode();
+            label = "Full";
+        } else if ("SET".equals(source) && configuration.setCode() != null
+                && FModel.getMagicDb().getBoosters().get(configuration.setCode()) != null) {
+            IUnOpenedProduct product = new UnOpenedProduct(FModel.getMagicDb().getBoosters().get(configuration.setCode()));
+            for (int i = 0; i < configuration.packs(); i++) { products.add(product); }
+            landSet = configuration.setCode();
+            label = configuration.setCode();
+        } else if ("CUBE".equals(source) && limitedAssets.containsKey(configuration.assetId())) {
+            Deck cube = limitedAssets.get(configuration.assetId());
+            UnOpenedProduct product = new UnOpenedProduct(SealedTemplate.genericDraftBooster,
+                    new CardPool(cube.getMain()));
+            product.setLimitedPool(true);
+            for (int i = 0; i < configuration.packs(); i++) { products.add(product); }
+            landSet = forge.card.CardEdition.Predicates.getRandomSetWithAllBasicLands(
+                    FModel.getMagicDb().getEditions()).getCode();
+            label = cube.getName() == null ? "Uploaded Cube" : cube.getName();
+        } else {
+            return ActionResult.failure("unsupported_product", "source must be FULL, SET with an available setCode, or CUBE with an uploaded assetId.");
+        }
+        lobby.clearCurrentEvent();
+        lobby.setLimitedMode(true);
+        limitedSource = source;
+        lobby.createEvent(configuration.format());
+        NetworkEvent event = lobby.getCurrentEvent();
+        event.setPoolType(LimitedPoolType.Full);
+        event.setProductDescription(label);
+        event.setPickTimerSeconds(configuration.pickTimerSeconds());
+        event.setDisconnectGraceSeconds(configuration.disconnectGraceSeconds());
+        if (configuration.format() == EventFormat.BOOSTER_DRAFT) {
+            event.setDraft(BoosterDraft.createDraftForNetwork(LimitedPoolType.Full, products,
+                    label, landSet, configuration.podSize()));
+        } else {
+            event.setSealedGenerator(new SealedCardPoolGenerator(products, landSet, label));
+        }
+        server.updateLobbyState();
+        return ActionResult.ok();
+    }
+
+    public ActionResult startLimited() {
+        return callOnEdt(() -> {
+            if (state != State.WAITING || lobby.getCurrentEvent() == null) {
+                return ActionResult.failure("event_not_ready", "Configure a Limited event while the lobby is waiting first.");
+            }
+            List<RemoteClient> players = server.connectedPlayers();
+            if (players.size() < 2 || players.stream().anyMatch(c -> !lobby.getSlot(c.getIndex()).isReady())) {
+                return ActionResult.failure("players_not_ready", "Two connected human players must be ready before starting a Limited event.");
+            }
+            NetworkEvent event = lobby.getCurrentEvent();
+            if (event.getFormat() == EventFormat.BOOSTER_DRAFT) {
+                lobby.startDraftEvent();
+                transition(State.LIMITED_DRAFTING);
+            } else {
+                lobby.startSealedEvent();
+                assignSealedAiDecks(event);
+                transition(State.LIMITED_BUILDING);
+            }
+            return ActionResult.ok();
+        });
+    }
+
+    public ActionResult cancelLimited() {
+        return callOnEdt(() -> {
+            if (state != State.WAITING || lobby.getCurrentEvent() == null) {
+                return ActionResult.failure("event_not_waiting", "Only an unstarted Limited event may be cancelled.");
+            }
+            lobby.clearCurrentEvent();
+            lobby.setLimitedMode(false);
+            limitedSource = null;
+            server.updateLobbyState();
+            return ActionResult.ok();
+        });
+    }
+
+    public LimitedView limitedView() {
+        return callOnEdt(() -> {
+            NetworkEvent event = lobby.getCurrentEvent();
+            if (event == null) { return null; }
+            int pod = event.getDraft() == null ? 0 : event.getDraft().getPodSize();
+            return new LimitedView(event.getFormat().name(), event.getPhase().name(),
+                    limitedSource, event.getProductDescription(), pod,
+                    event.getParticipants().size());
+        });
+    }
     @Override public void connectionsChanged() {
         if (!server.connectedPlayers().isEmpty()) { emptyDeadline = 0; }
         lobbyChanged();
     }
     @Override public void disconnected(RemoteClient client) {
+        if (state == State.LIMITED_DRAFTING) {
+            draftDisconnected.add(client);
+            return;
+        }
         if (!acceptsLobbyChanges() && state != State.STOPPING) {
             disconnected.put(client, now() + config.reconnectSeconds() * 1000L);
             say(client.getUsername() + " disconnected. Reconnect within " + config.reconnectSeconds() + " seconds.");
             if (server.connectedPlayers().isEmpty()) { emptyDeadline = now() + config.reconnectSeconds() * 1000L; }
         }
     }
-    @Override public void reconnected(RemoteClient client) { disconnected.remove(client); emptyDeadline = 0; }
+    @Override public void reconnected(RemoteClient client) {
+        draftDisconnected.remove(client);
+        disconnected.remove(client);
+        emptyDeadline = 0;
+    }
     @Override public boolean wasKicked(RemoteClient client) { return kicked.remove(client); }
 
     public void attachMatch(HostedMatch match) {
@@ -177,6 +358,22 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
     }
     public void tick() {
         long time = now();
+        if (state == State.LIMITED_DRAFTING && lobby.getDraftHost() != null && lobby.getDraftHost().isFinished()) {
+            NetworkEvent event = lobby.getCurrentEvent();
+            if (event != null) {
+                assignLimitedAiDecks(event);
+                event.setPhase(EventPhase.POOL_DISTRIBUTION);
+            }
+            transition(State.LIMITED_BUILDING);
+            for (RemoteClient client : draftDisconnected) {
+                disconnected.put(client, time + config.reconnectSeconds() * 1000L);
+            }
+            draftDisconnected.clear();
+            if (server.connectedPlayers().isEmpty()) {
+                emptyDeadline = time + config.reconnectSeconds() * 1000L;
+            }
+            server.updateLobbyState();
+        }
         if (state == State.COUNTDOWN) {
             int announcement = nextCountdownAnnouncement(deadline, time, lastCountdownAnnouncement);
             if (announcement > 0) {
@@ -204,6 +401,35 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
         if (state == State.POSTGAME && time >= deadline) {
             say("Postgame decision timed out; returning to lobby.");
             current.finishDedicatedMatch();
+        }
+    }
+
+    private void assignLimitedAiDecks(NetworkEvent event) {
+        if (event.getDraft() == null) { return; }
+        for (forge.gamemodes.net.EventParticipant participant : event.getParticipants()) {
+            if (!participant.isAI() || participant.getLobbySlotIndex() < 0) { continue; }
+            LimitedPlayer player = event.getDraft().getAllPlayers().get(participant.getSeatIndex());
+            if (player instanceof LimitedPlayerAI ai) {
+                Deck deck = ai.buildDeck(event.getDraft().getLandSetCode());
+                LobbySlot slot = lobby.getSlot(participant.getLobbySlotIndex());
+                slot.setDeck(deck);
+                slot.setDeckName(deck.getName());
+                slot.setIsReady(false);
+            }
+        }
+    }
+
+    private void assignSealedAiDecks(NetworkEvent event) {
+        if (event.getSealedGenerator() == null) { return; }
+        for (forge.gamemodes.net.EventParticipant participant : event.getParticipants()) {
+            if (!participant.isAI() || participant.getLobbySlotIndex() < 0) { continue; }
+            CardPool pool = event.getSealedGenerator().getCardPool(false);
+            if (pool == null) { continue; }
+            Deck deck = new SealedDeckBuilder(pool.toFlatList()).buildDeck(event.getSealedGenerator().getLandSetCode());
+            LobbySlot slot = lobby.getSlot(participant.getLobbySlotIndex());
+            slot.setDeck(deck);
+            slot.setDeckName(deck.getName());
+            slot.setIsReady(false);
         }
     }
 
@@ -235,12 +461,40 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
             }
         });
     }
+
+    /**
+     * A game worker can fail after Forge has caught and displayed its crash
+     * report, leaving its input queues and both remote UIs waiting forever.
+     * This path deliberately does not enqueue work on that worker: it closes
+     * the failed match from the EDT and restores a usable lobby immediately.
+     */
+    public void recoverFromFatalMatchError(String detail) {
+        callOnEdt(() -> {
+            HostedMatch match = current;
+            if (match == null || state == State.WAITING || state == State.STOPPING) {
+                return null;
+            }
+            DedicatedCrashReporter.reportText("Fatal match error", detail);
+            say("Server encountered an unrecoverable match error. This match was aborted; returning to the lobby.");
+            server.cancelDedicatedReplies();
+            for (PlayerControllerHuman human : List.copyOf(match.getHumanControllers())) {
+                human.getInputQueue().clearInputs();
+            }
+            match.finishDedicatedMatch();
+            reset();
+            return null;
+        });
+    }
     private void reset() {
         if (state == State.STOPPING) { return; }
         transition(State.RESETTING);
         ++generation;
         current = null;
+        lobby.clearCurrentEvent();
+        lobby.setLimitedMode(false);
+        limitedSource = null;
         disconnected.clear();
+        draftDisconnected.clear();
         emptyDeadline = 0;
         server.resetDedicatedConnections();
         Set<Integer> occupied = new HashSet<>();

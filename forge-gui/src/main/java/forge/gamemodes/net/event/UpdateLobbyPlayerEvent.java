@@ -151,6 +151,26 @@ public final class UpdateLobbyPlayerEvent implements NetEvent {
         return true;
     }
 
+    /**
+     * Restrict an event to the two fields used while a network Limited pool is
+     * being built. The room is otherwise locked during this phase.
+     */
+    public void clearFieldsExceptDeckAndReady() {
+        type = null;
+        name = null;
+        avatarIndex = -1;
+        sleeveIndex = -1;
+        team = -1;
+        isArchenemy = null;
+        isDevMode = null;
+        aiOptions = null;
+        AvatarVanguard = null;
+        SchemeDeckName = null;
+        PlanarDeckName = null;
+        DeckName = null;
+        aiProfile = null;
+    }
+
     public LobbySlotType getType() {
         return type;
     }

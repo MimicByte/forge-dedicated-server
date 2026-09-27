@@ -1155,7 +1155,10 @@ public final class FServerManager implements IHasForgeLog {
                     dedicatedSession.handleLobbyUpdate(client, event);
                     return;
                 }
-                if (msg instanceof DraftPickEvent) { return; }
+                if (msg instanceof DraftPickEvent event) {
+                    dedicatedSession.handleDraftPick(client, event);
+                    return;
+                }
             }
             if (msg instanceof LoginEvent event) {
                 // Sanitise once, here, and use the result everywhere. The name
