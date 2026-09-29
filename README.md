@@ -6,6 +6,10 @@ The server supports Constructed, Commander, Oathbreaker, Tiny Leaders, Brawl, Mo
 
 Clients and server should use matching Forge builds whenever possible. The `stable` image tag tracks the latest dedicated-server build from an official upstream release; `latest` tracks the rolling daily snapshot.
 
+## Publishing a stable server release
+
+Snapshots continue on `dedicated-server` and publish `:latest`. A stable release is prepared separately on an immutable branch named `dedicated-release/<upstream-tag>`, created from the exact official upstream tag. Cherry-pick only the dedicated-server commits explicitly approved for that release; do not merge or automatically backport later snapshot work. Resolve and test any conflicts on that branch, push it, then dispatch **Build dedicated server from upstream release** with the same upstream tag. The workflow verifies that branch is based on the tag, publishes its tarball and versioned image, and moves `:stable`.
+
 ## Run from the published image
 
 The repository's [`forge-server/compose.yaml`](forge-server/compose.yaml) builds an image from source. For a deployed room, save the following as `compose.yaml` and pull the published image instead:

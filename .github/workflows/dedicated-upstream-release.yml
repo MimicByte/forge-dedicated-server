@@ -31,7 +31,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
-      - name: Prepare source from upstream release
+      - name: Select prepared stable-release source
         id: source
         env:
           GH_TOKEN: ${{ github.token }}
@@ -46,13 +46,21 @@ jobs:
 
           git remote add upstream https://github.com/Card-Forge/forge.git 2>/dev/null || \
             git remote set-url upstream https://github.com/Card-Forge/forge.git
-          git fetch --no-tags origin master dedicated-server
           git fetch --no-tags upstream "refs/tags/$UPSTREAM_RELEASE_TAG:refs/tags/upstream-release"
+          release_branch="dedicated-release/$UPSTREAM_RELEASE_TAG"
+          if ! git ls-remote --exit-code --heads origin "$release_branch" >/dev/null; then
+            echo "::error::Prepare and push $release_branch from upstream tag $UPSTREAM_RELEASE_TAG before publishing."
+            exit 1
+          fi
+          git fetch --no-tags origin "refs/heads/$release_branch:refs/remotes/origin/$release_branch"
 
           upstream_commit=$(git rev-parse 'refs/tags/upstream-release^{commit}')
-          git switch --detach origin/dedicated-server
-          git rebase --onto "$upstream_commit" origin/master
+          git switch --detach "origin/$release_branch"
           dedicated_commit=$(git rev-parse HEAD)
+          if ! git merge-base --is-ancestor "$upstream_commit" "$dedicated_commit"; then
+            echo "::error::$release_branch is not based on upstream tag $UPSTREAM_RELEASE_TAG."
+            exit 1
+          fi
           release_version_code=$(git show "$upstream_commit:pom.xml" | sed -n 's|.*<versionCode>\([^<]*\)</versionCode>.*|\1|p')
           if [ -z "$release_version_code" ]; then
             echo '::error::Could not determine the Forge version from the upstream release tag.'
