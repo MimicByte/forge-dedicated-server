@@ -43,6 +43,16 @@ public interface IGameController {
 
     IMacroSystem macros();
 
+    /** Wire entry for recording actions from a remote client. */
+    default void setRememberedActions() {
+        macros().setRememberedActions();
+    }
+
+    /** Wire entry for playing the next recorded action from a remote client. */
+    default void nextRememberedAction() {
+        macros().nextRememberedAction();
+    }
+
     void nextGameDecision(NextGameDecision decision);
 
     String getActivateDescription(CardView card);

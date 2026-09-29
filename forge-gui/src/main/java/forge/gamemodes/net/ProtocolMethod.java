@@ -69,8 +69,6 @@ public enum ProtocolMethod implements IHasForgeLog {
     setWeaklySelectable (Mode.SERVER, Void.TYPE, Iterable/*CardView*/.class),
     clearWeaklySelectable(Mode.SERVER, Void.TYPE),
     // TODO case "setPlayerAvatar":
-    setRememberedActions(Mode.SERVER, Void.TYPE),
-    nextRememberedAction(Mode.SERVER, Void.TYPE),
     showWaitingTimer    (Mode.SERVER, Void.TYPE, PlayerView.class, String.class),
     applyDelta          (Mode.SERVER, Void.TYPE, DeltaPacket.class),
     /** Server→client push of authoritative yield-state changes. */
@@ -94,6 +92,8 @@ public enum ProtocolMethod implements IHasForgeLog {
     alphaStrike               (Mode.CLIENT, Void.TYPE),
     reorderHand               (Mode.CLIENT, Void.TYPE, CardView.class, Integer.TYPE),
     requestResync             (Mode.CLIENT, Void.TYPE),
+    setRememberedActions      (Mode.CLIENT, Void.TYPE),
+    nextRememberedAction      (Mode.CLIENT, Void.TYPE),
     sendYieldUpdate           (Mode.CLIENT, Void.TYPE, YieldUpdate.class);
 
     private enum Mode {
@@ -137,6 +137,11 @@ public enum ProtocolMethod implements IHasForgeLog {
             netLog.warn("Class contains no accessible method named {}", name());
             return getMethodNoArgs();
         }
+    }
+
+    /** Interface on which this protocol method is dispatched. */
+    Class<?> getTargetInterface() {
+        return mode.toInvoke;
     }
 
     private Method getMethodNoArgs() {

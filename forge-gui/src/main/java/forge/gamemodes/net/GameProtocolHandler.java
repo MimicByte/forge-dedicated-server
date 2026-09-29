@@ -62,9 +62,16 @@ public abstract class GameProtocolHandler<T> extends ChannelInboundHandlerAdapte
 
             final Method method = protocolMethod.getMethod();
             if (method == null) {
-                //throw new IllegalStateException(String.format("Method %s not found", protocolMethod.name()));
-                catchedError[0] += String.format("IllegalStateException: Method %s not found (GameProtocolHandler.java Line 43)\n", protocolMethod.name());
                 netLog.error("Method {} not found", protocolMethod.name());
+                // A bad or mismatched protocol event must not bring down the
+                // dispatcher. Reply so synchronous callers are not left waiting.
+                if (!protocolMethod.getReturnType().equals(Void.TYPE)) {
+                    final IRemote remote = getRemote(ctx);
+                    if (remote != null) {
+                        remote.send(new ReplyEvent(event.getId(), null));
+                    }
+                }
+                return;
             }
 
             final Object[] args = event.getObjects();
