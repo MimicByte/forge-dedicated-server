@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       upstream_release_tag:
-        description: Official Card-Forge release tag, for example v2.0.15
+        description: Official Card-Forge release tag, for example forge-2.0.15
         required: true
         type: string
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 concurrency:
@@ -34,15 +34,10 @@ jobs:
       - name: Prepare source from upstream release
         id: source
         env:
-          FORGE_RELEASE_TOKEN: ${{ secrets.FORGE_RELEASE_TOKEN }}
           GH_TOKEN: ${{ github.token }}
           UPSTREAM_RELEASE_TAG: ${{ inputs.upstream_release_tag }}
         run: |
           set -euo pipefail
-          if [ -z "$FORGE_RELEASE_TOKEN" ]; then
-            echo '::error::Set the FORGE_RELEASE_TOKEN repository secret before running this workflow.'
-            exit 1
-          fi
           if ! [[ "$UPSTREAM_RELEASE_TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
             echo '::error::The upstream release tag may only contain letters, numbers, dots, underscores, and hyphens.'
             exit 1
@@ -58,6 +53,11 @@ jobs:
           git switch --detach origin/dedicated-server
           git rebase --onto "$upstream_commit" origin/master
           dedicated_commit=$(git rev-parse HEAD)
+          release_version_code=$(git show "$upstream_commit:pom.xml" | sed -n 's|.*<versionCode>\([^<]*\)</versionCode>.*|\1|p')
+          if [ -z "$release_version_code" ]; then
+            echo '::error::Could not determine the Forge version from the upstream release tag.'
+            exit 1
+          fi
           release_tag="dedicated-upstream-$UPSTREAM_RELEASE_TAG"
           image_tag=$(printf '%s' "$UPSTREAM_RELEASE_TAG" | tr '[:upper:]' '[:lower:]')
 
@@ -80,6 +80,7 @@ jobs:
             echo "image_tag=$image_tag"
             echo "upstream_commit=$upstream_commit"
             echo "dedicated_commit=$dedicated_commit"
+            echo "forge_client_version=$release_version_code"
             echo "tag_exists=$tag_exists"
           } >> "$GITHUB_OUTPUT"
 
@@ -95,11 +96,13 @@ jobs:
           mvn -B -ntp -Pdedicated -pl forge-server -am test
           -Dtest=ServerConfigTest,ReplyPoolTest,DedicatedNetworkTest
           -Dsurefire.failIfNoSpecifiedTests=false
+          -Dforge.client.version=${{ steps.source.outputs.forge_client_version }}
 
       - name: Build dedicated distribution
         run: >-
           mvn -B -ntp -Pdedicated -pl forge-server -am
           -DskipTests -Dlaunch4j.skip=true package
+          -Dforge.client.version=${{ steps.source.outputs.forge_client_version }}
 
       - name: Verify launcher is packaged
         run: test -x forge-server/target/forge-server-bin/bin/forge-server
@@ -121,13 +124,16 @@ jobs:
           context: .
           file: forge-server/Dockerfile
           push: true
-          tags: ${{ steps.image.outputs.name }}:upstream-${{ steps.source.outputs.image_tag }}
+          build-args: |
+            FORGE_CLIENT_VERSION=${{ steps.source.outputs.forge_client_version }}
+          tags: |
+            ${{ steps.image.outputs.name }}:upstream-${{ steps.source.outputs.image_tag }}
+            ${{ steps.image.outputs.name }}:stable
           labels: org.opencontainers.image.revision=${{ steps.source.outputs.dedicated_commit }}
 
       - name: Publish GitHub release
         env:
-          FORGE_RELEASE_TOKEN: ${{ secrets.FORGE_RELEASE_TOKEN }}
-          GH_TOKEN: ${{ secrets.FORGE_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.source.outputs.release_tag }}
           TAG_EXISTS: ${{ steps.source.outputs.tag_exists }}
           UPSTREAM_RELEASE_TAG: ${{ inputs.upstream_release_tag }}
@@ -137,7 +143,6 @@ jobs:
           set -euo pipefail
           if [ "$TAG_EXISTS" = false ]; then
             git tag "$RELEASE_TAG" "$DEDICATED_COMMIT"
-            git remote set-url origin "https://x-access-token:${FORGE_RELEASE_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
             git push origin "refs/tags/$RELEASE_TAG"
           fi
 
