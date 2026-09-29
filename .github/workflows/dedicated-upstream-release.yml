@@ -104,12 +104,14 @@ jobs:
           mvn -B -ntp -Pdedicated -pl forge-server -am test
           -Dtest=ServerConfigTest,ReplyPoolTest,DedicatedNetworkTest
           -Dsurefire.failIfNoSpecifiedTests=false
+          -Drevision=${{ steps.source.outputs.forge_client_version }}
           -Dforge.client.version=${{ steps.source.outputs.forge_client_version }}
 
       - name: Build dedicated distribution
         run: >-
           mvn -B -ntp -Pdedicated -pl forge-server -am
           -DskipTests -Dlaunch4j.skip=true package
+          -Drevision=${{ steps.source.outputs.forge_client_version }}
           -Dforge.client.version=${{ steps.source.outputs.forge_client_version }}
 
       - name: Verify launcher is packaged
@@ -134,6 +136,7 @@ jobs:
           push: true
           build-args: |
             FORGE_CLIENT_VERSION=${{ steps.source.outputs.forge_client_version }}
+            FORGE_REVISION=${{ steps.source.outputs.forge_client_version }}
           tags: |
             ${{ steps.image.outputs.name }}:upstream-${{ steps.source.outputs.image_tag }}
             ${{ steps.image.outputs.name }}:stable
