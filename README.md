@@ -4,7 +4,7 @@ Headless [Forge](https://github.com/Card-Forge/forge) multiplayer rooms for **Ma
 
 The server supports Constructed, Commander, Oathbreaker, Tiny Leaders, Brawl, Momir Basic, and MoJhoSto, with optional Planechase, Vanguard, and Archenemy variants where compatible. One container owns one room with two to eight seats. Disconnected players can reconnect during a grace period; after it expires, AI takes over for the rest of the match.
 
-Clients and server should use matching Forge snapshots whenever possible.
+Clients and server should use matching Forge builds whenever possible. The `stable` image tag tracks the latest dedicated-server build from an official upstream release; `latest` tracks the rolling daily snapshot.
 
 ## Run from the published image
 
@@ -13,7 +13,7 @@ The repository's [`forge-server/compose.yaml`](forge-server/compose.yaml) builds
 ```yaml
 services:
   forge:
-    image: ghcr.io/mimicbyte/forge-dedicated-server:latest
+    image: ghcr.io/mimicbyte/forge-dedicated-server:stable
     restart: on-failure
     stop_grace_period: 30s
     ports:
