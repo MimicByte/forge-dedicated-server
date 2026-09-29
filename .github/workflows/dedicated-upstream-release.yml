@@ -74,7 +74,7 @@ jobs:
             echo "::error::The existing $release_tag tag points to a different commit."
             exit 1
           fi
-          if gh release view "$release_tag" >/dev/null 2>&1; then
+          if gh release view "$release_tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "::error::The $release_tag release already exists."
             exit 1
           fi
@@ -165,5 +165,6 @@ jobs:
           EOF
           )
           gh release create "$RELEASE_TAG" forge-server/target/forge-server-bin.tar.gz \
+            --repo "$GITHUB_REPOSITORY" \
             --title "Dedicated server for $UPSTREAM_RELEASE_TAG" \
             --notes "$notes"
