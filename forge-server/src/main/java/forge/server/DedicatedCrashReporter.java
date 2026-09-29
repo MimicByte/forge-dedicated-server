@@ -58,6 +58,7 @@ public final class DedicatedCrashReporter {
      * base game, so they are not necessarily uncaught exceptions.
      */
     static void reportText(String reason, String detail) {
+        logDetailToStderr(reason, detail);
         if (reportDirectory == null) { return; }
         try {
             Path report = writeTextReport(reportDirectory, maxReports, safeContext(), reason, detail);
@@ -65,6 +66,20 @@ public final class DedicatedCrashReporter {
         } catch (Throwable writeFailure) {
             System.err.println("[server] Could not write crash report: " + writeFailure);
         }
+    }
+
+    /** Keep caught game-worker failures visible in container logs as well as /config. */
+    private static void logDetailToStderr(String reason, String detail) {
+        System.err.println("[server] ===== " + reason + " =====");
+        if (detail == null || detail.isBlank()) {
+            System.err.println("[server] No error detail was supplied by Forge.");
+        } else {
+            System.err.print(detail);
+            if (!detail.endsWith("\n") && !detail.endsWith("\r")) {
+                System.err.println();
+            }
+        }
+        System.err.println("[server] ===== end " + reason + " =====");
     }
 
     static Path writeReport(Path directory, int maximumReports, String reportContext, Throwable error, String reason)
