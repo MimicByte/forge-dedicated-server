@@ -1,0 +1,113 @@
+name: Sync upstream snapshot
+
+# This workflow belongs only on dedicated-server, the repository's default
+# branch. It syncs the upstream source tree into master, preserving the fork's
+# server-only workflow policy, then merges that into dedicated-server.
+on:
+  schedule:
+    # Upstream creates its snapshot at 18:00 UTC; allow it time to publish the tag.
+    - cron: '30 19 * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+  issues: write
+
+concurrency:
+  group: upstream-snapshot-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dedicated-server
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git remote add upstream https://github.com/Card-Forge/forge.git
+
+      - name: Sync master and merge it into dedicated-server
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          issue_title='Dedicated server upstream sync needs attention'
+          report_issue() {
+            local body="$1"
+            if [ "$(gh issue list --state open --search "$issue_title in:title" --json number --jq 'length')" = 0 ]; then
+              gh issue create --title "$issue_title" --body "$body"
+            fi
+          }
+
+          # Fetch into a fork-specific ref. actions/checkout has already
+          # fetched origin's tags, so refs/tags/daily-snapshots could be stale.
+          git fetch --force --prune upstream master \
+            '+refs/tags/daily-snapshots:refs/tags/upstream-daily-snapshots'
+          snapshot_ref='refs/tags/upstream-daily-snapshots'
+          if ! git rev-parse --verify "$snapshot_ref^{commit}" >/dev/null 2>&1; then
+            report_issue "The upstream daily-snapshots tag was not available.\n\nRun: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            exit 1
+          fi
+
+          snapshot=$(git rev-parse "$snapshot_ref^{commit}")
+          git fetch origin master dedicated-server
+          # The dedicated branch owns the workflow allowlist. Upstream client,
+          # mobile, publishing, and maintenance workflows must not enter either
+          # fork branch, and GITHUB_TOKEN cannot push workflow-file additions.
+          workflow_policy_source=origin/dedicated-server
+
+          git switch --force-create master origin/master
+          master_before=$(git rev-parse master)
+          if [ "$master_before" = "$snapshot" ] || git merge-base --is-ancestor "$snapshot" master; then
+            echo 'master is already at the upstream snapshot.'
+          elif git merge-base --is-ancestor "$master_before" "$snapshot"; then
+            git merge --ff-only "$snapshot"
+          else
+            # master may differ from upstream only because the workflow policy
+            # was restored after an earlier snapshot sync.
+            sync_base=$(git merge-base master "$snapshot" || true)
+            if [ -z "$sync_base" ] || ! git diff --quiet "$sync_base" master -- . ':(exclude).github/workflows/**'; then
+              report_issue "Fork master differs from upstream history outside .github/workflows. Restore it before rerunning. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+              exit 1
+            fi
+            if ! git merge --no-commit --no-ff -X theirs "$snapshot"; then
+              git merge --abort || true
+              report_issue "Fork master could not merge the updated upstream snapshot. Resolve it locally, then rerun. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+              exit 1
+            fi
+          fi
+
+          git restore --source="$workflow_policy_source" --staged --worktree -- .github/workflows
+          if git rev-parse --verify MERGE_HEAD >/dev/null 2>&1; then
+            git commit -m "chore: sync upstream snapshot ${snapshot:0:12} with dedicated workflow policy"
+          elif ! git diff --cached --quiet; then
+            git commit -m 'chore: retain dedicated workflow policy on master'
+          fi
+
+          git switch --force-create dedicated-server origin/dedicated-server
+          dedicated_updated=false
+          if ! git merge-base --is-ancestor master dedicated-server; then
+            if ! git merge --no-commit --no-ff master; then
+              git merge --abort || true
+              report_issue "The dedicated-server branch could not merge the updated fork master.\n\nBase snapshot: $snapshot\n\nResolve the conflicts locally, then rerun this workflow.\n\nRun: $GITHUB_SERVER_URL/$GITHUB_RUN_ID"
+              exit 1
+            fi
+            git restore --source="$workflow_policy_source" --staged --worktree -- .github/workflows
+            git commit -m "chore: sync dedicated server with upstream snapshot ${snapshot:0:12}"
+            dedicated_updated=true
+          fi
+
+          git push origin master dedicated-server
+          # Pushes made with GITHUB_TOKEN do not start another workflow. Only
+          # publish when the dedicated branch actually advanced.
+          if [ "$dedicated_updated" = true ]; then
+            gh workflow run dedicated-ci.yml --repo "$GITHUB_REPOSITORY" --ref dedicated-server
+          fi

@@ -1,0 +1,155 @@
+name: Dedicated server CI
+
+on:
+  push:
+    branches: [dedicated-server]
+    paths:
+      - 'forge-server/**'
+      - 'forge-game/src/main/java/**'
+      - 'forge-gui/src/main/java/forge/gamemodes/**'
+      - 'forge-gui/src/main/java/forge/localinstance/properties/**'
+      - 'forge-gui-desktop/pom.xml'
+      - 'pom.xml'
+      - '.dockerignore'
+      - '.github/workflows/dedicated-ci.yml'
+  pull_request:
+    branches: [dedicated-server]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-package:
+    outputs:
+      client_version: ${{ steps.client-version.outputs.value }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve compatible snapshot version
+        id: client-version
+        run: |
+          set -euo pipefail
+          git fetch origin master:refs/remotes/origin/master
+          version_code=$(sed -n 's|.*<versionCode>\([^<]*\)</versionCode>.*|\1|p' pom.xml)
+          snapshot_date=$(git show -s --format=%cd --date=format:%m.%d origin/master)
+          test -n "$version_code"
+          echo "value=${version_code}-SNAPSHOT-${snapshot_date}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Run dedicated-server tests
+        run: >-
+          mvn -B -ntp -Pdedicated -pl forge-server -am test
+          -Dtest=ServerConfigTest,ReplyPoolTest,DedicatedNetworkTest
+          -Dsurefire.failIfNoSpecifiedTests=false
+          -Dforge.client.version=${{ steps.client-version.outputs.value }}
+
+      - name: Build dedicated distribution
+        run: >-
+          mvn -B -ntp -Pdedicated -pl forge-server -am
+          -DskipTests -Dlaunch4j.skip=true package
+          -Dforge.client.version=${{ steps.client-version.outputs.value }}
+
+      - name: Verify launcher is packaged
+        run: test -x forge-server/target/forge-server-bin/bin/forge-server
+
+      - name: Upload distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: forge-dedicated-${{ github.sha }}
+          path: forge-server/target/forge-server-bin.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    if: github.ref == 'refs/heads/dedicated-server' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: test-and-package
+    permissions:
+      contents: write
+      packages: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Normalize image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push dedicated image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: forge-server/Dockerfile
+          push: true
+          build-args: |
+            FORGE_CLIENT_VERSION=${{ needs['test-and-package'].outputs.client_version }}
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ github.sha }}
+            ${{ steps.image.outputs.name }}:latest
+
+      - name: Download distribution
+        uses: actions/download-artifact@v4
+        with:
+          name: forge-dedicated-${{ github.sha }}
+          path: release
+
+      - name: Update daily snapshot release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SNAPSHOT_TAG: dedicated-daily-snapshot
+        run: |
+          git tag --force "$SNAPSHOT_TAG" "$GITHUB_SHA"
+          git push --force origin "refs/tags/$SNAPSHOT_TAG"
+
+          notes="Automated dedicated-server snapshot for commit $GITHUB_SHA."
+          if gh release view "$SNAPSHOT_TAG" >/dev/null 2>&1; then
+            gh release edit "$SNAPSHOT_TAG" \
+              --title "Dedicated server daily snapshot" \
+              --notes "$notes" \
+              --prerelease
+          else
+            gh release create "$SNAPSHOT_TAG" \
+              --title "Dedicated server daily snapshot" \
+              --notes "$notes" \
+              --prerelease
+          fi
+          gh release upload "$SNAPSHOT_TAG" release/forge-server-bin.tar.gz --clobber
+
+      - name: Keep five container image versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_NAME: ${{ github.event.repository.name }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: |
+          owner_type=$(gh api "/users/$REPOSITORY_OWNER" --jq .type)
+          if [ "$owner_type" = "Organization" ]; then
+            package_path="/orgs/$REPOSITORY_OWNER/packages/container/$PACKAGE_NAME/versions"
+          else
+            package_path="/users/$REPOSITORY_OWNER/packages/container/$PACKAGE_NAME/versions"
+          fi
+
+          mapfile -t version_ids < <(
+            gh api --paginate "$package_path?per_page=100" --jq \
+              '.[] | select([.metadata.container.tags[]? | startswith("upstream-")] | any | not) | .id'
+          )
+          for version_id in "${version_ids[@]:5}"; do
+            gh api --method DELETE "$package_path/$version_id"
+          done
