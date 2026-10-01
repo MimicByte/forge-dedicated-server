@@ -1,8 +1,8 @@
 name: Sync upstream snapshot
 
 # This workflow belongs only on dedicated-server, the repository's default
-# branch. It fast-forwards the clean upstream mirror (master), then merges that
-# mirror into dedicated-server. Do not add fork-specific commits to master.
+# branch. It syncs the upstream source tree into master, preserving the fork's
+# server-only workflow policy, then merges that into dedicated-server.
 on:
   schedule:
     # Upstream creates its snapshot at 18:00 UTC; allow it time to publish the tag.
@@ -34,7 +34,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git remote add upstream https://github.com/Card-Forge/forge.git
 
-      - name: Fast-forward master and merge it into dedicated-server
+      - name: Sync master and merge it into dedicated-server
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -59,26 +59,49 @@ jobs:
 
           snapshot=$(git rev-parse "$snapshot_ref^{commit}")
           git fetch origin master dedicated-server
+          # The dedicated branch owns the workflow allowlist. Upstream client,
+          # mobile, publishing, and maintenance workflows must not enter either
+          # fork branch, and GITHUB_TOKEN cannot push workflow-file additions.
+          workflow_policy_source=origin/dedicated-server
 
           git switch --force-create master origin/master
-          master=$(git rev-parse master)
-          if [ "$master" = "$snapshot" ]; then
+          master_before=$(git rev-parse master)
+          if [ "$master_before" = "$snapshot" ] || git merge-base --is-ancestor "$snapshot" master; then
             echo 'master is already at the upstream snapshot.'
-          elif git merge-base --is-ancestor "$master" "$snapshot"; then
+          elif git merge-base --is-ancestor "$master_before" "$snapshot"; then
             git merge --ff-only "$snapshot"
           else
-            report_issue "Fork master is not a clean ancestor of the upstream daily-snapshots revision.\n\nFork master: $master\nSnapshot: $snapshot\n\nRestore master to an upstream snapshot before rerunning this workflow.\n\nRun: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-            exit 1
+            # master may differ from upstream only because the workflow policy
+            # was restored after an earlier snapshot sync.
+            sync_base=$(git merge-base master "$snapshot" || true)
+            if [ -z "$sync_base" ] || ! git diff --quiet "$sync_base" master -- . ':(exclude).github/workflows/**'; then
+              report_issue "Fork master differs from upstream history outside .github/workflows. Restore it before rerunning. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+              exit 1
+            fi
+            if ! git merge --no-commit --no-ff -X theirs "$snapshot"; then
+              git merge --abort || true
+              report_issue "Fork master could not merge the updated upstream snapshot. Resolve it locally, then rerun. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+              exit 1
+            fi
+          fi
+
+          git restore --source="$workflow_policy_source" --staged --worktree -- .github/workflows
+          if git rev-parse --verify MERGE_HEAD >/dev/null 2>&1; then
+            git commit -m "chore: sync upstream snapshot ${snapshot:0:12} with dedicated workflow policy"
+          elif ! git diff --cached --quiet; then
+            git commit -m 'chore: retain dedicated workflow policy on master'
           fi
 
           git switch --force-create dedicated-server origin/dedicated-server
           dedicated_updated=false
           if ! git merge-base --is-ancestor master dedicated-server; then
-            if ! git merge --no-ff -m "chore: sync dedicated server with upstream snapshot ${snapshot:0:12}" master; then
+            if ! git merge --no-commit --no-ff master; then
               git merge --abort || true
               report_issue "The dedicated-server branch could not merge the updated fork master.\n\nBase snapshot: $snapshot\n\nResolve the conflicts locally, then rerun this workflow.\n\nRun: $GITHUB_SERVER_URL/$GITHUB_RUN_ID"
               exit 1
             fi
+            git restore --source="$workflow_policy_source" --staged --worktree -- .github/workflows
+            git commit -m "chore: sync dedicated server with upstream snapshot ${snapshot:0:12}"
             dedicated_updated=true
           fi
 
