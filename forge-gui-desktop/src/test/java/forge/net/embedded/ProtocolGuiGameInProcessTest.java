@@ -128,6 +128,18 @@ public class ProtocolGuiGameInProcessTest {
         }
     }
 
+    @Test
+    public void endOfGameNotificationSurvivesForwarderShutdown() {
+        final RecordingRemote remote = new RecordingRemote();
+        final ProtocolGuiGame gui = new ProtocolGuiGame(remote);
+
+        gui.shutdownForwarder();
+        gui.afterGameEnd();
+
+        assertEquals(remote.counts.get(ProtocolMethod.afterGameEnd).get(), 1,
+                "the end-of-game notification reaches the remote after teardown");
+    }
+
     private static Deck deck(final String name, final String card) {
         final Deck d = new Deck(name);
         d.getMain().add(card, 40);
