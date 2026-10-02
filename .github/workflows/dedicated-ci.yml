@@ -82,6 +82,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Download tested distribution
+        uses: actions/download-artifact@v4
+        with:
+          name: forge-dedicated-${{ github.sha }}
+          path: release
+
+      - name: Prepare container build context
+        run: |
+          mkdir -p image/forge-server-bin
+          tar -xzf release/forge-server-bin.tar.gz -C image/forge-server-bin
+          test -x image/forge-server-bin/bin/forge-server
+          cp forge-server/Dockerfile.runtime image/Dockerfile
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -96,20 +109,12 @@ jobs:
       - name: Build and push dedicated image
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: forge-server/Dockerfile
+          context: image
+          file: image/Dockerfile
           push: true
-          build-args: |
-            FORGE_CLIENT_VERSION=${{ needs['test-and-package'].outputs.client_version }}
           tags: |
             ${{ steps.image.outputs.name }}:${{ github.sha }}
             ${{ steps.image.outputs.name }}:latest
-
-      - name: Download distribution
-        uses: actions/download-artifact@v4
-        with:
-          name: forge-dedicated-${{ github.sha }}
-          path: release
 
       - name: Update daily snapshot release
         env:
