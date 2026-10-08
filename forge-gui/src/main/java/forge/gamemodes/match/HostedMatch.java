@@ -23,10 +23,7 @@ import forge.gamemodes.net.server.HostingServer;
 import forge.gamemodes.quest.QuestController;
 import forge.gui.FThreads;
 import forge.gui.GuiBase;
-import forge.gui.control.FControlGameEventHandler;
-import forge.gui.control.FControlGamePlayback;
-import forge.gui.control.PlaybackSpeed;
-import forge.gui.control.WatchLocalGame;
+import forge.gui.control.*;
 import forge.gui.events.*;
 import forge.gui.interfaces.IGuiGame;
 import forge.interfaces.IGameController;
@@ -80,7 +77,7 @@ public class HostedMatch {
         FThreads.invokeInEdtNowOrLater(() -> {
             retiredControllers.add(controller);
             nextGameDecisions.remove(controller);
-            resolveNextGameDecisions();
+            tallyNextGameDecisions();
         });
         controller.getInputQueue().clearInputs();
     }
@@ -191,7 +188,6 @@ public class HostedMatch {
         retiredControllers.clear();
         nextGameDecisions.clear();
         if (dedicatedLifecycle != null) { dedicatedLifecycle.gameStarting(); }
-        nextGameDecisions.clear();
         SoundSystem.instance.setBackgroundMusic(this.matchPlaylist == null ? MusicPlaylist.MATCH : this.matchPlaylist);
 
         game = match.createGame();
@@ -574,7 +570,12 @@ public class HostedMatch {
         }
     }
 
-    private void addNextGameDecision(final PlayerControllerHuman controller, final NextGameDecision decision) {
+    private static boolean stillPlaying(final PlayerControllerHuman controller) {
+        // A spectator's controller has no player
+        return controller.getPlayer() == null || controller.getPlayer().getOriginalLobbyPlayer() == controller.getLobbyPlayer();
+    }
+
+    private synchronized void addNextGameDecision(final PlayerControllerHuman controller, final NextGameDecision decision) {
         if (dedicatedLifecycle != null && (dedicatedFinished || retiredControllers.contains(controller)
                 || !humanControllers.contains(controller) || game == null || !game.isGameOver())) { return; }
         if (decision == NextGameDecision.QUIT) {
@@ -590,12 +591,14 @@ public class HostedMatch {
         }
 
         nextGameDecisions.put(controller, decision);
-        resolveNextGameDecisions();
+        tallyNextGameDecisions();
     }
 
-    private void resolveNextGameDecisions() {
-        if (dedicatedFinished || nextGameDecisions.isEmpty()) { return; }
-        if (nextGameDecisions.size() < humanControllers.size() - retiredControllers.size()) {
+    /** Starts the next game once every human still playing has chosen. A seat the AI took over is not waited for. */
+    public synchronized void tallyNextGameDecisions() {
+        if (dedicatedFinished) { return; }
+        nextGameDecisions.keySet().removeIf(c -> c != null && !stillPlaying(c));
+        if (nextGameDecisions.isEmpty() || nextGameDecisions.size() < humanControllers.stream().filter(HostedMatch::stillPlaying).count()) {
             return;
         }
 
