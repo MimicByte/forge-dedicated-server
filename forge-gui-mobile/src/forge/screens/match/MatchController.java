@@ -6,8 +6,11 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
+import com.badlogic.gdx.Gdx;
 import com.google.common.collect.Maps;
+import forge.animation.FlipOntoBattlefieldAnimation;
 import org.apache.commons.lang3.StringUtils;
 
 import forge.adventure.scene.DuelScene;
@@ -230,6 +233,7 @@ public class MatchController extends NetworkGuiGame {
             }
         }
         view = new MatchScreen(playerPanels);
+        DiceOverlay.getInstance().attach(getGameView().getGame()); // mobile-only dice animations
         if(GuiBase.isNetPlay(this))
             view.resetFields();
         selectionZonesBackup = null;
@@ -276,6 +280,45 @@ public class MatchController extends NetworkGuiGame {
         btn2.setText(label2);
         btn1.setEnabled(enable1);
         btn2.setEnabled(enable2);
+    }
+
+    @Override
+    public void showCoinFlip(final boolean heads, final String caption, final boolean waitForTap) {
+        if (FThreads.isGuiThread()) {
+            return;
+        }
+        final CountDownLatch latch = new CountDownLatch(1);
+        FThreads.invokeInEdtLater(() -> {
+            try {
+                new CoinFlipOverlay(heads, caption, waitForTap, latch::countDown).show();
+            } catch (RuntimeException e) {
+                latch.countDown();
+            }
+        });
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    @Override
+    public void showFlipOntoBattlefield(CardView flipped, CardView target, List<CardView> hit, List<CardView> battlefield, int timesFlipped) {
+        if (!FModel.getPreferences().getPrefBoolean(FPref.UI_ANIMATED_CARD_TAPUNTAP)) {
+            return;
+        }
+        final CountDownLatch done = new CountDownLatch(1);
+        Gdx.app.postRunnable(() -> new FlipOntoBattlefieldAnimation(flipped, target, hit, battlefield, timesFlipped, done::countDown).start());
+        try {
+            done.await(6, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    @Override
+    public void endFlipOntoBattlefield(CardView flipped) {
+        FlipOntoBattlefieldAnimation.markResolved(flipped);
     }
 
     @Override
@@ -618,6 +661,8 @@ public class MatchController extends NetworkGuiGame {
     }
 
     public static void writeMatchPreferences() {
+        if (Forge.lifecycleClosing)
+            return;
         final ForgePreferences prefs = FModel.getPreferences();
         final List<VPlayerPanel> panels = view.getPlayerPanelsList();
         final PhaseType[] phases = PhaseType.values();
