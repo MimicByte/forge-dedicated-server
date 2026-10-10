@@ -1042,7 +1042,6 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                 sw.start();
             }
 
-            game.fireEvent(new GameEventPlayerPriority(PlayerView.get(playerTurn), phase, PlayerView.get(getPriorityPlayer())));
             List<SpellAbility> chosenSa = null;
 
             int loopCount = 0;
@@ -1051,6 +1050,8 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
                     // state-based effects check could lead to game over
                     return;
                 }
+                // CR 117.3 A player receives priority once state-based actions are done, and again after each thing they do
+                game.fireEvent(new GameEventPlayerPriority(PlayerView.get(playerTurn), phase, PlayerView.get(getPriorityPlayer())));
                 game.stashGameState();
 
                 chosenSa = pPlayerPriority.getController().chooseSpellAbilityToPlay();
@@ -1176,7 +1177,6 @@ public class PhaseHandler implements java.io.Serializable, IHasForgeLog {
 
         if (!allAffectedCards.isEmpty()) {
             game.fireEvent(new GameEventCardStatsChanged(allAffectedCards));
-            allAffectedCards.clear();
             // Update flashback views after static abilities have been recalculated,
             // so play-from-zone abilities (e.g. Bolas's Citadel) are reflected
             game.getPlayers().forEach(Player::updateFlashbackForView);
