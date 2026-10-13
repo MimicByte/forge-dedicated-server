@@ -69,7 +69,7 @@ public enum ProtocolMethod implements IHasForgeLog {
     setWeaklySelectable (Mode.SERVER, Void.TYPE, Iterable/*CardView*/.class),
     clearWeaklySelectable(Mode.SERVER, Void.TYPE),
     // TODO case "setPlayerAvatar":
-    showWaitingTimer    (Mode.SERVER, Void.TYPE, PlayerView.class, String.class),
+    awaitNextInput      (Mode.SERVER, Void.TYPE),
     applyDelta          (Mode.SERVER, Void.TYPE, DeltaPacket.class),
     /** Server→client push of authoritative yield-state changes. */
     applyYieldUpdate    (Mode.SERVER, Void.TYPE, YieldUpdate.class),
