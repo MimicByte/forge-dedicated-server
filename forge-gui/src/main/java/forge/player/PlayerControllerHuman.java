@@ -89,6 +89,7 @@ import forge.model.FModel;
 import forge.trackable.TrackableCollection;
 import forge.util.*;
 import forge.util.collect.FCollection;
+import forge.trackable.TrackableObject;
 import forge.util.collect.FCollectionView;
 
 import io.sentry.Sentry;
@@ -1758,6 +1759,7 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
             return null;
         }
         final UndoManager undo = getGame().getUndoManager();
+        undo.setMode(undoModeFromPrefs());      // the host's setting decides, for every player in the game
         if (!isMacroActive()) {
             if (UndoManager.OWN_TURN_ONLY && getGame().getPhaseHandler().getPlayerTurn() != player) {
                 undo.barrier("Opponent's turn");
@@ -1777,7 +1779,18 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
 
     @Override
     public boolean playChosenSpellAbility(final SpellAbility chosenSa) {
-        return PlaySpellAbility.playSpellAbility(this, player, chosenSa);
+        // what targeting marks as chosen stays marked until the cost is paid or the cast is cancelled
+        keepTargetsMarked = true;
+        try {
+            return PlaySpellAbility.playSpellAbility(this, player, chosenSa);
+        } finally {
+            keepTargetsMarked = false;
+            // Copies: the GUI applies the change later, and this list is reused.
+            if (!keptMarks.isEmpty()) {
+                getGui().setHighlighted(new ArrayList<>(keptMarks), false);
+            }
+            keptMarks.clear();
+        }
     }
 
     @Override
@@ -2476,6 +2489,28 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
 
     @Override
     public boolean chooseTargetsFor(final SpellAbility currentAbility) {
+        final boolean result = chooseTargetsForStep(currentAbility);
+        // what was chosen stays marked while later targeting steps follow, and goes away after the last one or a failure;
+        // for a spell being cast it stays up through paying the cost instead (see playChosenSpellAbility)
+        if (result && keepTargetsMarked) {
+            if (!TargetingProgress.hasLaterTargetingStep(currentAbility)) {
+                keptMarks.addAll(TargetingProgress.chosenTargets(currentAbility));
+            }
+        } else if (!result || !TargetingProgress.hasLaterTargetingStep(currentAbility)) {
+            TargetingProgress.clearChosen(getGui(), currentAbility);
+        }
+        return result;
+    }
+
+    /** True while a spell is being cast: what targeting marks as chosen then stays marked until its cost is paid. */
+    private boolean keepTargetsMarked;
+    private final List<TrackableObject> keptMarks = new ArrayList<>();
+
+    public boolean isKeepingTargetsMarked() {
+        return keepTargetsMarked;
+    }
+
+    private boolean chooseTargetsForStep(final SpellAbility currentAbility) {
         final TargetSelection select = new TargetSelection(this, currentAbility);
         boolean canFilterMustTarget = true;
 
@@ -2755,6 +2790,13 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
         AchievementCollection.updateAll(this);
     }
 
+    private static UndoManager.Mode undoModeFromPrefs() {
+        final String v = FModel.getPreferences().getPref(FPref.UI_UNDO_MODE);
+        if (ForgeConstants.UNDO_MODE_OFF.equals(v)) { return UndoManager.Mode.OFF; }
+        if (ForgeConstants.UNDO_MODE_SINGLE.equals(v)) { return UndoManager.Mode.SINGLE_STEP; }
+        return UndoManager.Mode.FREE;
+    }
+
     public boolean canUndoLastAction() {
         if (getGame().getPhaseHandler().getPriorityPlayer() != player) return false;
         return getGame().getUndoManager().canUndo(player) && inputQueue.getInput() instanceof InputPassPriority;
@@ -2815,6 +2857,21 @@ public class PlayerControllerHuman extends PlayerController implements IGameCont
             macros().addRememberedAction(new SelectCardAction(cardView));
         }
         return selected;
+    }
+
+    @Override
+    public void selectStackItem(final StackItemView item) {
+        if (item == null || !(inputProxy.getInput() instanceof InputSelectStackItems)) {
+            return;
+        }
+        // a stack entry was picked while stack targets are chosen; it is identified by its stack instance, and the
+        // input takes it as that instance's ability
+        for (final SpellAbilityStackInstance si : getGame().getStack()) {
+            if (si.getId() == item.getId()) {
+                inputProxy.selectAbility(si.getSpellAbility());
+                return;
+            }
+        }
     }
 
     @Override
