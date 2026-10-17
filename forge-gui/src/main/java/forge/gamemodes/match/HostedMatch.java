@@ -20,6 +20,7 @@ import forge.game.player.PlayerView;
 import forge.game.player.RegisteredPlayer;
 import forge.gamemodes.net.NetworkGameEventListener;
 import forge.gamemodes.net.server.HostingServer;
+import forge.gamemodes.replay.ReplaySession;
 import forge.gamemodes.quest.QuestController;
 import forge.gui.FThreads;
 import forge.gui.GuiBase;
@@ -285,6 +286,9 @@ public class HostedMatch {
             }
         }
 
+        // Record this game for later playback (null when off, or when no human is playing)
+        final ReplaySession replay = ReplaySession.begin(game, humanControllers);
+
         for (final Entry<IGuiGame, Collection<PlayerView>> e : playersPerGui.asMap().entrySet()) {
             e.getKey().openView(new TrackableCollection<>(e.getValue()));
         }
@@ -322,8 +326,15 @@ public class HostedMatch {
                 currentGame.subscribeToEvents(playbackControl);
             }
             // Actually start the game!
-            match.startGame(currentGame, startGameHook,
-                    dedicatedLifecycle == null ? null : dedicatedLifecycle::gamePrepared);
+            try {
+                match.startGame(currentGame, startGameHook,
+                        dedicatedLifecycle == null ? null : dedicatedLifecycle::gamePrepared);
+            } catch (final RuntimeException | Error ex) {
+                if (replay != null) {
+                    replay.abort();
+                }
+                throw ex;
+            }
             // this function waits?
             if (endGameHook != null){
                 endGameHook.run();
@@ -338,6 +349,10 @@ public class HostedMatch {
                         fwd.flush();
                     }
                 }
+            }
+
+            if (replay != null) {
+                replay.finish();
             }
 
             if (dedicatedLifecycle != null) {
