@@ -14,7 +14,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -36,15 +35,20 @@ public class ProtocolMethodShould {
 
     @Test
     public void delegateMacroProtocolMethodsToTheControllerMacroSystem() throws Exception {
-        final IGameController controller = mock(IGameController.class, CALLS_REAL_METHODS);
+        final IGameController controller = mock(IGameController.class);
         final IMacroSystem macros = mock(IMacroSystem.class);
         when(controller.macros()).thenReturn(macros);
 
-        ProtocolMethod.setRememberedActions.getMethod().invoke(controller);
-        ProtocolMethod.nextRememberedAction.getMethod().invoke(controller);
+        for (final ProtocolMethod m : new ProtocolMethod[] {
+                ProtocolMethod.setRememberedActions,
+                ProtocolMethod.nextRememberedAction,
+                ProtocolMethod.repeatRememberedActions}) {
+            m.getMethod().invoke(m.receiver(controller));
+        }
 
         verify(macros).setRememberedActions();
         verify(macros).nextRememberedAction();
+        verify(macros).repeatRememberedActions();
     }
 
     @Test
@@ -65,10 +69,12 @@ public class ProtocolMethodShould {
 
         controller.macros().setRememberedActions();
         controller.macros().nextRememberedAction();
+        controller.macros().repeatRememberedActions();
 
         assertThat(sent)
                 .allSatisfy(event -> assertThat(event).isInstanceOf(GuiGameEvent.class));
         assertThat(sent.stream().map(event -> ((GuiGameEvent) event).getMethod()))
-                .containsExactly(ProtocolMethod.setRememberedActions, ProtocolMethod.nextRememberedAction);
+                .containsExactly(ProtocolMethod.setRememberedActions, ProtocolMethod.nextRememberedAction,
+                        ProtocolMethod.repeatRememberedActions);
     }
 }
