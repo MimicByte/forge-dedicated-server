@@ -37,6 +37,9 @@ jobs:
       - name: Sync master and merge it into dedicated-server
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The checkout adds an `upstream` remote, which gh would otherwise
+          # pick as its default repo (issues would target Card-Forge/forge).
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           issue_title='Dedicated server upstream sync needs attention'
@@ -53,7 +56,7 @@ jobs:
             '+refs/tags/daily-snapshots:refs/tags/upstream-daily-snapshots'
           snapshot_ref='refs/tags/upstream-daily-snapshots'
           if ! git rev-parse --verify "$snapshot_ref^{commit}" >/dev/null 2>&1; then
-            report_issue "The upstream daily-snapshots tag was not available.\n\nRun: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            report_issue "The upstream daily-snapshots tag was not available. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
             exit 1
           fi
 
@@ -97,7 +100,7 @@ jobs:
           if ! git merge-base --is-ancestor master dedicated-server; then
             if ! git merge --no-commit --no-ff master; then
               git merge --abort || true
-              report_issue "The dedicated-server branch could not merge the updated fork master.\n\nBase snapshot: $snapshot\n\nResolve the conflicts locally, then rerun this workflow.\n\nRun: $GITHUB_SERVER_URL/$GITHUB_RUN_ID"
+              report_issue "The dedicated-server branch could not merge the updated fork master. Base snapshot: $snapshot. Resolve the conflicts locally, then rerun this workflow. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
               exit 1
             fi
             git restore --source="$workflow_policy_source" --staged --worktree -- .github/workflows
