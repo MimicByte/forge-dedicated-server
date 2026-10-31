@@ -421,6 +421,12 @@ public class ComputerUtilMana {
                 continue;
             }
 
+            // a mana ability that sacrifices something (Phyrexian Tower, Ashnod's Altar) is only worth it for a spell
+            // that is worth more than what it costs; this check reserves nothing, so it comes before the next ones
+            if (!ManaSacrifice.worthIt(ai, ma, sa)) {
+                continue;
+            }
+
             // these should come last since they reserve the paying cards
             // (this means if a mana ability has both parts it doesn't currently undo reservations if the second part fails)
             if (!ComputerUtilCost.checkForManaSacrificeCost(ai, ma.getPayCosts(), ma, ma.isTrigger())) {
@@ -818,8 +824,10 @@ public class ComputerUtilMana {
                     cost.addManaCost(getManaCostToActivate(saPayment));
                 }
 
-                // remove to prevent re-usage since resources don't get consumed
-                sourcesForShards.values().removeIf(CardTraitPredicates.isHostCard(saPayment.getHostCard()));
+                // remove to prevent re-usage since resources don't get consumed, unless a sacrifice source has fodder left
+                if (!ManaSacrifice.canUseAgainInTest(ai, saPayment)) {
+                    sourcesForShards.values().removeIf(CardTraitPredicates.isHostCard(saPayment.getHostCard()));
+                }
             } else {
                 final CostPayment pay = new CostPayment(saPayment.getPayCosts(), saPayment);
                 if (!pay.payComputerCosts(new AiCostDecision(ai, saPayment, effect, true))) {
@@ -1586,7 +1594,11 @@ public class ComputerUtilMana {
 
             for (SpellAbility ma : src.getManaAbilities()) {
                 ma.setActivatingPlayer(p);
+                // mana that needs a sacrifice only counts when something that costs next to nothing can be given up
                 if (!checkPlayable || ma.canPlay()) {
+                    if (ManaSacrifice.isSacrificeMana(ma) && !ManaSacrifice.hasExpendableFodder(p, ma)) {
+                        continue;
+                    }
                     int costsToActivate = getManaToActivate(ma);
                     int producedTotal = -costsToActivate;
                     // a sub-ability can make the mana instead, when the first part's condition isn't met
