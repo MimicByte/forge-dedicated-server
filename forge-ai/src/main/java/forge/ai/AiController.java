@@ -265,7 +265,7 @@ public class AiController {
         for (final Card c : ccvGameBattlefield) {
             final String curse = c.getSVar("AICurseEffect");
             final Card host = sa.getHostCard();
-            if ("NonActive".equals(curse) && !player.equals(game.getPhaseHandler().getPlayerTurn())) {
+            if ("NonActive".equals(curse) && !game.getPhaseHandler().isPlayerTurn(player)) {
                 return true;
             } else if ("DestroyCreature".equals(curse) && sa.isSpell() && host.isCreature()
                     && !host.hasKeyword(Keyword.INDESTRUCTIBLE)) {
@@ -1492,7 +1492,9 @@ public class AiController {
         if (!(flatMcOverride != null ? flatMcOverride : game.getAIFlatMonteCarlo()) || flatMcOff() || simMode != null
                 || !getBoolProperty(AiProps.FLAT_MC_ENABLED)
                 || !(flatMcAttackOverride != null ? flatMcAttackOverride : getBoolProperty(AiProps.FLAT_MC_ATTACK) || isFlatMonteCarloMax() || isFlatMonteCarloLite())
-                || attacker != player || !game.getPhaseHandler().is(PhaseType.COMBAT_DECLARE_ATTACKERS)) {
+                || attacker != player || !game.getPhaseHandler().is(PhaseType.COMBAT_DECLARE_ATTACKERS)
+                // the rollouts choose a whole attack, so they would withdraw a teammate's attackers (CR 805.10b)
+                || combat.getAttackers().anyMatch(c -> !attacker.equals(c.getController()))) {
             return;
         }
         final FlatMonteCarloPicker.Config cfg = flatMonteCarloConfig();
@@ -1550,15 +1552,20 @@ public class AiController {
         // Per CR 508.1d, the decision to pay attack costs (e.g. Propaganda)
         // is made at declaration time. Remove attackers the AI can't pay for.
         // Correctness-critical and cheap, so it also runs when the deadline fired (outside the armed region).
-        removeUnpayableAttackers(combat);
+        removeUnpayableAttackers(attacker, combat);
 
         // if invalid: just try an attack declaration that we know to be legal
         if (!CombatUtil.validateAttackers(combat)) {
-            combat.clearAttackers();
+            // only this player's attackers are replaced, so a teammate's part of a team attack stays (CR 805.10b)
+            for (final Card own : CardLists.filterControlledBy(combat.getAttackers(), attacker)) {
+                combat.removeFromCombat(own);
+            }
             final Map<Card, GameEntity> legal = combat.getAttackConstraints().getLegalAttackers().getLeft();
             System.err.println("AI Attack declaration invalid, defaulting to: " + legal);
             for (final Map.Entry<Card, GameEntity> mandatoryAttacker : legal.entrySet()) {
-                combat.addAttacker(mandatoryAttacker.getKey(), mandatoryAttacker.getValue());
+                if (mandatoryAttacker.getKey().getController().equals(attacker)) {
+                    combat.addAttacker(mandatoryAttacker.getKey(), mandatoryAttacker.getValue());
+                }
             }
             if (!CombatUtil.validateAttackers(combat)) {
                 aiAtk.declareAttackers(combat);
@@ -1566,8 +1573,9 @@ public class AiController {
         }
     }
 
-    private void removeUnpayableAttackers(Combat combat) {
-        for (Card attacker : combat.getAttackers().threadSafeIterable()) {
+    private void removeUnpayableAttackers(final Player attackingPlayer, Combat combat) {
+        // a teammate's attackers are theirs to pay for
+        for (Card attacker : CardLists.filterControlledBy(combat.getAttackers(), attackingPlayer)) {
             Cost attackCost = CombatUtil.getAttackCost(game, attacker, combat.getDefenderByAttacker(attacker));
             if (attackCost == null) {
                 continue;
@@ -1965,6 +1973,21 @@ public class AiController {
             final SpellAbility dreadReturn = DreadReturnWin.sureCast(player, saList);
             if (dreadReturn != null) {
                 return dreadReturn; // Oops! All Spells: the flashback of Dread Return brings the Oracle back to an empty library
+            }
+        }
+        if (flatMonteCarloActive()) {
+            final SpellAbility donateFinish = DonateCombo.sureFinish(player, saList);
+            if (donateFinish != null) {
+                if (!hasFailedToCast(donateFinish)) {
+                    lastFlatMcResult = null;
+                    return donateFinish; // Removing donated Illusions now makes the only opponent lose 20 life.
+                }
+                for (SpellAbility ability = donateFinish; ability != null; ability = ability.getSubAbility()) {
+                    ability.resetTargets();
+                }
+                if (donateFinish.costHasManaX()) {
+                    donateFinish.setXManaCostPaid(null);
+                }
             }
         }
         // Stiflenought: the Dreadnought is cast as soon as its Stifle can be paid for as well, without rollouts
@@ -2496,6 +2519,45 @@ public class AiController {
                 && !h.getManaAbilities().isEmpty();
     }
 
+    /**
+     * A cost-reduction permanent marked AI:RemoveDeck:All or :Random (Sapphire Medallion, for example): the heuristic may omit it,
+     * but FlatMC should still compare deploying it when it can make a catalogued setup safer or cheaper.
+     */
+    boolean isRemoveDeckCostReductionPermanent(final SpellAbility sa) {
+        final Card h = sa == null ? null : sa.getHostCard();
+        // CardAiHints keeps the All and Random deck-removal flags separately; include both for this narrow exception.
+        if (h == null || !sa.isSpell() || !h.isPermanent() || h.isLand()
+            || !(ComputerUtilCard.isCardRemAIDeck(h) || ComputerUtilCard.isCardRemRandomDeck(h))) {
+            return false;
+        }
+        for (final StaticAbility ability : h.getStaticAbilities()) {
+            final String activator = ability.getParam("Activator");
+            final String valid = ability.getParam("ValidCard");
+            if (ability.getMode().contains(StaticAbilityMode.ReduceCost)
+                && (activator == null || "You".equals(activator) || "Any".equals(activator))
+                && (valid == null || !valid.contains("OppCtrl"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether this ability moves a card from its controller's hand onto the battlefield.
+     * These hidden-origin ChangeZone abilities need an eligible card in hand (Aether Vial,
+     * Quicksilver Amulet, Belbe's Portal, Elvish Piper, and similar effects).
+     */
+    private static boolean isHandToBattlefieldChangeZone(final SpellAbility sa) {
+        for (SpellAbility current = sa; current != null; current = current.getSubAbility()) {
+            if (current.getApi() == ApiType.ChangeZone && current.hasParam("Origin")
+                && ZoneType.listValueOf(current.getParam("Origin")).contains(ZoneType.Hand)
+                && ZoneType.Battlefield.toString().equals(current.getParam("Destination"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private boolean isLegalDiscovery(final SpellAbility sa, final AiPlayDecision opinion) {
         if (sa == null) {
             return false;
@@ -2510,6 +2572,12 @@ public class AiController {
         if (GuardedAbilities.isNeverLogic(sa) && !GuardedAbilities.mayConsider(player, sa, true)) {
             return false; // the script says the AI never plays it, and nothing makes an exception
         }
+        // ChangeZoneAi rejects a hidden-origin activation when no eligible card is in hand.
+        // Broad discovery must not add it back just because the activation cost itself is payable.
+        if (isHandToBattlefieldChangeZone(sa)
+                && (opinion == AiPlayDecision.CantPlayAi || opinion == AiPlayDecision.MissingNeededCards)) {
+            return false;
+        }
         switch (opinion) {
             case CantPlaySa, CantAfford, CantAffordX, TimingRestrictions, WouldDestroyLegend, WouldBecomeZeroToughnessCreature:
                 return false;
@@ -2521,10 +2589,14 @@ public class AiController {
             // know which: their "not now" is final, and the rollouts cannot see the waste (nothing in the score)
             return false;
         }
+        if (ActivationGuard.problem(player, sa) != null) {
+            return false; // nothing to act on: a discovered tap or mana for no effect (Oran-Rief with no new green creature)
+        }
         final Card host = sa.getHostCard();
         final ComboPlan combos = deckPlan(player).combos;
         if (!FlatMonteCarloPicker.isDiscoverable(sa, getBoolProperty(AiProps.FLAT_MC_BROAD_DISCOVERY) || isFlatMonteCarloMax())
                 && !isRemoveDeckManaPermanent(sa)
+                && !isRemoveDeckCostReductionPermanent(sa)
                 && !combos.isFuelPlay(sa)
                 && !(host != null && ComputerUtilCard.isCardRemAIDeck(host) && combos.isKeyCard(host))
                 && !TutorPlan.hasUse(player, sa)) {
