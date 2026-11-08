@@ -222,7 +222,7 @@ public abstract class GameLobby implements IHasGameType {
             if (field.startsWith(SETUP_VARIANTS)) {
                 for (final String name : StringUtils.split(field.substring(SETUP_VARIANTS.length()), ',')) {
                     final GameType variant = EnumUtils.getEnum(GameType.class, name);
-                    if (variant != null && (choices.contains(variant) || FormatChoices.STACKED_GAME_TYPES.contains(variant))) {
+                    if (variant != null && (choices.contains(variant) || FormatChoices.VARIANTS.contains(variant))) {
                         applyVariant(variant);
                     }
                 }
@@ -493,6 +493,12 @@ public abstract class GameLobby implements IHasGameType {
         final boolean changed = data.appliedVariants.remove(variant);
         if (!changed) {
             return;
+        }
+
+        if (variant == GameType.TwoHeadedGiant || variant == GameType.Archenemy) {
+            for (int i = 0; i < data.slots.size(); i++) {
+                data.slots.get(i).setTeam(i);
+            }
         }
 
         if (variant == currentGameType) {
