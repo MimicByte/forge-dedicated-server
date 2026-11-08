@@ -906,6 +906,43 @@ public class AiController {
         return true;
     }
 
+    /**
+     * The check of a play made to assemble a catalogued combo: the heuristics' own approval (it sets targets), or for a
+     * spell without targets that can be cast and paid, whatever they think of a piece that does nothing alone.
+     */
+    private boolean assemblyApproved(final SpellAbility sa) {
+        try {
+            if (ComboGuard.problem(player, sa, null, deckPlan(player).combos) != null) {
+                return false;
+            }
+            sa.setActivatingPlayer(player);
+            sa.setLastStateBattlefield(game.getLastStateBattlefield());
+            sa.setLastStateGraveyard(game.getLastStateGraveyard());
+            try {
+                if (canPlayAndPayFor(sa) == AiPlayDecision.WillPlay) {
+                    return true;
+                }
+            } finally {
+                sa.clearLastState();
+            }
+            return (!sa.usesTargeting() || ComboAssembly.aimedDreamsKill(player, sa)) && sa.canPlay()
+                    && ComputerUtilCost.canPayCost(sa, player, false);
+        } catch (final RuntimeException e) {
+            return false;
+        }
+    }
+
+    /** The step of a loop (see {@link LoopRunner}): aimed already, so only the cost and an earlier failure are looked at. */
+    private boolean loopApproved(final SpellAbility sa) {
+        try {
+            sa.setActivatingPlayer(player);
+            return !hasFailedToCast(sa) && sa.canPlay() && ComputerUtilCost.canPayCost(sa, player, false)
+                    && game.getStack().hasLegalTargeting(sa);
+        } catch (final RuntimeException e) {
+            return false;
+        }
+    }
+
     private AiPlayDecision canPlayAndPayFor(final SpellAbility sa) {
         AITimeoutTracker.check();
         final Card host = sa.getHostCard();
@@ -1862,11 +1899,28 @@ public class AiController {
         }
         final boolean topOwnedByAI = top != null && top.getActivatingPlayer().equals(player);
 
-        if (topOwnedByAI) {
+        if (topOwnedByAI && flatMonteCarloActive()) {
             // Stiflenought: the AI's own "sacrifice it unless" trigger is answered with Stifle, which nothing else would do
             final SpellAbility stifle = StifleCombo.stifleOwnTrigger(player, top);
             if (stifle != null) {
                 return stifle;
+            }
+            if (stormSolver != null && stormSolver.expectsResponse(player)) {
+                // a line of the tutor storm solver answers its own spell (Lion's Eye Diamond with Infernal Tutor on the stack)
+                final SpellAbility response = stormSolver.next(player, deckPlan(player).combos);
+                if (response != null) {
+                    return response;
+                }
+            }
+            // Thassa's Oracle trigger on the stack: Demonic Consultation exiles the library in response, the Oracle wins
+            final SpellAbility consultation = ConsultationWin.response(player);
+            if (consultation != null) {
+                return consultation;
+            }
+            // Breakthrough on the stack: Lion's Eye Diamond puts the dredgers into the graveyard before the four draws
+            final SpellAbility diamond = DredgeLine.response(player, deckPlan(player).combos);
+            if (diamond != null) {
+                return diamond;
             }
         }
 
@@ -1876,31 +1930,6 @@ public class AiController {
             mustRespond = top.hasParam("AIRespondsToOwnAbility"); // Forced combos (currently defined for Sensei's Divining Top)
             mustRespond |= top.isTrigger() && top.getTrigger().isKeyword(Keyword.EVOKE); // Evoke sacrifice trigger
         }
-
-        if (topOwnedByAI && stormSolver != null && flatMonteCarloActive() && stormSolver.expectsResponse(player)) {
-            // a line of the tutor storm solver answers its own spell (Lion's Eye Diamond with Infernal Tutor on the stack)
-            final SpellAbility response = stormSolver.next(player, deckPlan(player).combos);
-            if (response != null) {
-                return response;
-            }
-        }
-
-        if (topOwnedByAI && flatMonteCarloActive()) {
-            // Thassa's Oracle trigger on the stack: Demonic Consultation exiles the library in response, the Oracle wins
-            final SpellAbility consultation = ConsultationWin.response(player);
-            if (consultation != null) {
-                return consultation;
-            }
-        }
-
-        if (topOwnedByAI && flatMonteCarloActive()) {
-            // Breakthrough on the stack: Lion's Eye Diamond puts the dredgers into the graveyard before the four draws
-            final SpellAbility diamond = DredgeLine.response(player, deckPlan(player).combos);
-            if (diamond != null) {
-                return diamond;
-            }
-        }
-
         if (topOwnedByAI) {
             // AI's own spell: should probably let my stuff resolve first, but may want to copy the SA or respond to it
             // in a scripted timed fashion.
@@ -1941,19 +1970,19 @@ public class AiController {
                 return true;
             }
             final Card h = spellAbility.getHostCard();
-            return h != null && ComputerUtilCard.isCardRemAIDeck(h) && !flatMc;
+            return h != null && ((ComputerUtilCard.isCardRemAIDeck(h) && !flatMc) || ComboAssembly.deadOnArrival(player, spellAbility)
+                    || (flatMc && LoopRunner.held(player, spellAbility)));
         });
         //removed skipped SA
         skipped = saList.stream().filter(SpellAbility::isSkip).collect(Collectors.toList());
         if (!skipped.isEmpty())
             saList.removeAll(skipped);
-        if (flatMonteCarloActive()) {
+
+        if (flatMc) {
             final SpellAbility vault = VaultLoop.sureCast(player, saList);
             if (vault != null) {
                 return vault; // Time Vault and what untaps it: an extra turn every turn, no rollouts needed
             }
-        }
-        if (flatMonteCarloActive()) {
             final SpellAbility oracle = ConsultationWin.sureCast(player, saList);
             if (oracle != null) {
                 return oracle; // Thassa's Oracle with Demonic Consultation in hand: cast it, the Consultation answers its trigger
@@ -1974,8 +2003,6 @@ public class AiController {
             if (dreadReturn != null) {
                 return dreadReturn; // Oops! All Spells: the flashback of Dread Return brings the Oracle back to an empty library
             }
-        }
-        if (flatMonteCarloActive()) {
             final SpellAbility donateFinish = DonateCombo.sureFinish(player, saList);
             if (donateFinish != null) {
                 if (!hasFailedToCast(donateFinish)) {
@@ -1989,32 +2016,41 @@ public class AiController {
                     donateFinish.setXManaCostPaid(null);
                 }
             }
+            final SpellAbility loop = LoopRunner.next(player, saList, this::loopApproved);
+            if (loop != null) {
+                return loop; // a loop of the combo list is on the table: one more round of it
+            }
+            final SpellAbility finish = ComboAssembly.finish(player, saList, this::assemblyApproved);
+            if (finish != null) {
+                return finish; // a draw that takes the opponent's whole library: they lose at their next draw
+            }
+            final SpellAbility assembly = ComboAssembly.next(player, saList, this::assemblyApproved);
+            if (assembly != null) {
+                return assembly; // a catalogued combo whose other cards are all in play or in hand: put it together
+            }
         }
-        // Stiflenought: the Dreadnought is cast as soon as its Stifle can be paid for as well, without rollouts
-        final SpellAbility sureStifle = StifleCombo.sureCast(player, saList);
-        if (sureStifle != null) {
-            return sureStifle;
-        }
-        if (flatMonteCarloActive() && game.getStack().isEmpty()) {
+        if (flatMc && game.getStack().isEmpty()) {
+            // Stiflenought: the Dreadnought is cast as soon as its Stifle can be paid for as well, without rollouts
+            final SpellAbility sureStifle = StifleCombo.sureCast(player, saList);
+            if (sureStifle != null) {
+                return sureStifle;
+            }
             final SpellAbility sure = deckPlan(player).combos.sureMadnessPlay(player, saList);
             if (sure != null) {
                 return sure; // safe and sure: no rollouts needed
             }
-        }
-        if (flatMonteCarloActive() && game.getStack().isEmpty()) {
             final SpellAbility cut = deckPlan(player).combos.sureCutPlay(player, saList);
             if (cut != null) {
                 return cut; // the library cut with a finisher in place: no rollouts needed
             }
-        }
-
-        if (flatMonteCarloActive() && game.getStack().isEmpty() && deckPlan(player).combos.has(ComboPlan.Kind.TUTOR_STORM)) {
-            if (stormSolver == null) {
-                stormSolver = new StormSolver();
-            }
-            final SpellAbility solved = stormSolver.next(player, deckPlan(player).combos);
-            if (solved != null) {
-                return solved; // a line that wins this turn was found: follow it instead of guessing
+            if (deckPlan(player).combos.has(ComboPlan.Kind.TUTOR_STORM)) {
+                if (stormSolver == null) {
+                    stormSolver = new StormSolver();
+                }
+                final SpellAbility solved = stormSolver.next(player, deckPlan(player).combos);
+                if (solved != null) {
+                    return solved; // a line that wins this turn was found: follow it instead of guessing
+                }
             }
         }
 

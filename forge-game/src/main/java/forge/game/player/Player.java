@@ -3140,6 +3140,15 @@ public class Player extends GameEntity implements Comparable<Player> {
                 c.setStartsGameInPlay(true);
             }
         }
+        for (final Pair<IPaperCard, Integer> suspended : registeredPlayer.getExtraCardsSuspended()) {
+            final Card c = Card.fromPaperCard(suspended.getLeft(), this);
+            // a second Suspend keyword would remove two time counters each upkeep
+            if (!c.hasKeyword(Keyword.SUSPEND)) {
+                c.addChangedCardKeywords(Lists.newArrayList("Suspend"), null, false, game.getNextTimestamp(), null);
+            }
+            c.addCounterInternal(CounterEnumType.TIME, suspended.getRight(), this, false, null, null);
+            getZone(ZoneType.Exile).add(c);
+        }
 
         for (final Card c : List.copyOf(getCardsIn(ZoneType.Library))) { //Copy the list so ChangeZone effects don't trigger concurrent modification.
             for (KeywordInterface inst : c.getKeywords()) {
@@ -3154,6 +3163,20 @@ public class Player extends GameEntity implements Comparable<Player> {
                     getController().playSpellAbilityNoStack(effect, true);
                 }
             }
+        }
+    }
+
+    public void initStartingHandExtras() {
+        final RegisteredPlayer registeredPlayer = getRegisteredPlayer();
+        for (final IPaperCard cp : registeredPlayer.getExtraCardsInHand()) {
+            getZone(ZoneType.Hand).add(Card.fromPaperCard(cp, this));
+        }
+        final int maxHandSizeModifier = registeredPlayer.getMaxHandSizeModifier();
+        if (maxHandSizeModifier != 0) {
+            final DetachedCardEffect eff = new DetachedCardEffect(this, "Maximum Hand Size Modifier");
+            eff.addStaticAbility("Mode$ Continuous | Affected$ You | EffectZone$ Command | RaiseMaxHandSize$ " + maxHandSizeModifier
+                    + " | Description$ Your maximum hand size is changed by " + maxHandSizeModifier + ".");
+            getZone(ZoneType.Command).add(eff);
         }
     }
 
