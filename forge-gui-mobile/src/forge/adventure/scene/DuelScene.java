@@ -346,31 +346,24 @@ public class DuelScene extends ForgeScene {
         //Apply various combat effects.
         int lifeMod = 0;
         int changeStartCards = 0;
-        int maxHandSizeModifier = 0;
         int extraManaShards = 0;
         Array<IPaperCard> startCards = new Array<>();
         Array<IPaperCard> startCardsInCommandZone = new Array<>();
-        Array<IPaperCard> startCardsInHand = new Array<>();
-        Array<Pair<IPaperCard, Integer>> startCardsSuspended = new Array<>();
 
         for (EffectData data : effects) {
             lifeMod += data.lifeModifier;
             changeStartCards += data.changeStartCards;
-            maxHandSizeModifier += data.maxHandSizeModifier;
             startCards.addAll(data.startBattleWithCards());
             startCardsInCommandZone.addAll(data.startBattleWithCardsInCommandZone());
-            startCardsInHand.addAll(data.startBattleWithCardsInHand());
-            startCardsSuspended.addAll(data.startBattleWithCardsSuspended());
+            if (data.startBattleScript != null)
+                player.addStartGameScript(Arrays.asList(data.startBattleScript));
             extraManaShards += data.extraManaShards;
         }
         player.addExtraCardsOnBattlefield(startCards);
         player.addExtraCardsInCommandZone(startCardsInCommandZone);
-        player.addExtraCardsInHand(startCardsInHand);
-        player.addExtraCardsSuspended(startCardsSuspended);
         if (lifeMod != 0)
             player.setStartingLife(Math.max(1, lifeMod + player.getStartingLife()));
         player.setStartingHand(player.getStartingHand() + changeStartCards);
-        player.setMaxHandSizeModifier(player.getMaxHandSizeModifier() + maxHandSizeModifier);
         player.setManaShards((player.getManaShards() + extraManaShards));
         player.setEnableETBCountersEffect(true); //enable etbcounters on starting cards like Ring of Three Wishes, etc...
     }
@@ -458,7 +451,6 @@ public class DuelScene extends ForgeScene {
 
         List<RegisteredPlayer> players = new ArrayList<>();
 
-        applyAdventureDeckRules(mainGameType.getDeckFormat());
         int playerCount = 1;
         EnemyData currentEnemy = enemy.getData();
         for (int i = 0; i < 8 && currentEnemy != null; i++) {
@@ -466,31 +458,8 @@ public class DuelScene extends ForgeScene {
             currentEnemy = currentEnemy.nextEnemy;
         }
 
-        humanPlayer = RegisteredPlayer.forVariants(playerCount, appliedVariants, playerDeck, null, false, null, null);
-        LobbyPlayer playerObject = GamePlayerUtil.getGuiPlayer();
-        FSkin.getAvatars().put(playerAvatarKey, advPlayer.avatar());
-        playerObject.setAvatarIndex(playerAvatarKey);
-        humanPlayer.setPlayer(playerObject);
-        humanPlayer.setTeamNumber(0);
-        humanPlayer.setStartingLife(eventData != null ? eventData.eventRules.startingLife : advPlayer.getLife());
-        if (eventData == null || eventData.eventRules.allowsShards)
-            humanPlayer.setManaShards(advPlayer.getShards());
-
         Array<EffectData> playerEffects = new Array<>();
         Array<EffectData> oppEffects = new Array<>();
-
-        Map<DeckProxy, Pair<List<String>, List<String>>> deckProxyMapMap = null;
-        DeckProxy deckProxy = null;
-        if (chaosBattle) {
-            deckProxyMapMap = DeckProxy.getAllQuestChallenges();
-            deckProxy = Aggregates.random(deckProxyMapMap.keySet());
-            //playerextras
-            List<IPaperCard> playerCards = new ArrayList<>();
-            for (String s : deckProxyMapMap.get(deckProxy).getLeft()) {
-                playerCards.add(QuestUtil.readExtraCard(s));
-            }
-            humanPlayer.addExtraCardsOnBattlefield(playerCards);
-        }
 
         if (eventData == null || eventData.eventRules.allowsItems) {
             //Collect and add items effects first.
@@ -523,6 +492,30 @@ public class DuelScene extends ForgeScene {
             oppEffects.add(dungeonEffect);
             if (dungeonEffect.opponent != null)
                 playerEffects.add(dungeonEffect.opponent);
+        }
+
+        applyAdventureDeckRules(mainGameType.getDeckFormat(), allowsIllegalCommander(playerEffects));
+        humanPlayer = RegisteredPlayer.forVariants(playerCount, appliedVariants, playerDeck, null, false, null, null);
+        LobbyPlayer playerObject = GamePlayerUtil.getGuiPlayer();
+        FSkin.getAvatars().put(playerAvatarKey, advPlayer.avatar());
+        playerObject.setAvatarIndex(playerAvatarKey);
+        humanPlayer.setPlayer(playerObject);
+        humanPlayer.setTeamNumber(0);
+        humanPlayer.setStartingLife(eventData != null ? eventData.eventRules.startingLife : advPlayer.getLife());
+        if (eventData == null || eventData.eventRules.allowsShards)
+            humanPlayer.setManaShards(advPlayer.getShards());
+
+        Map<DeckProxy, Pair<List<String>, List<String>>> deckProxyMapMap = null;
+        DeckProxy deckProxy = null;
+        if (chaosBattle) {
+            deckProxyMapMap = DeckProxy.getAllQuestChallenges();
+            deckProxy = Aggregates.random(deckProxyMapMap.keySet());
+            //playerextras
+            List<IPaperCard> playerCards = new ArrayList<>();
+            for (String s : deckProxyMapMap.get(deckProxy).getLeft()) {
+                playerCards.add(QuestUtil.readExtraCard(s));
+            }
+            humanPlayer.addExtraCardsOnBattlefield(playerCards);
         }
 
         addEffects(humanPlayer, playerEffects);
@@ -563,6 +556,9 @@ public class DuelScene extends ForgeScene {
                 System.err.println(isDeckMissingMsg);
                 deck = this.eventData == null && canUseGeneticAI ? Aggregates.random(DeckProxy.getAllGeneticAIDecks()).getDeck() : this.playerDeck;
             }
+            //A copy of the player's deck keeps the player's commander, already checked by applyAdventureDeckRules.
+            if (deck != this.playerDeck && mainGameType.getDeckFormat().hasCommander() && !allowsIllegalCommander(oppEffects))
+                deck = withoutIllegalCommanders(deck, mainGameType.getDeckFormat());
             RegisteredPlayer aiPlayer = RegisteredPlayer.forVariants(playerCount, appliedVariants, deck, null, false, null, null);
 
             LobbyPlayer enemyPlayer = GamePlayerUtil.createAiPlayer(currentEnemy.getName(), selectAI(currentEnemy.ai, bossBattle && eventData == null));
@@ -678,7 +674,30 @@ public class DuelScene extends ForgeScene {
     private static final String PLACEHOLDER_ATTRACTION = "Coin-Operated Pony";
     private static final String PLACEHOLDER_CONTRAPTION = "Automatic Fidget Spinner";
 
-    private void applyAdventureDeckRules(DeckFormat format) {
+    private static boolean allowsIllegalCommander(Array<EffectData> effects) {
+        for (EffectData effect : effects) {
+            if (effect.allowIllegalCommander)
+                return true;
+        }
+        return false;
+    }
+
+    private static Deck withoutIllegalCommanders(Deck deck, DeckFormat format) {
+        List<PaperCard> illegal = new ArrayList<>();
+        for (PaperCard commander : deck.getCommanders()) {
+            if (!format.isLegalCommander(commander.getRules()))
+                illegal.add(commander);
+        }
+        if (illegal.isEmpty())
+            return deck;
+        //Edit a copy, because the deck can be one that is reused.
+        Deck copy = new Deck(deck);
+        copy.get(DeckSection.Commander).removeAllFlat(illegal);
+        copy.getMain().add(illegal);
+        return copy;
+    }
+
+    private void applyAdventureDeckRules(DeckFormat format, boolean allowIllegalCommander) {
         if(FModel.getPreferences().getPrefBoolean(ForgePreferences.FPref.DEV_MODE_ENABLED)
                 && !FModel.getPreferences().getPrefBoolean(ForgePreferences.FPref.ENFORCE_DECK_LEGALITY))
             return;
@@ -687,7 +706,7 @@ public class DuelScene extends ForgeScene {
         CardPool mainSection = playerDeck.getMain(), attractions = playerDeck.get(DeckSection.Attractions), contraptions = playerDeck.get(DeckSection.Contraptions);
 
         if(format.hasCommander()) {
-            applyAdventureCommandZoneRules(playerDeck, format);
+            applyAdventureCommandZoneRules(playerDeck, format, allowIllegalCommander);
         }
 
         removeExcessCopies(mainSection, format);
@@ -781,13 +800,13 @@ public class DuelScene extends ForgeScene {
         return maxDeckSize;
     }
 
-    private static void applyAdventureCommandZoneRules(Deck playerDeck, DeckFormat format) {
+    private static void applyAdventureCommandZoneRules(Deck playerDeck, DeckFormat format, boolean allowIllegalCommander) {
         CardPool commandPool = playerDeck.getOrCreate(DeckSection.Commander);
 
         //1. Validate command section.
         List<PaperCard> removals = new ArrayList<>();
         List<PaperCard> commanders = playerDeck.getCommanders(); //ordered flat list
-        boolean enforceLegality = FModel.getPreferences().getPrefBoolean(ForgePreferences.FPref.ENFORCE_DECK_LEGALITY);
+        boolean enforceLegality = !allowIllegalCommander && FModel.getPreferences().getPrefBoolean(ForgePreferences.FPref.ENFORCE_DECK_LEGALITY);
         if (commanders.size() > 2) {
             removals.addAll(commanders.subList(2, commanders.size()));
             commanders = commanders.subList(0, 2);

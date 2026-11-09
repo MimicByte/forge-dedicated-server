@@ -160,7 +160,9 @@ public final class ComboGuard {
         }
         // an activated ability with nothing to act on (Oran-Rief with no new green creature): see ActivationGuard
         final String idle = ActivationGuard.problem(ai, sa);
-        if (idle != null) {
+        // "valuable-sacrifice" is the outlet guard's own reading of the evaluator: the combo guard has the sacrifice rules of
+        // the deck plan (sacrifice-key), and a deck without a combo plan sacrifices as the heuristics decide
+        if (idle != null && !"valuable-sacrifice".equals(idle)) {
             return idle;
         }
         // Demonic Consultation exiles the library: only to win, with the Oracle's trigger on the stack (ConsultationWin)
@@ -305,6 +307,7 @@ public final class ComboGuard {
                         || ma.getPayCosts().hasSpecificCostType(CostDiscard.class))) {
                     continue; // used up by making the mana
                 }
+                ManaConversion.withActivator(ma); // asking what it makes checks its conditions, which want an activator
                 try {
                     best = Math.max(best, Math.max(1, ma.amountOfManaGenerated(false)));
                     for (int i = 0; i < 5; i++) {
