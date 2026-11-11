@@ -1,23 +1,47 @@
 name: Build dedicated server from upstream release
 
 on:
+  schedule:
+    # Check for a new Card-Forge release after the daily snapshot sync.
+    - cron: '0 21 * * *'
   workflow_dispatch:
     inputs:
       upstream_release_tag:
-        description: Official Card-Forge release tag, for example forge-2.0.15
-        required: true
+        description: Card-Forge release tag (blank = latest), for example forge-2.0.16
+        required: false
         type: string
 
 permissions:
   contents: write
+  issues: write
   packages: write
 
 concurrency:
-  group: dedicated-upstream-release-${{ inputs.upstream_release_tag }}
+  group: dedicated-upstream-release
   cancel-in-progress: false
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.check.outputs.tag }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_TAG: ${{ inputs.upstream_release_tag }}
+        run: |
+          set -euo pipefail
+          tag=${REQUESTED_TAG:-$(gh release view --repo Card-Forge/forge --json tagName --jq .tagName)}
+          if gh release view "dedicated-upstream-$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "dedicated-upstream-$tag is already published."
+          else
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          fi
+
   build-and-publish:
+    needs: check
+    if: needs.check.outputs.tag != ''
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -35,7 +59,7 @@ jobs:
         id: source
         env:
           GH_TOKEN: ${{ github.token }}
-          UPSTREAM_RELEASE_TAG: ${{ inputs.upstream_release_tag }}
+          UPSTREAM_RELEASE_TAG: ${{ needs.check.outputs.tag }}
         run: |
           set -euo pipefail
           if ! [[ "$UPSTREAM_RELEASE_TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
@@ -49,8 +73,29 @@ jobs:
           git fetch --no-tags upstream "refs/tags/$UPSTREAM_RELEASE_TAG:refs/tags/upstream-release"
           release_branch="dedicated-release/$UPSTREAM_RELEASE_TAG"
           if ! git ls-remote --exit-code --heads origin "$release_branch" >/dev/null; then
-            echo "::error::Prepare and push $release_branch from upstream tag $UPSTREAM_RELEASE_TAG before publishing."
-            exit 1
+            # Prepare the branch: the upstream release tree plus the fork's
+            # dedicated changes (dedicated-server relative to synced master).
+            # dedicated-server is the first parent so the workflow files are
+            # unchanged, which GITHUB_TOKEN requires for pushing.
+            git fetch --no-tags origin master dedicated-server
+            git switch --detach refs/tags/upstream-release
+            if ! git diff --binary origin/master origin/dedicated-server -- . ':(exclude).github/workflows' \
+                | git apply --3way --index; then
+              issue_title="Dedicated server release $UPSTREAM_RELEASE_TAG needs attention"
+              if [ "$(gh issue list --state open --search "$issue_title in:title" --json number --jq 'length')" = 0 ]; then
+                gh issue create --title "$issue_title" --body "The dedicated changes did not apply cleanly to upstream $UPSTREAM_RELEASE_TAG. Prepare and push $release_branch locally, then rerun this workflow. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+              fi
+              exit 1
+            fi
+            git rm -rq --cached .github/workflows
+            git checkout origin/dedicated-server -- .github/workflows
+            release_version=$(sed -n 's|.*<versionCode>\([^<]*\)</versionCode>.*|\1|p' pom.xml)
+            # Release poms have no ${revision}; pin the server module's parent.
+            sed -i "s|<version>\${revision}</version></parent>|<version>$release_version</version></parent>|" forge-server/pom.xml
+            git add forge-server/pom.xml
+            prepared=$(git commit-tree "$(git write-tree)" -p origin/dedicated-server -p HEAD \
+              -m "release: prepare dedicated server for $UPSTREAM_RELEASE_TAG")
+            git push origin "$prepared:refs/heads/$release_branch"
           fi
           git fetch --no-tags origin "refs/heads/$release_branch:refs/remotes/origin/$release_branch"
 
@@ -150,7 +195,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.source.outputs.release_tag }}
           TAG_EXISTS: ${{ steps.source.outputs.tag_exists }}
-          UPSTREAM_RELEASE_TAG: ${{ inputs.upstream_release_tag }}
+          UPSTREAM_RELEASE_TAG: ${{ needs.check.outputs.tag }}
           UPSTREAM_COMMIT: ${{ steps.source.outputs.upstream_commit }}
           DEDICATED_COMMIT: ${{ steps.source.outputs.dedicated_commit }}
         run: |
