@@ -87,7 +87,7 @@ jobs:
               fi
               exit 1
             fi
-            git rm -rq --cached .github/workflows
+            git rm -rq .github/workflows
             git checkout origin/dedicated-server -- .github/workflows
             release_version=$(sed -n 's|.*<versionCode>\([^<]*\)</versionCode>.*|\1|p' pom.xml)
             # Release poms have no ${revision}; pin the server module's parent.
