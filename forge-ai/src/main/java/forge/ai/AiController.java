@@ -1214,6 +1214,9 @@ public class AiController {
                     return AiPlayDecision.BadEtbEffects;
                 }
             }
+            if (!sa.isLandAbility() && sa.isSpell() && LegalityGuard.etbWithoutTarget(player, card)) {
+                return AiPlayDecision.BadEtbEffects; // Journey to Nowhere, Oblivion Ring, Necromancy ... with nothing to aim at
+            }
             if (!sa.isLandAbility() && !checkETBEffects(card, sa, null)) {
                 return AiPlayDecision.BadEtbEffects;
             }
@@ -1868,6 +1871,14 @@ public class AiController {
         CardCollection landsWannaPlay = ComputerUtilAbility.getAvailableLandsToPlay(game, player);
         if (landsWannaPlay != null) {
             landsWannaPlay = filterLandsToPlay(landsWannaPlay);
+            if (landsWannaPlay != null && landsWannaPlay.size() > 1) {
+                // a land that makes no mana yet (Temple of the False God with four lands to come) waits for the others
+                final CardCollection working = CardLists.filter(landsWannaPlay,
+                        l -> !forge.ai.simulation.LegalityGuard.isDormantLand(player, l));
+                if (!working.isEmpty()) {
+                    landsWannaPlay = working;
+                }
+            }
             if (landsWannaPlay != null && !landsWannaPlay.isEmpty()) {
                 // TODO search for other land it might want to play?
                 Card land = chooseBestLandToPlay(landsWannaPlay);
@@ -2378,7 +2389,7 @@ public class AiController {
                     continue; // without discovery only a ramp deck's key card gets this far
                 }
                 try {
-                    if (counter.canPlay() && counter.canTargetSpellAbility(top)) {
+                    if (counter.checkRestrictions(player) && counter.canPlay() && counter.canTargetSpellAbility(top)) {
                         // aim first: a cost that depends on the target (a discard of its mana value) cannot be checked before
                         counter.resetTargets();
                         counter.getTargets().add(top);
@@ -2472,7 +2483,7 @@ public class AiController {
     }
 
     /**
-     * Plays that Flat Monte Carlo never spends a card on (see {@link forge.ai.simulation.ComboGuard}): bringing back
+     * Plays that Flat Monte Carlo never spends a card on (see {@link ComboGuard}): bringing back
      * a legend that is already in play and working, a second Omniscience, Show and Tell with nothing worth putting in,
      * and a cantrip while the AI is confident to win this turn or the next. Returns the reason, or null for a fine play.
      */
@@ -2708,7 +2719,7 @@ public class AiController {
 
     private DeckPlan flatMcDeckPlan;
 
-    /** What the deck is for, worked out once from the whole list and kept for the game; see {@link forge.ai.simulation.DeckPlan}. */
+    /** What the deck is for, worked out once from the whole list and kept for the game; see {@link DeckPlan}. */
     public DeckPlan deckPlan(final Player p) {
         if (flatMcDeckPlan == null) {
             flatMcDeckPlan = DeckPlan.forSetting(getProperty(AiProps.FLAT_MC_DECK_PLAN), p);
@@ -3359,7 +3370,7 @@ public class AiController {
                     return slot;
                 }
 
-                return Aggregates.random(options);
+                return NumberChoice.choose(sa, options, relatedPlayer);
             default:
                 return options.get(0);
         }
