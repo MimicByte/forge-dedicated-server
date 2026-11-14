@@ -4,12 +4,12 @@ import type { ComponentChildren } from 'preact';
 import { useLayoutEffect, useState } from 'preact/hooks';
 import { flyingFor, land } from '../flight';
 import { drawHand, headingText, regroup, type GroupBy } from './decklist';
-import { imageUrl, smallImage } from '../images';
+import { artUrl, hideBroken, imageUrl, smallImage } from '../images';
 import { Curve, useDeckView } from './deckview';
 import { Pip, Pips, SymbolText } from '../symbols';
 import type { Actions } from '../actions';
 import type { CardHandlers } from './drag';
-import type { DeckSection, EditorCard, EditorSection, EditorState } from '../protocol';
+import type { DeckSection, EditorCard, EditorSection, EditorState, LandSet } from '../protocol';
 import { store, stored } from '../storage';
 import { t, tCap } from '../text';
 import { Backdrop, Dropdown } from '../dialog';
@@ -128,23 +128,26 @@ export function DeckHalf({ actions, state, handlers, check, adding, addTo }: {
         <span class="band-lab">{t('lblWebEditorBasicLands')}</span>
         {/* A land the deck may not hold, or outside the commander's colours, is listed only while the deck holds some, so it can be taken out */}
         {state.lands.filter(l => (l.allowed && (!state.commanders.length || (state.identity || 'C').includes(l.letter))) || l.count).map(l => (
-          <span key={l.name} class={l.allowed ? 'land' : 'land off'} title={l.allowed ? l.name : t('lblWebEditorOutsideColours', l.name)}>
-            <Pip letter={l.letter} />
-            <button class="step" disabled={!l.count} aria-label={t('lblWebEditorOneFewer', l.name)}
-              onClick={() => actions.edit({ op: 'lands', count: 0, lands: [{ name: l.name, count: l.count - 1 }] })}>&minus;</button>
-            <span class="n">{l.count}</span>
-            <button class="step" disabled={!l.allowed} aria-label={t('lblWebEditorOneMore', l.name)}
-              onClick={() => actions.edit({ op: 'lands', count: 0, lands: [{ name: l.name, count: l.count + 1 }] })}>+</button>
+          <span key={l.name} class={(l.allowed ? 'land' : 'land off') + (l.count ? '' : ' zero')} title={l.allowed ? l.name : t('lblWebEditorOutsideColours', l.name)}>
+            <span class="land-card" data-image={l.image}>
+              <img alt={l.name} draggable={false} src={smallImage(imageUrl(l.image))} onError={hideBroken} />
+              {l.count > 0 && <span class="deck-count">{l.count}</span>}
+            </span>
+            <span class="land-step">
+              <Pip letter={l.letter} />
+              <button class="step" disabled={!l.count} aria-label={t('lblWebEditorOneFewer', l.name)}
+                onClick={() => actions.edit({ op: 'lands', count: 0, lands: [{ name: l.name, count: l.count - 1 }] })}>&minus;</button>
+              <span class="n">{l.count}</span>
+              <button class="step" disabled={!l.allowed} aria-label={t('lblWebEditorOneMore', l.name)}
+                onClick={() => actions.edit({ op: 'lands', count: 0, lands: [{ name: l.name, count: l.count + 1 }] })}>+</button>
+            </span>
           </span>
         ))}
-        {state.landSets.length > 0 && <>
-          <select class="land-set" aria-label={t('lblWebEditorBasicLandsFrom')} value={state.landSet ?? ''}
-            onChange={e => actions.edit({ op: 'landSet', name: e.currentTarget.value, count: 0 })}>
-            {state.landSets.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
-          </select>
+        {state.landSets.length > 0 && <span class="land-tail">
+          <LandSetPicker sets={state.landSets} chosen={state.landSet} choose={code => actions.edit({ op: 'landSet', name: code, count: 0 })} />
           <button class="small" title={t('lblWebEditorSuggestLandsTip')}
             onClick={() => actions.edit({ op: 'suggestLands', count: 0 })}>{t('lblWebEditorSuggestLands')}</button>
-        </>}
+        </span>}
       </div>
       {hand && <SampleHand hand={hand} again={() => setHand(drawHand(state, HAND))}
         more={() => setHand(drawHand(state, hand.length + 1))} close={() => setHand(null)} />}
@@ -300,6 +303,62 @@ function Breakdown({ title, counts }: { title: string; counts: number[] }) {
       <div class="share-bar">{parts.map(p => <i key={p.letter} data-colour={p.letter} style={{ flexGrow: p.n }} />)}</div>
       <div class="share-key">
         {parts.map(p => <span key={p.letter}><Pip letter={p.letter} />{p.n} <small>{Math.round((p.n / total) * 100)}%</small></span>)}
+      </div>
+    </div>
+  );
+}
+
+const FIVE_BASICS = ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest'];
+/** More sets than this get a search box. */
+const SEARCH_FROM = 8;
+
+/** A set's five basics side by side, art only. A set is offered only when it has all five. */
+function LandStrip({ code }: { code: string }) {
+  return (
+    <span class="land-strip">
+      {FIVE_BASICS.map(l => <span key={l}><img loading="lazy" alt="" src={`${artUrl(`c:${l}|${code}|1`)}&auto=1`} onError={hideBroken} /></span>)}
+    </span>
+  );
+}
+
+/** Chooses the set new basic lands come from. Each set shows its five basics, so sets are told apart by their art. */
+function LandSetPicker({ sets, chosen, choose }: { sets: LandSet[]; chosen?: string | null; choose: (code: string) => void }) {
+  const current = sets.find(s => s.code === chosen) ?? sets[0];
+  const face = (
+    <>
+      <LandStrip code={current.code} />
+      <span class="nm">{current.name}<small>{t('lblLandSet')}</small></span>
+    </>
+  );
+  if (sets.length === 1) return <span class="land-set">{face}</span>;
+  return (
+    <Dropdown cls="menu-anchor land-set-anchor" button={(open, toggle) => (
+      <button class="land-set" aria-label={t('lblWebEditorBasicLandsFrom')} aria-expanded={open} onClick={toggle}>
+        {face}<span class="caret" aria-hidden="true">&#9662;</span>
+      </button>
+    )}>
+      {close => <LandSetMenu sets={sets} current={current.code} choose={code => { close(); if (code !== current.code) choose(code); }} />}
+    </Dropdown>
+  );
+}
+
+/** The open land set menu. Its search starts empty each time it opens. */
+function LandSetMenu({ sets, current, choose }: { sets: LandSet[]; current: string; choose: (code: string) => void }) {
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  const shown = q ? sets.filter(s => s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q)) : sets;
+  return (
+    <div class="land-set-menu" role="dialog" aria-label={t('lblWebEditorBasicLandsFrom')}>
+      {sets.length > SEARCH_FROM && <input type="search" autoFocus placeholder={t('lblWebEditorSearchSets')} aria-label={t('lblWebEditorSearchSets')}
+        value={query} onInput={e => setQuery(e.currentTarget.value)} />}
+      <div class="land-set-grid" role="listbox">
+        {shown.map(s => (
+          <button key={s.code} class="set-tile" role="option" aria-selected={s.code === current} onClick={() => choose(s.code)}>
+            <LandStrip code={s.code} />
+            <span class="meta"><span>{s.name}</span><small>{s.code}</small></span>
+          </button>
+        ))}
+        {!shown.length && <p class="none">{t('lblWebEditorNoSetsMatch', query.trim())}</p>}
       </div>
     </div>
   );

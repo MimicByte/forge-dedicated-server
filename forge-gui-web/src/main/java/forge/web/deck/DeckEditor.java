@@ -790,9 +790,14 @@ public final class DeckEditor {
             }
         }
         if (wanted > 0) {
-            final PaperCard fromSet = landSet == null ? null : StaticData.instance().getCommonCards().getCard(name, landSet);
-            deck.getMain().add(fromSet != null ? fromSet : printingFor(name), wanted);
+            deck.getMain().add(newLand(name), wanted);
         }
+    }
+
+    /** The printing a new basic land uses: the chosen land set's, or else the usual one. */
+    private PaperCard newLand(final String name) {
+        final PaperCard fromSet = landSet == null ? null : StaticData.instance().getCommonCards().getCard(name, landSet);
+        return fromSet != null ? fromSet : printingFor(name);
     }
 
     /** The printing a new copy uses: the one the deck already holds if it holds only one, otherwise the preferred art. */
@@ -903,7 +908,8 @@ public final class DeckEditor {
 
     private List<EditorLand> lands() {
         final List<EditorLand> out = new ArrayList<>();
-        BASICS.forEach((name, colour) -> out.add(new EditorLand(name, colour.getShortName(), deck.getMain().countByName(name), landAllowed(name))));
+        BASICS.forEach((name, colour) -> out.add(new EditorLand(name, colour.getShortName(), deck.getMain().countByName(name), landAllowed(name),
+                newLand(name).getImageKey(false))));
         return out;
     }
 

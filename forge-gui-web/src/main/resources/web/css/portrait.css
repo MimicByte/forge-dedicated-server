@@ -634,7 +634,11 @@ html[data-form="portrait"] #editor .ed-line .ra button { width: 38px; height: 36
 html[data-form="portrait"] #editor .ed-line .ra button:nth-child(3) { width: 52px; margin-left: 8px; font-size: 13px; }
 html[data-form="portrait"] #editor .ed-line:hover { padding-left: 0; background: none; }
 html[data-form="portrait"] #editor .land-row { display: grid; grid-template-columns: repeat(3, max-content); justify-content: space-between; padding: 8px 10px; gap: 8px 6px; }
-html[data-form="portrait"] #editor .land-row .band-lab, html[data-form="portrait"] #editor .land-row .land-set { grid-column: 1 / -1; }
+html[data-form="portrait"] #editor .land-row .band-lab, html[data-form="portrait"] #editor .land-row .land-tail { grid-column: 1 / -1; }
+html[data-form="portrait"] #editor .land-row .land-tail { margin-left: 0; }
+html[data-form="portrait"] #editor .land-card { width: 64px; }
+html[data-form="portrait"] #editor .land-set-menu { position: fixed; left: 0; right: 0; bottom: 0; width: auto; padding: 10px 10px calc(14px + env(safe-area-inset-bottom)); border-radius: 14px 14px 0 0; transform-origin: 50% 100%; }
+html[data-form="portrait"] #editor .land-set-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 55vh; }
 html[data-form="portrait"] #editor .land-row .band-lab { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
 html[data-form="portrait"] #editor .land-row .step { width: 36px; height: 36px; font-size: 18px; }
 html[data-form="portrait"] .print-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

@@ -65,7 +65,7 @@ html[data-rail="back"]::view-transition-new(rail-page) { animation-name: rail-in
 @keyframes rail-in { from { opacity: 0; translate: 0 16px; } }
 @keyframes rail-out-back { to { opacity: 0; translate: 0 16px; } }
 @keyframes rail-in-back { from { opacity: 0; translate: 0 -16px; } }
-html[data-motion="reduced"] :is(.backdrop, .backdrop > *, .dialog, .card-menu, .deck-menu, .host-choice, .zone-panel, .zone-bar,
+html[data-motion="reduced"] :is(.backdrop, .backdrop > *, .dialog, .card-menu, .deck-menu, .land-set-menu, .host-choice, .zone-panel, .zone-bar,
   #menu > *, #lobby > *, #editor > *, #limited > *, #drafting > *, #campaign > *) { animation: none; }
 .backdrop[hidden] { display: none; }
 .backdrop { position: fixed; inset: 0; background: #0009; display: flex; align-items: center; justify-content: center; overflow: auto; padding: 16px; z-index: 50; }
