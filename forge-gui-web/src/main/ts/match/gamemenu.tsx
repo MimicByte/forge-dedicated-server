@@ -13,7 +13,7 @@ import { useClosing } from '../closing';
 import { changeUi, ui } from '../ui';
 import { Backdrop, Confirm } from '../dialog';
 import { ICONS, MenuIcon, Icon } from '../icons';
-import { useTwoPress } from '../hooks';
+import { useHoverIntent, useTwoPress } from '../hooks';
 import { isPortrait } from '../form';
 
 /** Starts recording a macro, or stops the recording. */
@@ -36,6 +36,7 @@ export function GameMenu({ model, actions, close, open, dev: atDev }: {
   const phone = isPortrait();
   const [dev, setDev] = useState(!!atDev && phone);
   const [devBeside, setDevBeside] = useState(!!atDev && !phone);
+  const hover = useHoverIntent();
   const [mats, setMats] = useState(false);
   const menu = useRef<HTMLDivElement>(null);
   const { closing, shut, gone } = useClosing(close);
@@ -50,9 +51,12 @@ export function GameMenu({ model, actions, close, open, dev: atDev }: {
   const offer = model.drawOffer;
   return (
     <Backdrop cls={closing ? 'anchored closing' : 'anchored'} onAnimationEnd={gone} dismiss={shut}>
-      {/* Pointing at another row closes the dev items beside the menu */}
+      {/* Pointing at another row closes the dev items beside the menu, after a pause, so a pointer crossing rows on its way to them keeps them open */}
       <div ref={menu} class={dev ? 'card-menu game-menu dev' : 'card-menu game-menu'} role="menu" aria-label={dev ? t('lblDevMode') : t('lblGame')}
-        onMouseOver={e => { if (!(e.target as Element).closest('.dev-entry')) setDevBeside(false); }}>
+        onMouseOver={e => {
+          if ((e.target as Element).closest('.dev-entry')) hover.stay();
+          else if (devBeside) hover.later(() => setDevBeside(false));
+        }}>
         {dev ? <DevItems model={model} actions={actions} back={() => setDev(false)} close={close} setUp={() => open('devSetup')} /> : <>
         <button type="button" role="menuitem" class={mats ? 'card-menu-item on' : 'card-menu-item'} aria-expanded={mats}
           onClick={() => { setMats(!mats); setDevBeside(false); }}><MenuIcon d={ICONS.playmat} />{t('lblWebPlaymat')}<MenuIcon d={ICONS.next} end /></button>
@@ -96,7 +100,7 @@ export function GameMenu({ model, actions, close, open, dev: atDev }: {
         </>}
       </div>
       {mats && !dev && <PlaymatPicker beside={menu} />}
-      {devBeside && <DevBeside menu={menu}>
+      {devBeside && <DevBeside menu={menu} enter={hover.stay}>
         <DevItems model={model} actions={actions} close={close} setUp={() => open('devSetup')} />
       </DevBeside>}
     </Backdrop>
@@ -104,7 +108,7 @@ export function GameMenu({ model, actions, close, open, dev: atDev }: {
 }
 
 /** The dev items beside the game menu, level with its bottom edge. Their families open further left. */
-function DevBeside({ menu, children }: { menu: { current: HTMLDivElement | null }; children: ComponentChildren }) {
+function DevBeside({ menu, enter, children }: { menu: { current: HTMLDivElement | null }; enter: () => void; children: ComponentChildren }) {
   const panel = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const el = panel.current, beside = menu.current?.getBoundingClientRect();
@@ -112,7 +116,7 @@ function DevBeside({ menu, children }: { menu: { current: HTMLDivElement | null 
     el.style.right = `${innerWidth - beside.left + 8}px`;
     el.style.bottom = `${innerHeight - beside.bottom}px`;
   }, []);
-  return <div ref={panel} class="card-menu game-menu dev" role="menu" aria-label={t('lblDevMode')}>{children}</div>;
+  return <div ref={panel} class="card-menu game-menu dev" role="menu" aria-label={t('lblDevMode')} onMouseEnter={enter}>{children}</div>;
 }
 
 /** The playmats beside the game menu. A choice changes the table at once, so the board behind it is the preview. */

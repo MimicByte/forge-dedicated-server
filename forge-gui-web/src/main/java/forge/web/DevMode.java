@@ -11,6 +11,7 @@ import forge.model.FModel;
 import forge.player.PlayerControllerHuman;
 import forge.util.Localizer;
 import forge.web.match.NetplaySeat;
+import forge.web.match.WebGuiGame;
 import forge.web.protocol.BrowserChannel;
 import forge.web.protocol.FromBrowser.Dev;
 import forge.web.protocol.ToBrowser.DevDump;
@@ -33,7 +34,7 @@ final class DevMode {
     }
 
     /** Runs one cheat. Do not call it on a socket thread or the host UI thread, because a cheat waits for the browser's answers. */
-    static void run(final NetplaySeat local, final Dev dev, final BrowserChannel channel) {
+    static void run(final NetplaySeat local, final WebGuiGame gui, final Dev dev, final BrowserChannel channel) {
         final String refused = refusal(local);
         if (refused != null) {
             channel.send(new Notice(Localizer.getInstance().getMessage("lblWebDevNoCheating"), refused, false));
@@ -45,7 +46,12 @@ final class DevMode {
         switch (dev.action()) {
             case state -> { }
             case unlimitedLands -> cheat.setCanPlayUnlimitedLands(!controller.canPlayUnlimitedLands());
-            case viewAll -> cheat.setViewAllCards(!controller.mayLookAtAllCards());
+            case viewAll -> {
+                // Each game of a match has its own controller, so the switch is read from the current one
+                gui.seeAllWhen(() -> local.ownPlayer() != null && local.ownPlayer().getController() instanceof PlayerControllerHuman h && h.mayLookAtAllCards());
+                cheat.setViewAllCards(!controller.mayLookAtAllCards());
+                gui.resendState();
+            }
             case generateMana -> cheat.generateMana();
             case tutorForCard -> cheat.tutorForCard();
             case addCardToHand -> cheat.addCardToHand();

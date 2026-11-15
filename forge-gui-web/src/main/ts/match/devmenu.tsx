@@ -8,6 +8,7 @@ import { t, tCap, type TextKey } from '../text';
 import { players, zone, type Model } from '../model';
 import { isPortrait } from '../form';
 import { ICONS, MenuIcon } from '../icons';
+import { useHoverIntent } from '../hooks';
 
 type Entry = [DevAction, TextKey];
 
@@ -35,12 +36,15 @@ export function DevItems({ model, actions, back, close, setUp }: {
   }, []);
   const [open, setOpen] = useState<{ family: string; top: number } | null>(null);
   const phone = isPortrait();
+  // A pointer crossing other rows on its way into an open family keeps it open. Resting on another row closes it, or opens that row's family
+  const hover = useHoverIntent();
+  const leave = () => { if (open) hover.later(() => setOpen(null)); };
   const run = (action: DevAction) => {
     actions.dev(action);
     close();
   };
   const toggle = (action: DevAction, label: string, on: boolean | undefined) => (
-    <button type="button" role="menuitemcheckbox" aria-checked={!!on} class="card-menu-item" onClick={() => actions.dev(action)}>
+    <button type="button" role="menuitemcheckbox" aria-checked={!!on} class="card-menu-item" onMouseEnter={leave} onClick={() => actions.dev(action)}>
       {on ? '✓ ' : ''}{label}
     </button>
   );
@@ -61,7 +65,15 @@ export function DevItems({ model, actions, back, close, setUp }: {
   const familyRow = (family: string) => (
     <button key={family} type="button" role="menuitem" aria-haspopup="menu" aria-expanded={open?.family === family}
       class={open?.family === family ? 'card-menu-item on' : 'card-menu-item'}
-      onMouseEnter={phone ? undefined : e => show(family, e.currentTarget)}
+      onMouseEnter={phone ? undefined : e => {
+        const row = e.currentTarget;
+        if (!open || open.family === family) {
+          hover.stay();
+          show(family, row);
+        } else {
+          hover.later(() => show(family, row));
+        }
+      }}
       onClick={e => show(family, e.currentTarget)}
       onKeyDown={e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); show(family, e.currentTarget); } }}>
       <MenuIcon d={FAMILY_ICONS[family]} />{familyName(family)}<MenuIcon d={ICONS.next} end />
@@ -77,12 +89,12 @@ export function DevItems({ model, actions, back, close, setUp }: {
     );
   }
   const plain = (action: DevAction, key: TextKey, icon: string) => (
-    <button key={action} type="button" role="menuitem" class="card-menu-item" onMouseEnter={() => setOpen(null)} onClick={() => run(action)}><MenuIcon d={icon} />{t(key)}</button>
+    <button key={action} type="button" role="menuitem" class="card-menu-item" onMouseEnter={leave} onClick={() => run(action)}><MenuIcon d={icon} />{t(key)}</button>
   );
   return (
     <>
       {back && <>
-        <button type="button" role="menuitem" class="card-menu-item dev-back" onMouseEnter={() => setOpen(null)} onClick={back}>‹ {t('lblDevMode')}</button>
+        <button type="button" role="menuitem" class="card-menu-item dev-back" onMouseEnter={leave} onClick={back}>‹ {t('lblDevMode')}</button>
         <div class="card-menu-sep" role="separator" />
       </>}
       {toggle('unlimitedLands', t('lblWebDevUnlimitedLands'), model.devState?.unlimitedLands)}
@@ -100,7 +112,7 @@ export function DevItems({ model, actions, back, close, setUp }: {
       {familyRow('state')}
       {planechase && familyRow('planechase')}
       {open && !phone && (
-        <div class="card-menu dev-sub" role="menu" aria-label={familyName(open.family)} style={{ top: `${open.top - 6}px` }}
+        <div class="card-menu dev-sub" role="menu" aria-label={familyName(open.family)} style={{ top: `${open.top - 6}px` }} onMouseEnter={hover.stay}
           onKeyDown={e => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); setOpen(null); } }}>
           {subItems(open.family)}
         </div>

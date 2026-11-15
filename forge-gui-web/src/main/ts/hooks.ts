@@ -1,6 +1,6 @@
 // Small pieces of page behaviour that several pages share
 
-import { useEffect, useLayoutEffect, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { RefObject } from 'preact';
 
 /** The value after it has stopped changing for ms. A long list costs a request per row, so a search waits for a pause in typing. */
@@ -77,4 +77,27 @@ export function usePlacedMenu(open: boolean, anchor: RefObject<HTMLElement>, men
     };
   }, [open, ...again]);
   return at;
+}
+
+/**
+ * Delays a submenu change while the pointer crosses other rows of a menu on its way into the submenu. later runs an action after
+ * a short pause, and stay cancels it when the pointer reaches the row that opened the submenu, or the submenu itself.
+ */
+export function useHoverIntent(ms = 300): { later: (action: () => void) => void; stay: () => void } {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stay = () => {
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = null;
+  };
+  useEffect(() => stay, []);
+  return {
+    later: action => {
+      stay();
+      timer.current = setTimeout(() => {
+        timer.current = null;
+        action();
+      }, ms);
+    },
+    stay,
+  };
 }

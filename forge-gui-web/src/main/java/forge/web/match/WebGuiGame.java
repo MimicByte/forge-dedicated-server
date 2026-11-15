@@ -82,6 +82,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
@@ -147,6 +148,7 @@ public class WebGuiGame extends NetworkGuiGame {
     private final ReentrantLock mirrorLock = new ReentrantLock();
     private final ExecutorService dispatch = Executors.newSingleThreadExecutor(
             new ThreadFactoryBuilder().setNameFormat("WebClient").setDaemon(true).build());
+    private volatile BooleanSupplier seesAll = () -> false;
     /** Every card key the browser was sent in this game. The visible list is chosen from these. */
     private final Set<Integer> cardKeys = new LinkedHashSet<>();
     private List<Integer> localPlayerKeys = List.of();
@@ -197,6 +199,29 @@ public class WebGuiGame extends NetworkGuiGame {
         // A question the browser can no longer answer would keep the dispatch thread waiting forever
         requests.cancelAll();
         dispatch.shutdown();
+    }
+
+    /**
+     * Lets dev mode's "see every card" reach this seat. The switch is on the host's own player controller. This GUI is a netplay
+     * client, and a netplay client's controller always answers that it may not look at every card.
+     */
+    public void seeAllWhen(final BooleanSupplier on) {
+        seesAll = on;
+    }
+
+    @Override
+    public boolean mayView(final CardView c) {
+        return seesAll.getAsBoolean() || super.mayView(c);
+    }
+
+    /** Sends the whole board again, so a change in which cards this seat may see reaches the browser. */
+    public void resendState() {
+        dispatchExecutor().execute(() -> {
+            final JsonObject state = fullState();
+            if (state != null) {
+                send(state);
+            }
+        });
     }
 
     public Executor dispatchExecutor() {
