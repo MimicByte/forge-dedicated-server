@@ -129,8 +129,8 @@ export function SetupHead({ trail, title, aside, sub }: { trail: SetupStep[]; ti
 
 /** The name of each way to play, as shown in the trail. */
 export const WAY_NAMES: Record<'play' | 'friends', string> = {
-  get play() { return t('lblWebHeadVersusAi'); },
-  get friends() { return t('lblWebHeadWithFriends'); },
+  get play() { return t('lblWebMenuVersusAi'); },
+  get friends() { return t('lblWebMenuWithFriends'); },
 };
 
 /** The volume and options buttons. Each page places them just before its exit button. */
