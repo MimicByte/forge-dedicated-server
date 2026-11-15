@@ -11,14 +11,14 @@
 
 :root {
   /* The table is lighter at the centre and darker at the edges, so the board is not one flat colour */
-  --bg: #10141c;
+  --bg: #161b25;
   --bg-deep: #070910;
   /* Six shades from --bg to --line-bright, not four. A panel on top of another panel must look raised. A hover also needs its own shade. */
-  --surface: #171d27;
-  --surface-2: #212936;
-  --surface-3: #26303d;
-  --line: #303a49;
-  --line-bright: #414d5f;
+  --surface: #1e2531;
+  --surface-2: #28313f;
+  --surface-3: #2e3846;
+  --line: #384354;
+  --line-bright: #4a576a;
   --text: #e6edf3;
   --muted: #8b96a5;
   --faint: #6b7686;
@@ -92,7 +92,7 @@
 /* The background is set on the root, not the body. The board's backdrop layers have a negative z-index, so they are drawn behind any background on the body. */
 /* The menus are centre-lit like the table, with a cool light from the top and a warm glow from the bottom. The edge is just above --bg, so entering a match keeps the same floor. */
 html { background: radial-gradient(70% 45% at 50% -6%, #2d446645 0%, transparent 70%) fixed, radial-gradient(60% 40% at 50% 106%, #6b4a1a33 0%, transparent 70%) fixed,
-  radial-gradient(120% 90% at 50% 38%, #1c2330 0%, #121722 100%) fixed, var(--bg); }
+  radial-gradient(120% 90% at 50% 38%, #232b3a 0%, #181e29 100%) fixed, var(--bg); }
 html, body { margin: 0; height: 100%; color: var(--text); font: 14px/1.4 system-ui, sans-serif; }
 /* Scrollbars are thin and drawn in the theme's colours, with no arrow buttons */
 :root { scrollbar-color: var(--line-bright) transparent; }
