@@ -2,6 +2,7 @@ package forge.web;
 
 import com.google.gson.JsonObject;
 import forge.StaticData;
+import forge.ai.LobbyPlayerAi;
 import forge.game.player.Player;
 import forge.gamemodes.match.HostedMatch;
 import forge.gamemodes.net.server.RemoteClientGuiGame;
@@ -38,12 +39,17 @@ public final class WebTestSupport {
 
     /** The host's view of the web seat. Call {@code updateGameView()} on it after a test seeds cards, because seeding fires no event. */
     static RemoteClientGuiGame remoteGui(final HostedMatch match) {
-        for (final Player p : match.getGame().getPlayers()) {
-            if (p.getController() instanceof PlayerControllerHuman pch && pch.getGui() instanceof RemoteClientGuiGame r) {
+        for (final PlayerControllerHuman pch : match.getHumanControllers()) {
+            if (pch.getGui() instanceof RemoteClientGuiGame r) {
                 return r;
             }
         }
         throw new AssertionError("no remote human seat");
+    }
+
+    /** Whether the player is a person's seat, read from the original lobby player because the available-actions check swaps in an AI controller for a moment. */
+    static boolean isWebSeat(final Player p) {
+        return !(p.getOriginalLobbyPlayer() instanceof LobbyPlayerAi);
     }
 
     /** Checks that a browser model built from updates holds the same objects as a fresh snapshot. */

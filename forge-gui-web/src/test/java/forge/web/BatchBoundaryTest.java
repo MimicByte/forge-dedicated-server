@@ -6,7 +6,6 @@ import com.google.gson.JsonObject;
 import forge.deck.Deck;
 import forge.game.Game;
 import forge.game.GameState;
-import forge.player.PlayerControllerHuman;
 import forge.web.match.BrowserModel;
 import forge.web.match.MatchProbe;
 import org.testng.Assert;
@@ -64,7 +63,7 @@ public class BatchBoundaryTest {
             Assert.assertTrue(browser.atOwnMain.await(120, TimeUnit.SECONDS), "the web seat never reached its main phase");
             final Game played = local.hostedMatch().getGame();
             // GameState calls the first player "human" and the second "ai", whoever controls them
-            final String web = played.getPlayers().get(0).getController() instanceof PlayerControllerHuman ? "human" : "ai";
+            final String web = WebTestSupport.isWebSeat(played.getPlayers().get(0)) ? "human" : "ai";
             // Each side has a Spark Elemental, which is sacrificed at every end step, so a card is sure to leave a battlefield
             final GameState state = new GameState();
             final String hand = "Mountain;Shock;Raging Goblin;Goblin Piker";

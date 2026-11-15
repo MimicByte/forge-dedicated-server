@@ -12,7 +12,6 @@ import forge.game.phase.PhaseType;
 import forge.game.player.Player;
 import forge.game.zone.ZoneType;
 import forge.gamemodes.net.DeltaPacket;
-import forge.player.PlayerControllerHuman;
 import forge.web.match.MatchProbe;
 import forge.web.match.WebGuiGame;
 import org.testng.Assert;
@@ -44,7 +43,7 @@ public class ActiveClientTest {
 
     private static void giveWebSeat(final Game game, final String hand, final String battlefield, final String library, final String aiBattlefield,
             final String aiHand) throws InterruptedException {
-        final boolean webFirst = game.getPlayers().get(0).getController() instanceof PlayerControllerHuman;
+        final boolean webFirst = WebTestSupport.isWebSeat(game.getPlayers().get(0));
         final String web = webFirst ? "human" : "ai";
         final String ai = webFirst ? "ai" : "human";
         final GameState state = new GameState();
@@ -130,7 +129,7 @@ public class ActiveClientTest {
 
     private static int cardKey(final Game game, final ZoneType zone, final boolean webSeat, final String name, final boolean faceDown) {
         for (final Player p : game.getPlayers()) {
-            if ((p.getController() instanceof PlayerControllerHuman) != webSeat) {
+            if (WebTestSupport.isWebSeat(p) != webSeat) {
                 continue;
             }
             for (final Card c : p.getCardsIn(zone)) {
@@ -194,7 +193,7 @@ public class ActiveClientTest {
         TestMatch.play(plains(), forests(), gui -> TestBrowser.held(gui, 50), (local, gui, browser) -> {
             Assert.assertTrue(browser.atOwnMain.await(120, TimeUnit.SECONDS), "the web seat never reached its main phase");
             final Game game = local.hostedMatch().getGame();
-            final boolean webFirst = game.getPlayers().get(0).getController() instanceof PlayerControllerHuman;
+            final boolean webFirst = WebTestSupport.isWebSeat(game.getPlayers().get(0));
             final String web = webFirst ? "human" : "ai";
             final String ai = webFirst ? "ai" : "human";
             final GameState state = new GameState();
