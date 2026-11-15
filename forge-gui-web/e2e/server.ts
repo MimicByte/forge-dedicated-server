@@ -1,7 +1,7 @@
 // A Forge web server for one test. It has its own home folder, so tests never change the preferences of the user running them
 
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -90,7 +90,7 @@ export async function startServer(onPort?: number, seed: Seed = {}, reusable = f
     `-Dforge.web.pageDir=${process.env.FORGE_PAGE_DIR ?? join(module, 'src/main/resources/web')}`,
     `-Duser.home=${home}`,
     ...(reusable ? ['-Dforge.web.resetOnInput=true'] : []),
-    '-jar', join(module, 'target/forge-gui-web.jar'),
+    '-jar', join(module, 'target', readdirSync(join(module, 'target')).find(f => /^forge-gui-web-.*-jar-with-dependencies\.jar$/.test(f))!),
   // On Windows Forge keeps its preferences under APPDATA rather than the home folder
   ], { cwd: repo, stdio: [reusable ? 'pipe' : 'ignore', 'pipe', 'pipe'], env: { ...process.env, APPDATA: home, LOCALAPPDATA: home } });
   const running = () => java.exitCode === null && java.signalCode === null;

@@ -7,9 +7,9 @@ This file describes the module's architecture and the rules it is built on. Clas
 ## Building and running
 
     mvn -Pweb -pl forge-gui-web -am install -DskipTests
-    java -jar forge-gui-web/target/forge-gui-web.jar
+    java -jar forge-gui-web/target/forge-gui-web-<version>-jar-with-dependencies.jar
 
-Forge's default build leaves this module out, so `-Pweb` is needed. Maven downloads its own Node and runs npm. The jar needs the `lib/` folder Maven writes beside it, and looks for Forge's `res` folder in the folders above where it runs. It takes options as `-Dforge.web.*` system properties, such as `forge.web.port`.
+Forge's default build leaves this module out, so `-Pweb` is needed. Maven downloads its own Node and runs npm. The build also writes the `forge-web` launchers beside the jar, as the desktop download ships them. The jar looks for Forge's `res` folder in the folders above where it runs. It takes options as `-Dforge.web.*` system properties, such as `forge.web.port`.
 
 To work on the page, start the jar with `-Dforge.web.pageDir=forge-gui-web/src/main/resources/web`, so the page is served from the source folder, and run `npm run watch` in this folder. A change to the page then needs only a reload.
 

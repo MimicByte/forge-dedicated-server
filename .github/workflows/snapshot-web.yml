@@ -57,12 +57,12 @@ jobs:
           Xvfb :1 -screen 0 800x600x8 &
           mvn -U -B -Pweb -pl forge-gui-web -am install -Drun.stress.tests=true
 
-      # The jar looks for lib/ and res/ beside it. The web GUI has no Adventure mode, so its assets stay out.
+      # The jar and launchers as the desktop download ships them. The jar looks for res/ beside it. The web GUI has no Adventure mode, so its assets stay out.
       - name: Package
         run: |
           mkdir -p dist/forge-web
-          cp forge-gui-web/target/forge-gui-web.jar dist/forge-web/
-          cp -r forge-gui-web/target/lib dist/forge-web/lib
+          cp forge-gui-web/target/forge-gui-web-*-jar-with-dependencies.jar forge-gui-web/target/forge-web.exe forge-gui-web/target/forge-web.sh forge-gui-web/target/forge-web.command forge-gui-web/target/forge-web.cmd dist/forge-web/
+          chmod a+rx dist/forge-web/forge-web.sh dist/forge-web/forge-web.command
           rsync -a --exclude adventure forge-gui/res dist/forge-web/
           (cd dist && zip -q -r forge-web.zip forge-web)
 
@@ -89,7 +89,7 @@ jobs:
 
           1. Install Java 17 or newer.
           2. Download `forge-web.zip` below and unzip it anywhere.
-          3. Open `forge-gui-web.jar`, or run `java -jar forge-gui-web.jar` in that folder.
+          3. Run `forge-web.exe` on Windows, `forge-web.command` on macOS or `forge-web.sh` on Linux.
 
           The game opens in your browser, along with a server window. Keep that window open while you play.
           @DESKTOP@

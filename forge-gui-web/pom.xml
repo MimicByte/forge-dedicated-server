@@ -36,7 +36,6 @@
     </dependencies>
 
     <build>
-        <finalName>forge-gui-web</finalName>
         <plugins>
             <!-- Dates a snapshot's version as desktop's and Android's builds do, for the jar's manifest -->
             <plugin>
@@ -181,160 +180,112 @@
                     </execution>
                 </executions>
             </plugin>
+            <!-- The jar and launchers that the desktop download ships, beside forge and forge-adventure -->
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <configuration>
+                    <attach>false</attach>
+                    <descriptors>
+                        <!-- A custom one, as desktop's, so that the jars' services files are merged rather than overwritten -->
+                        <descriptor>src/main/assembly/jar-with-dependencies.xml</descriptor>
+                    </descriptors>
+                    <archive>
+                        <manifestEntries>
+                            <Implementation-Title>${project.name}</Implementation-Title>
+                            <Implementation-Version>${snapshot-version}</Implementation-Version>
+                            <Add-Opens>java.base/java.util java.base/java.lang java.base/java.lang.reflect java.base/java.text java.base/java.math java.base/java.util.concurrent java.base/java.net java.base/java.nio java.base/jdk.internal.misc java.base/sun.nio.ch</Add-Opens>
+                            <Main-Class>forge.web.WebMain</Main-Class>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
                 <executions>
                     <execution>
-                        <id>copy-runtime-dependencies</id>
+                        <id>make-assembly</id>
                         <phase>package</phase>
                         <goals>
-                            <goal>copy-dependencies</goal>
+                            <goal>single</goal>
                         </goals>
-                        <configuration>
-                            <includeScope>runtime</includeScope>
-                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
-                        </configuration>
                     </execution>
                 </executions>
             </plugin>
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
+                <groupId>com.google.code.maven-replacer-plugin</groupId>
+                <artifactId>replacer</artifactId>
+                <version>1.5.3</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>replace</goal>
+                        </goals>
+                    </execution>
+                </executions>
                 <configuration>
-                    <archive>
-                        <manifest>
-                            <mainClass>forge.web.WebMain</mainClass>
-                            <addClasspath>true</addClasspath>
-                            <classpathPrefix>lib/</classpathPrefix>
-                        </manifest>
-                        <!-- Quest's saves are read by XStream, which needs these, as desktop's jar declares them -->
-                        <manifestEntries>
-                            <Implementation-Version>${snapshot-version}</Implementation-Version>
-                            <Add-Opens>java.base/java.util java.base/java.lang java.base/java.lang.reflect java.base/java.text java.base/java.math java.base/java.util.concurrent java.base/java.net java.base/java.nio java.base/jdk.internal.misc java.base/sun.nio.ch</Add-Opens>
-                        </manifestEntries>
-                    </archive>
+                    <basedir>${basedir}/${configSourceDirectory}</basedir>
+                    <filesToInclude>forge-web.sh, forge-web.command, forge-web.cmd</filesToInclude>
+                    <outputBasedir>${project.build.directory}</outputBasedir>
+                    <outputDir>.</outputDir>
+                    <regex>false</regex>
+                    <replacements>
+                        <replacement>
+                            <token>$project.build.finalName$</token>
+                            <value>${project.build.finalName}-jar-with-dependencies.jar</value>
+                        </replacement>
+                        <replacement>
+                            <token>$mandatory.java.args$</token>
+                            <value>${mandatory.java.args}</value>
+                        </replacement>
+                    </replacements>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.akathist.maven.plugins.launch4j</groupId>
+                <artifactId>launch4j-maven-plugin</artifactId>
+                <version>2.5.1</version>
+                <executions>
+                    <execution>
+                        <id>l4j-gui</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>launch4j</goal>
+                        </goals>
+                        <configuration>
+                            <headerType>gui</headerType>
+                            <outfile>${project.build.directory}/forge-web.exe</outfile>
+                            <jar>${project.build.finalName}-jar-with-dependencies.jar</jar>
+                            <dontWrapJar>true</dontWrapJar>
+                            <errTitle>forge-web</errTitle>
+                            <downloadUrl>https://bell-sw.com/pages/downloads/#jdk-17-lts</downloadUrl>
+                            <icon>${basedir}/../forge-gui-desktop/src/main/config/forge.ico</icon>
+                            <classPath>
+                                <mainClass>forge.web.WebMain</mainClass>
+                                <addDependencies>false</addDependencies>
+                                <preCp>anything</preCp>
+                            </classPath>
+                            <jre>
+                                <minVersion>17</minVersion>
+                                <requiresJdk>true</requiresJdk>
+                                <maxHeapSize>4096</maxHeapSize>
+                                <opts>
+                                    <opt>${mandatory.java.args}</opt>
+                                    <opt>${addopen.java.args}</opt>
+                                </opts>
+                            </jre>
+                            <versionInfo>
+                                <fileVersion>${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.incrementalVersion}.0</fileVersion>
+                                <txtFileVersion>${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.incrementalVersion}.0</txtFileVersion>
+                                <fileDescription>Forge Web</fileDescription>
+                                <copyright>Forge</copyright>
+                                <productVersion>${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.incrementalVersion}.0</productVersion>
+                                <txtProductVersion>${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.incrementalVersion}.0</txtProductVersion>
+                                <productName>Forge Web</productName>
+                                <internalName>forge-web</internalName>
+                                <originalFilename>forge-web.exe</originalFilename>
+                            </versionInfo>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
-
-    <profiles>
-        <!-- A release build, which the root pom's windows-linux profile makes, also packages the jar and launchers
-             that the desktop download ships. -->
-        <profile>
-            <id>windows-linux</id>
-            <build>
-                <plugins>
-                    <!-- The jar and launchers that the desktop download ships, beside forge and forge-adventure. The thin jar
-                         and lib/ above stay for running the server during development. -->
-                    <plugin>
-                        <artifactId>maven-assembly-plugin</artifactId>
-                        <configuration>
-                            <attach>false</attach>
-                            <descriptors>
-                                <!-- A custom one, as desktop's, so that the jars' services files are merged rather than overwritten -->
-                                <descriptor>src/main/assembly/jar-with-dependencies.xml</descriptor>
-                            </descriptors>
-                            <archive>
-                                <manifestEntries>
-                                    <Implementation-Title>${project.name}</Implementation-Title>
-                                    <Implementation-Version>${snapshot-version}</Implementation-Version>
-                                    <Add-Opens>java.base/java.util java.base/java.lang java.base/java.lang.reflect java.base/java.text java.base/java.math java.base/java.util.concurrent java.base/java.net java.base/java.nio java.base/jdk.internal.misc java.base/sun.nio.ch</Add-Opens>
-                                    <Main-Class>forge.web.WebMain</Main-Class>
-                                </manifestEntries>
-                            </archive>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <id>make-assembly</id>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>single</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                    <plugin>
-                        <groupId>com.google.code.maven-replacer-plugin</groupId>
-                        <artifactId>replacer</artifactId>
-                        <version>1.5.3</version>
-                        <executions>
-                            <execution>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>replace</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <basedir>${basedir}/${configSourceDirectory}</basedir>
-                            <filesToInclude>forge-web.sh, forge-web.command, forge-web.cmd</filesToInclude>
-                            <outputBasedir>${project.build.directory}</outputBasedir>
-                            <outputDir>.</outputDir>
-                            <regex>false</regex>
-                            <replacements>
-                                <replacement>
-                                    <token>$project.build.finalName$</token>
-                                    <value>${project.build.finalName}-jar-with-dependencies.jar</value>
-                                </replacement>
-                                <replacement>
-                                    <token>$mandatory.java.args$</token>
-                                    <value>${mandatory.java.args}</value>
-                                </replacement>
-                            </replacements>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <groupId>com.akathist.maven.plugins.launch4j</groupId>
-                        <artifactId>launch4j-maven-plugin</artifactId>
-                        <version>2.5.1</version>
-                        <executions>
-                            <execution>
-                                <id>l4j-gui</id>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>launch4j</goal>
-                                </goals>
-                                <configuration>
-                                    <headerType>gui</headerType>
-                                    <outfile>${project.build.directory}/forge-web.exe</outfile>
-                                    <jar>${project.build.finalName}-jar-with-dependencies.jar</jar>
-                                    <dontWrapJar>true</dontWrapJar>
-                                    <errTitle>forge-web</errTitle>
-                                    <downloadUrl>https://bell-sw.com/pages/downloads/#jdk-17-lts</downloadUrl>
-                                    <icon>${basedir}/../forge-gui-desktop/src/main/config/forge.ico</icon>
-                                    <classPath>
-                                        <mainClass>forge.web.WebMain</mainClass>
-                                        <addDependencies>false</addDependencies>
-                                        <preCp>anything</preCp>
-                                    </classPath>
-                                    <jre>
-                                        <minVersion>17</minVersion>
-                                        <requiresJdk>true</requiresJdk>
-                                        <maxHeapSize>4096</maxHeapSize>
-                                        <opts>
-                                            <opt>${mandatory.java.args}</opt>
-                                            <opt>${addopen.java.args}</opt>
-                                        </opts>
-                                    </jre>
-                                    <versionInfo>
-                                        <fileVersion>${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.incrementalVersion}.0</fileVersion>
-                                        <txtFileVersion>${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.incrementalVersion}.0</txtFileVersion>
-                                        <fileDescription>Forge Web</fileDescription>
-                                        <copyright>Forge</copyright>
-                                        <productVersion>${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.incrementalVersion}.0</productVersion>
-                                        <txtProductVersion>${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.incrementalVersion}.0</txtProductVersion>
-                                        <productName>Forge Web</productName>
-                                        <internalName>forge-web</internalName>
-                                        <originalFilename>forge-web.exe</originalFilename>
-                                    </versionInfo>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-    </profiles>
 </project>

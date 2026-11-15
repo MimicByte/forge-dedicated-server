@@ -43,7 +43,7 @@ Not yet: Adventure, puzzles, constructed gauntlets and Winston draft.
 1. Install Java 17 or newer.
 2. Download `forge-web.zip` from the [pre-release](https://github.com/MostCromulent/forge/releases/tag/web-snapshot)
    and unzip it anywhere.
-3. Open `forge-gui-web.jar`. If nothing happens, run `java -jar forge-gui-web.jar` in that folder.
+3. Run `forge-web.exe` on Windows, `forge-web.command` on macOS or `forge-web.sh` on Linux.
 
 The game opens in your browser and a server window opens beside it. Closing that window quits Forge. Forge also
 quits when the last browser leaves, unless you untick **Close Forge when everyone has left, including you** or
@@ -101,10 +101,10 @@ sit at the top.
 ### Building
 
     mvn -Pweb -pl forge-gui-web -am install -DskipTests
-    java -jar forge-gui-web/target/forge-gui-web.jar
+    java -jar forge-gui-web/target/forge-gui-web-<version>-jar-with-dependencies.jar
 
-Forge's default build leaves this module out, so `-Pweb` is needed. Maven downloads its own copy of Node. The jar
-needs `target/lib/` beside it. It looks for Forge's `res` folder in the folders above where it runs. If it can't
+Forge's default build leaves this module out, so `-Pweb` is needed. Maven downloads its own copy of Node. The build
+also writes the `forge-web` launchers beside the jar. The jar looks for Forge's `res` folder in the folders above where it runs. If it can't
 find it, pass `-Dforge.assets.dir=<folder containing res>`.
 
 | Option | Effect |

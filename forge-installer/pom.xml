@@ -202,7 +202,7 @@
                                             <fileset dir="${project.build.directory}/../../forge-gui-web/target" includes="forge-web.sh" />
                                             <fileset dir="${project.build.directory}/../../forge-gui-web/target" includes="forge-web.command" />
                                             <fileset dir="${project.build.directory}/../../forge-gui-web/target" includes="forge-web.cmd" />
-                                            <fileset dir="${project.build.directory}/../../forge-gui-web/target" includes="forge-gui-web-jar-with-dependencies.jar" />
+                                            <fileset dir="${project.build.directory}/../../forge-gui-web/target" includes="forge-gui-web-${project.version}-jar-with-dependencies.jar" />
                                         </copy>
                                         <mkdir dir="${project.build.directory}/${project.build.finalName}/res/cardsfolder" />
                                         <zip destfile="${project.build.directory}/${project.build.finalName}/res/cardsfolder/cardsfolder.zip" basedir="${basedir}/../forge-gui/res/cardsfolder" level="1" />
