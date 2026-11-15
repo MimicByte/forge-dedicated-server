@@ -415,7 +415,7 @@ html:not([data-form="portrait"]) .finder:has(.rail) :is(.results, .finder-action
 html:not([data-form="portrait"]) .finder:has(.rail) :is(.dk-chosen, .finder-foot) { margin-right: 18px; }
 .finder-find { display: flex; align-items: center; gap: 8px; }
 .finder-find .find { flex: 1; min-width: 0; }
-.finder-find .sort-by { align-self: stretch; }
+.finder-find .select:has(> .sort-by) { align-self: stretch; }
 /* The Net decks tab explains net decks while none are downloaded, and offers the download there */
 .net-empty { display: grid; justify-items: center; gap: 10px; padding: 48px 24px; text-align: center; }
 .net-empty h3 { margin: 0; color: var(--text); font-size: 16px; }
@@ -555,7 +555,7 @@ html:not([data-form="portrait"]) .finder:has(.rail) :is(.dk-chosen, .finder-foot
 
 .count-row { display: flex; gap: 10px; align-items: center; }
 .count-row .shown { flex: 1; }
-.count-row select, :is(.fbar, .finder-find, .tool-line) .sort-by { background: var(--surface-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font: inherit; font-size: 13px; }
+.count-row .select-button, :is(.fbar, .finder-find, .tool-line) .sort-by { font-size: 13px; }
 
 /* One strip of colour pips. With none selected, every deck is shown. Selecting some dims the unselected pips. */
 .colours { display: flex; gap: 2px; margin: 0 10px; padding: 3px; background: var(--bg); border: 1px solid var(--line); border-radius: 9px; align-self: flex-start; }
@@ -749,7 +749,7 @@ html[data-motion="reduced"] .dock-new { animation: none; }
 
 .finder-head .head-tools { margin-left: auto; display: flex; gap: 8px; align-items: center; }
 .finder-head .legality { margin-left: 16px; }
-.source-pick { display: none; }
+.select:has(> .source-pick) { display: none; }
 .finder-actions { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-top: 1px solid var(--line); border-right: 1px solid var(--line); }
 .finder-foot .delete-deck { margin-right: auto; color: var(--danger); }
 /* Delete asks for confirmation once, in the footer, because the finder is already a dialog */

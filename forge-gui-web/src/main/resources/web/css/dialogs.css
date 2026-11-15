@@ -397,3 +397,27 @@ html:not([data-form="portrait"]) .game-menu.dev { overflow: visible; }
 .game-menu .concede { color: var(--concede); }
 .game-menu .concede .menu-icon { color: currentColor; }
 .game-menu .dev-entry { color: var(--muted); }
+
+/* The page's dropdown (select.tsx). Its menu is placed against the window, so no panel clips it */
+.select { display: inline-flex; min-width: 0; }
+.select-button { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; background: var(--surface-2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 8px; padding: 5px 10px 5px 12px; font: inherit; font-size: 13px; text-align: left; white-space: nowrap; cursor: pointer; }
+.select-button .pre { color: var(--muted); }
+.select-button .val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.select-button svg { flex: none; width: 9px; height: 9px; fill: none; stroke: var(--muted); stroke-width: 1.5; }
+.select-button:hover:not(:disabled) { border-color: var(--line-bright); }
+.select-button[aria-expanded="true"] { border-color: var(--accent-2); box-shadow: 0 0 0 3px var(--accent-soft); }
+.select-button:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.select-button:disabled { opacity: .5; cursor: default; }
+.select-button.pill { background: var(--accent-soft); border-color: var(--accent-2); border-radius: 999px; }
+.select-button.pill svg { stroke: var(--accent-2); }
+.select-menu { position: fixed; z-index: 70; box-sizing: border-box; max-width: calc(100vw - 16px); max-height: min(360px, 60vh); overflow-y: auto; padding: 5px;
+  display: grid; gap: 1px; background: var(--surface); border: 1px solid var(--line-bright); border-radius: 10px; box-shadow: 0 12px 32px #000a; animation: menu-in .12s cubic-bezier(.2,.7,.3,1); }
+.select-menu .head { font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); padding: 6px 8px 2px; }
+.select-menu .opt { display: flex; align-items: center; gap: 6px; text-align: left; background: none; border: 0; border-radius: 7px; padding: 6px 10px 6px 6px;
+  font: inherit; font-size: 13px; color: var(--text); white-space: nowrap; cursor: pointer; }
+.select-menu .opt .tick { flex: none; width: 14px; color: var(--accent-2); font-size: 12px; }
+.select-menu .opt.active { background: var(--surface-2); }
+.select-menu .opt[aria-selected="true"] { color: var(--accent-2); font-weight: 700; }
+html[data-form="portrait"] .select-menu .opt { min-height: 40px; font-size: 15px; }
+html[data-motion="reduced"] .select-menu { animation: none; }

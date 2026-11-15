@@ -161,7 +161,8 @@ html:not([data-form="portrait"]) #prompt.strike .cancel::before {
 #options .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); transition: left .12s; }
 #options .switch[aria-checked="true"] { background: var(--accent-2); border-color: var(--accent-2); }
 #options .switch[aria-checked="true"]::after { left: 18px; background: var(--on-brass); }
-#options .pick { justify-self: end; min-width: 150px; height: 30px; padding: 0 8px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; color: var(--text); font: inherit; font-size: 12.5px; }
+#options .select:has(.pick) { justify-self: end; }
+#options .pick { min-width: 150px; height: 30px; font-size: 12.5px; }
 #options .slider { display: grid; grid-template-columns: minmax(0, 1fr) 38px; align-items: center; gap: 8px; width: 220px; height: 28px; }
 #options .slider input { width: 100%; margin: 0; }
 /* The slider is drawn here, not by the browser. The browser colours the bar up to the middle of the handle, even at zero.

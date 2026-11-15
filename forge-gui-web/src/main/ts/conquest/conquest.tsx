@@ -19,6 +19,7 @@ import type { Model } from '../model';
 import type { ConquestSave } from '../protocol';
 import { t, shortDay, type TextKey } from '../text';
 import { hideBroken } from '../images';
+import { Select } from '../select';
 
 export function Conquest({ model, actions }: { model: Model; actions: Actions }) {
   const saves = model.conquestSaves;
@@ -84,9 +85,7 @@ function DevWheel({ actions }: { actions: Actions }) {
       <hr class="ph-menu-sep" />
       <small class="ph-menu-head">{t('lblDevMode')}</small>
       <label class="ph-menu-row"><Icon d={ICONS.dev} />{t('lblWebConquestDevWheel')}
-        <select value={ui.conquestWheel} onChange={e => choose(e.currentTarget.value)}>
-          {['', ...DEV_WHEEL].map(o => <option key={o} value={o}>{name(o)}</option>)}
-        </select>
+        <Select label={t('lblWebConquestDevWheel')} value={ui.conquestWheel} change={choose} choices={['', ...DEV_WHEEL].map(o => ({ value: o, label: name(o) }))} />
       </label>
     </>;
   }

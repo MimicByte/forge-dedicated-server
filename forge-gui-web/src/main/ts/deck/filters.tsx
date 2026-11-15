@@ -1,10 +1,10 @@
 // The filter bar shared by the deck finder and the editor's catalogue. A chip set by the table or the deck is gold and names its source
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import { t, tCap } from '../text';
 import { toggled } from '../symbols';
-import { useDismiss } from '../hooks';
+import { useDismiss, usePlacedMenu } from '../hooks';
 import { isPortrait } from '../form';
 
 export interface FilterKind<F> {
@@ -36,25 +36,10 @@ export function FilterBar<F>({ kinds, filter, set, clearAll, narrowed, children 
   const shown = kinds.filter(k => k.label.toLowerCase().includes(find.trim().toLowerCase()));
   const groups = [...new Set(shown.map(k => k.group))];
   const kind = kinds.find(k => k.id === open?.kind);
-  // The menu is placed against the window, so the panel around the bar cannot clip it. It opens under the button and stays on screen. A phone shows it as a sheet instead
+  // The menu is placed against the window, so the panel around the bar cannot clip it. A phone shows it as a sheet instead
   const add = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
-  const [at, setAt] = useState<{ top: number; left: number } | null>(null);
-  useLayoutEffect(() => {
-    if (!open) return;
-    const place = () => {
-      const button = add.current?.getBoundingClientRect();
-      const width = menu.current?.offsetWidth ?? 0;
-      if (button) setAt({ top: button.bottom + 6, left: Math.max(8, Math.min(button.left, window.innerWidth - width - 8)) });
-    };
-    place();
-    window.addEventListener('resize', place);
-    window.addEventListener('scroll', place, true);
-    return () => {
-      window.removeEventListener('resize', place);
-      window.removeEventListener('scroll', place, true);
-    };
-  }, [open?.kind, open === null]);
+  const at = usePlacedMenu(!!open, add, menu, [open?.kind]);
   return (
     <div class="fbar" ref={root}>
       {children}

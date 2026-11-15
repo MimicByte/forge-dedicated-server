@@ -15,6 +15,7 @@ import { addCard, choosesPrintings, preferredPrinting } from './preferred';
 import { CARD_TYPES } from './decklist';
 import { t, type TextKey } from '../text';
 import { GROUP_NAMES, groupsOf, isCardPool } from '../formatmenu';
+import { Select } from '../select';
 
 export const TYPES: [string, TextKey][] = [['any', 'lblWebCatalogueAnyType'], ...CARD_TYPES.map(([type, , heading]): [string, TextKey] => [type.toLowerCase(), heading])];
 const SORTS: [string, TextKey][] = [['name', 'lblWebEditorSortName'], ['mv', 'lblWebDraftSortManaValue'], ['colour', 'lblWebEditorSortColour'],
@@ -155,9 +156,7 @@ export function Catalogue({ model, actions, state, handlers, adding, stopAdding 
             </table>
           </span>
           <ColourToggles label={t('lblColors')} colourless only={pickable} pressed={c => colours.has(c)} toggle={c => setColours(toggled(colours, c))} />
-          <select class="type-by" aria-label={t('lblCardType')} value={type} onChange={e => setType(e.currentTarget.value)}>
-            {TYPES.map(([id, name]) => <option key={id} value={id}>{t(name)}</option>)}
-          </select>
+          <Select cls="type-by" label={t('lblCardType')} value={type} change={setType} choices={TYPES.map(([id, name]) => ({ value: id, label: t(name) }))} />
         </FilterBar>
         {extra && (
           <p class="adding-to">{t('lblWebEditorAddingTo', extra.name)}
@@ -167,10 +166,8 @@ export function Catalogue({ model, actions, state, handlers, adding, stopAdding 
       <div class="count-row">
         <p class={wanted ? 'shown commanders-only' : 'shown'}>{shownLine(page?.total, searched, wanted)}</p>
         {text.trim() && page?.ranked !== false
-          ? <select class="sort-by" aria-label={t('lblSort')} disabled><option>{t('lblWebEditorSortBestMatch')}</option></select>
-          : <select class="sort-by" aria-label={t('lblSort')} value={sort} onChange={e => setSort(e.currentTarget.value)}>
-              {SORTS.map(([id, name]) => <option key={id} value={id}>{t(name)}</option>)}
-            </select>}
+          ? <Select cls="sort-by" label={t('lblSort')} disabled value="best" change={() => {}} choices={[{ value: 'best', label: t('lblWebEditorSortBestMatch') }]} />
+          : <Select cls="sort-by" label={t('lblSort')} value={sort} change={setSort} choices={SORTS.map(([id, name]) => ({ value: id, label: t(name) }))} />}
         <span class="seg" role="group" aria-label={t('lblView')}>
           <button aria-pressed={view === 'cards'} onClick={() => { setView('cards'); store(VIEW_KEY, 'cards'); }}>{t('lblCards')}</button>
           <button aria-pressed={view === 'table'} onClick={() => { setView('table'); store(VIEW_KEY, 'table'); }}>{t('lblWebDraftList')}</button>

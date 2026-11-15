@@ -15,6 +15,7 @@ import { Backdrop } from '../dialog';
 import { reducedMotion } from '../dom';
 import { balance, capBalance } from './campaign';
 import { flyShards } from './reward';
+import { Select } from '../select';
 
 /** A mode's name for one of its lists, and the text it shows for trading from that list. */
 export interface TradeWords {
@@ -153,14 +154,9 @@ export function TradePage({ model, actions, icon, iconLabel, token, words, types
         </span>
         <input class="find" type="search" placeholder={t('lblSearch')} autocomplete="off" value={typed} onInput={e => setTyped(e.currentTarget.value)} />
         <ColourToggles label={t('lblColors')} colourless pressed={c => colours.has(c)} toggle={c => setColours(toggled(colours, c))} />
-        <select aria-label={t('lblCardType')} value={type} onChange={e => setType(e.currentTarget.value)}>
-          {types.map(([id, name]) => <option key={id} value={id}>{t(name)}</option>)}
-        </select>
+        <Select label={t('lblCardType')} value={type} change={setType} choices={types.map(([id, name]) => ({ value: id, label: t(name) }))} />
         {groupLabel && (
-          <select aria-label={groupLabel} value={group} onChange={e => setGroup(e.currentTarget.value)}>
-            <option value="">{groupLabel}</option>
-            {(info?.groups ?? []).map(g => <option key={g} value={g}>{g}</option>)}
-          </select>
+          <Select label={groupLabel} value={group} change={setGroup} choices={[{ value: '', label: groupLabel }, ...(info?.groups ?? []).map(g => ({ value: g, label: g }))]} />
         )}
         {info && <span class="cq-coll-note">{info.note}</span>}
       </div>

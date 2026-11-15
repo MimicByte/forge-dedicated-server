@@ -13,6 +13,7 @@ import { changeUi, easedLocal } from './ui';
 import { useClosing } from './closing';
 import { Backdrop } from './dialog';
 import { ICONS, Icon } from './icons';
+import { Select } from './select';
 
 // Settings matched only by section, hint or dialog contents rank after label matches. Results are then grouped by section in the usual order
 function matching(defs: SettingDef[], typed: string): SettingDef[] {
@@ -258,9 +259,7 @@ function Control({ def, onChange }: { def: SettingDef; onChange?: () => void }) 
       return <OnOff on={!!value} label={def.label} change={change} />;
     case 'choice':
       return (
-        <select class="pick" aria-label={def.label} value={String(value)} onChange={e => change(e.currentTarget.value)}>
-          {def.options.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
-        </select>
+        <Select cls="pick" label={def.label} value={String(value)} change={change} choices={def.options.map(([v, label]) => ({ value: v, label }))} />
       );
     case 'tiles': {
       // When the saved option is unavailable, the first usable option is shown as selected instead

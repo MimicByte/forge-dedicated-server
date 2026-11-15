@@ -4,6 +4,7 @@ import { useState } from 'preact/hooks';
 import type { LimitedOptions, SealedBlock } from '../protocol';
 import { t, shortDay, type TextKey } from '../text';
 import { Pick, type Step, type Ticket } from '../stepform';
+import { Select } from '../select';
 
 export interface SealedValue {
   product?: string;
@@ -335,18 +336,14 @@ function TableRules({ seated, recommended, done }: { seated: number; recommended
         <span class="hint">{t('lblWebSetupComputersFill')}</span>
       </div>
       <label class="tr-label" for="tr-picks">{t('lblWebEventPicks')}</label>
-      <span class="pill-select"><select id="tr-picks" value={pickRule} onChange={e => setPickRule(e.currentTarget.value)}>
-        {PICK_RULES.map(([id, name]) => <option key={id} value={id}>{t(name)}</option>)}
-      </select></span>
+      <Select id="tr-picks" pill label={t('lblWebEventPicks')} value={pickRule} change={setPickRule} choices={PICK_RULES.map(([id, name]) => ({ value: id, label: t(name) }))} />
       <label class="tr-label" for="tr-timer">{t('lblNetworkPickTimerCaption')}</label>
-      <span class="pill-select"><select id="tr-timer" value={timer} onChange={e => setTimer(Number(e.currentTarget.value))}>
-        {TIMERS.map(n => <option key={n} value={n}>{seconds(n, t('lblNone'))}</option>)}
-      </select></span>
+      <Select id="tr-timer" pill label={t('lblNetworkPickTimerCaption')} value={String(timer)} change={v => setTimer(Number(v))}
+        choices={TIMERS.map(n => ({ value: String(n), label: seconds(n, t('lblNone')) }))} />
       <label class="tr-label" for="tr-grace">{t('lblWebSetupTimeToRejoin')}</label>
       <div class="tr-field">
-        <span class="pill-select"><select id="tr-grace" value={grace} onChange={e => setGrace(Number(e.currentTarget.value))}>
-          {GRACES.map(n => <option key={n} value={n}>{n === 0 ? t('lblNone') : t('lblWebSetupMinutes', n / 60)}</option>)}
-        </select></span>
+        <Select id="tr-grace" pill label={t('lblWebSetupTimeToRejoin')} value={String(grace)} change={v => setGrace(Number(v))}
+          choices={GRACES.map(n => ({ value: String(n), label: n === 0 ? t('lblNone') : t('lblWebSetupMinutes', n / 60) }))} />
         <span class="hint">{t('lblWebSetupRejoinHint')}</span>
       </div>
       <button class="primary" onClick={() => done({ podSize: pod, pickRule, timer, grace })}>{t('lblContinue')}</button>
@@ -400,9 +397,7 @@ function PackSets({ sets, packs, done }: { sets: string[]; packs: number; done: 
     <div class="rows">
       {chosen.map((code, i) => (
         <label key={i} class="pack-set">{t('lblPackN', i + 1)}
-          <select value={code} onChange={e => setChosen(chosen.map((c, j) => (j === i ? e.currentTarget.value : c)))}>
-            {sets.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <Select label={t('lblPackN', i + 1)} value={code} change={v => setChosen(chosen.map((c, j) => (j === i ? v : c)))} choices={sets.map(s => ({ value: s, label: s }))} />
         </label>
       ))}
       <button class="primary" onClick={() => done(chosen)}>{t('lblContinue')}</button>

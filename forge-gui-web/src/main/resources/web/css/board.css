@@ -666,7 +666,7 @@ html:not([data-form="portrait"]) #zones.asking:not(.minimised) { padding-block: 
 .zone-gap { flex: 1; }
 .zone-find { width: 180px; font-size: 12.5px; padding: 6px 10px; }
 .zone-sort { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
-.zone-sort select { font: inherit; font-size: 12px; color: var(--text); background: var(--bg); border: 1px solid var(--line-bright); border-radius: 7px; padding: 4px 8px; }
+.zone-sort .select-button { font-size: 12px; padding: 4px 8px 4px 10px; }
 .zone-fold { font-size: 12.5px; padding: 6px 13px; }
 /* The panel has the same shape for every zone: five cards across, scrolled. It does not grow with its contents. */
 /* The cards are bigger than on the board, because reading them is why the panel is open */

@@ -11,6 +11,7 @@ import type { Zone } from './drag';
 import { t, type TextKey } from '../text';
 import { addCard, preferPrinting, preferredPrinting } from './preferred';
 import { Backdrop } from '../dialog';
+import { Select } from '../select';
 
 /** The art styles the printing picker filters by, as on desktop. Each entry is a section name in the edition file and its label. */
 const ART_STYLES: [string, TextKey][] = [
@@ -165,9 +166,7 @@ export function PrintingPicker({ name, zone, model, state, actions, close }: {
         <div class="print-bar">
           <input placeholder={t('lblChangePrintingSearchHint')} aria-label={t('lblChangePrintingSearchHint')} value={query}
             onInput={e => setQuery(e.currentTarget.value)} />
-          <select aria-label={t('lblArtStyleAll')} value={style} onChange={e => setStyle(e.currentTarget.value)}>
-            {ART_STYLES.map(([section, label]) => <option key={section} value={section}>{t(label)}</option>)}
-          </select>
+          <Select label={t('lblArtStyleAll')} value={style} change={setStyle} choices={ART_STYLES.map(([section, label]) => ({ value: section, label: t(label) }))} />
         </div>
         <div class="print-grid">
           {!list.length && <p class="hint">{t('lblWebCardMenuReadingPrintings')}</p>}

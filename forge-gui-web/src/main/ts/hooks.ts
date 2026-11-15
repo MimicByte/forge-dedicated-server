@@ -1,6 +1,6 @@
 // Small pieces of page behaviour that several pages share
 
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useState } from 'preact/hooks';
 import type { RefObject } from 'preact';
 
 /** The value after it has stopped changing for ms. A long list costs a request per row, so a search waits for a pause in typing. */
@@ -46,4 +46,35 @@ export function useTwoPress(): [armed: boolean, press: (act: () => void) => () =
     act();
     setArmed(false);
   }];
+}
+
+/**
+ * Where a menu placed against the window goes, so that no panel around its button can clip it. It opens under the anchor, or above
+ * when there is no room below, and stays on screen. It is null while closed and until the menu is measured. again lists what changes the menu's size.
+ */
+export function usePlacedMenu(open: boolean, anchor: RefObject<HTMLElement>, menu: RefObject<HTMLElement>, again: unknown[] = []): { top: number; left: number; width: number } | null {
+  const [at, setAt] = useState<{ top: number; left: number; width: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!open) {
+      setAt(null);
+      return;
+    }
+    const place = () => {
+      const box = anchor.current?.getBoundingClientRect();
+      if (!box) return;
+      const width = menu.current?.offsetWidth ?? 0;
+      const height = menu.current?.offsetHeight ?? 0;
+      const below = box.bottom + 6;
+      const top = below + height > window.innerHeight - 8 && box.top - 6 - height >= 8 ? box.top - 6 - height : below;
+      setAt({ top, left: Math.max(8, Math.min(box.left, window.innerWidth - width - 8)), width: box.width });
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [open, ...again]);
+  return at;
 }

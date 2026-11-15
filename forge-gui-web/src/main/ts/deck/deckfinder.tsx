@@ -17,6 +17,7 @@ import { NameTaken } from './nametaken';
 import { CloseButton } from '../dialog';
 import { useDebounced } from '../hooks';
 import { isPortrait } from '../form';
+import { Select } from '../select';
 
 /** Each net-deck category is a separate source. They share one source button, which lists the categories under it. */
 const NET = 'net';
@@ -270,9 +271,8 @@ export function DeckFinder({ model, actions, seat, close }: {
             </label>
           )}
           {/* A phone has no room for the source tabs, so it picks the source from a menu */}
-          <select class="source-pick" aria-label={t('lblSource')} value={inNet ? NET : filter.source} onChange={e => change({ source: e.currentTarget.value })}>
-            {[...sources].map(([id, count]) => <option key={id} value={id}>{count > 0 ? `${sourceName(id)} ${count}` : sourceName(id)}</option>)}
-          </select>
+          <Select cls="source-pick" pill label={t('lblSource')} value={inNet ? NET : filter.source} change={source => change({ source })}
+            choices={[...sources].map(([id, count]) => ({ value: id, label: count > 0 ? `${sourceName(id)} ${count}` : sourceName(id) }))} />
           <span class="head-tools">
             <input ref={picker} type="file" accept=".dck" hidden onChange={e => {
               const picked = e.currentTarget.files?.[0];
@@ -333,11 +333,9 @@ export function DeckFinder({ model, actions, seat, close }: {
                 title={(c, name) => t('lblWebFinderColourDecks', name, decks.filter(d => (d.colors ?? '').includes(c)).length)} />
               {/* A search orders the list by how well each name matches, so the sort is disabled until the search is cleared */}
               {normalize(filter.query)
-                ? <select class="sort-by" aria-label={t('lblSort')} disabled><option>{t('lblWebEditorSortBestMatch')}</option></select>
-                : <select class="sort-by" aria-label={t('lblSort')} value={filter.sort} onChange={e => change({ sort: e.currentTarget.value as SortKey })}>
-                    {SORTS.filter(([id]) => id !== 'bracket' || decks.some(d => d.bracket != null))
-                      .map(([id, name]) => <option key={id} value={id}>{t(name)}</option>)}
-                  </select>}
+                ? <Select cls="sort-by" label={t('lblSort')} disabled value="best" change={() => {}} choices={[{ value: 'best', label: t('lblWebEditorSortBestMatch') }]} />
+                : <Select cls="sort-by" label={t('lblSort')} value={filter.sort} change={sort => change({ sort })}
+                    choices={SORTS.filter(([id]) => id !== 'bracket' || decks.some(d => d.bracket != null)).map(([id, name]) => ({ value: id, label: t(name) }))} />}
             </div>
             <FilterBar kinds={kinds} filter={filter} set={setFilter} clearAll={clearAll} narrowed={narrowed} />
             {/* On a phone the count ends the chip line, so it gives only the decks shown */}

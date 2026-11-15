@@ -271,7 +271,7 @@ html[data-form="portrait"] .zone-panel .zone-fold { order: 8; }
 html[data-form="portrait"] .zone-panel .zone-find { order: 9; flex: 1 1 120px; width: auto; min-width: 0; box-sizing: border-box; }
 html[data-form="portrait"] .zone-panel .zone-gap { display: none; }
 html[data-form="portrait"] .zone-panel .zone-sort { margin-left: auto; }
-html[data-form="portrait"] .zone-panel :is(button, input, select) { min-height: 44px; }
+html[data-form="portrait"] .zone-panel :is(button, input) { min-height: 44px; }
 html[data-form="portrait"] :is(#dialog-layer .backdrop:not(.anchored), .reveal-back) { inset: 0 0 var(--dock-h, 110px) 0; align-items: end; place-items: end stretch; padding: 0; }
 html[data-form="portrait"] #dialog-layer .dialog { width: 100%; max-width: none; margin: 0; max-height: 100%; border-radius: 16px 16px 0 0; border-width: 1px 0 0; padding: 16px 12px; box-sizing: border-box; }
 html[data-form="portrait"] #dialog-layer .dialog button { min-height: 44px; }
@@ -371,10 +371,8 @@ html[data-form="portrait"] .finder .results { min-width: 0; padding: 10px 12px; 
 html[data-form="portrait"] .finder .dk-hit { min-height: 44px; padding-top: 0; padding-bottom: 0; }
 html[data-form="portrait"] .finder .dk-hit :is(.legal.yes, .legal.blank) { display: none; }
 html[data-form="portrait"] .finder-head { flex-wrap: nowrap; }
-html[data-form="portrait"] .finder .source-pick { display: block; min-width: 0; max-width: 56vw; height: 36px; padding: 0 30px 0 12px; appearance: none;
-  border: 1px solid var(--accent-2); border-radius: 18px; background: var(--accent-soft) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f2c344' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center / 14px;
-  color: var(--accent-2); font: 600 13.5px system-ui, sans-serif; }
-html[data-form="portrait"] .finder .source-pick option { color: var(--text); background: var(--surface); }
+html[data-form="portrait"] .finder .select:has(> .source-pick) { display: inline-flex; min-width: 0; max-width: 56vw; }
+html[data-form="portrait"] .finder .source-pick { height: 36px; color: var(--accent-2); font-weight: 600; font-size: 13.5px; }
 html[data-form="portrait"] .finder .rail section > .source { display: none; }
 html[data-form="portrait"] .finder .rail:not(:has(.net-cats, .gen-options)) { display: none; }
 html[data-form="portrait"] .finder .rail { grid-row: 1; }
@@ -382,9 +380,8 @@ html[data-form="portrait"] .finder .results { grid-row: 2; grid-template-columns
 html[data-form="portrait"] .finder-find { grid-column: 1 / -1; }
 html[data-form="portrait"] .finder-find .find { height: 40px; font-size: 15px; }
 html[data-form="portrait"] .finder-find .colours { display: none; }
-html[data-form="portrait"] .finder-find .sort-by { flex: none; width: 44px; height: 40px; padding: 0; appearance: none; color: transparent;
-  background: var(--surface-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e6edf3' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 4v16M4 17l3 3 3-3M17 20V4M14 7l3-3 3 3'/%3E%3C/svg%3E") no-repeat center / 18px; }
-html[data-form="portrait"] .finder-find .sort-by option { color: var(--text); background: var(--surface); }
+html[data-form="portrait"] .finder-find .sort-by { width: 44px; height: 40px; padding: 0; justify-content: center; background: var(--surface-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e6edf3' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 4v16M4 17l3 3 3-3M17 20V4M14 7l3-3 3 3'/%3E%3C/svg%3E") no-repeat center / 18px; }
+html[data-form="portrait"] .finder-find .sort-by > * { display: none; }
 html[data-form="portrait"] .finder .results > .shown { grid-column: 2; align-self: center; }
 html[data-form="portrait"] .finder .dk-hits { grid-column: 1 / -1; }
 html[data-form="portrait"] .finder .fbar { grid-column: 1; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
@@ -439,7 +436,7 @@ html[data-form="portrait"] #match:has(#stack:not([hidden])) #zones:not(.minimise
 /* The zone's sheet is limited to the space above the dock, and its cards scroll inside it */
 html[data-form="portrait"] #match #zones:not(.minimised) { display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; }
 html[data-form="portrait"] #match #zones:not(.minimised) .zone-shelf { max-height: 92%; min-height: 0; flex: 0 1 auto; }
-html[data-form="portrait"] .zone-panel .zone-sort select { min-height: 32px; padding: 2px 8px; }
+html[data-form="portrait"] .zone-panel .zone-sort .select-button { min-height: 32px; padding: 2px 8px 2px 10px; }
 /* While a dialog or a zone asks the question, the dock cannot answer anything, so it is hidden */
 html[data-form="portrait"] #prompt.blocked { display: none; }
 html[data-form="portrait"] #dialog-layer .dialog .ordered { gap: 30px 6px; justify-content: flex-start; }
@@ -574,7 +571,8 @@ html[data-form="portrait"] #editor .cat-bar .find { height: 40px; font-size: 15p
 html[data-form="portrait"] #editor .search-tip { display: none; }
 html[data-form="portrait"] #editor .cat-bar .colours { gap: 4px; padding: 4px; }
 html[data-form="portrait"] #editor .cat-bar .colour { width: 28px; height: 28px; }
-html[data-form="portrait"] #editor .cat-bar .type-by { height: 38px; min-width: 0; width: 100%; font-size: 13px; padding: 0 4px; }
+html[data-form="portrait"] #editor .cat-bar .select:has(> .type-by) { width: 100%; }
+html[data-form="portrait"] #editor .cat-bar .type-by { height: 38px; min-width: 0; width: 100%; font-size: 13px; padding: 0 8px; }
 html[data-form="portrait"] #editor .cat-bar .add { min-height: 38px; }
 html[data-form="portrait"] #editor .catalogue .count-row { padding: 2px 10px 4px; gap: 8px; }
 html[data-form="portrait"] #editor .catalogue { min-width: 0; grid-template-columns: minmax(0, 1fr); }
@@ -582,7 +580,7 @@ html[data-form="portrait"] #editor .cat-bar .clear-all { grid-column: 1 / -1; ju
 html[data-form="portrait"] #editor .catalogue .count-row .shown { flex: 1; min-width: 0; font-size: 12px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* A phone has no Enter key, so the hint to press Enter is hidden */
 html[data-form="portrait"] #editor .cat-grid .enter { display: none; }
-html[data-form="portrait"] #editor .catalogue .count-row select, html[data-form="portrait"] #editor .catalogue .count-row .seg button { min-height: 36px; }
+html[data-form="portrait"] #editor .catalogue .count-row .select-button, html[data-form="portrait"] #editor .catalogue .count-row .seg button { min-height: 36px; }
 html[data-form="portrait"] #editor .cat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 8px; padding: 8px 10px 64px; }
 /* A finger needs larger buttons than the 20px steppers used with a mouse. The Side button is removed from the tile, because a near miss would send a card to the sideboard. */
 html[data-form="portrait"] #editor .cat-grid .under .stepper { flex: 1; display: grid; grid-template-columns: 1fr auto 1fr; gap: 4px; }
@@ -618,10 +616,10 @@ html[data-form="portrait"] #editor .deck-head .verdict { margin: 0; }
 html[data-form="portrait"] #editor .deck-head .verdict .link { padding: 8px 4px; margin: -8px 0; }
 html[data-form="portrait"] #editor .deck-head .deck-check { display: flex; min-width: 0; }
 html[data-form="portrait"] #editor .deck-head .deck-check .legality { font-size: 0; gap: 0; min-width: 0; }
-html[data-form="portrait"] #editor .deck-head .deck-check select { font-size: 13px; height: 36px; max-width: 100%; }
+html[data-form="portrait"] #editor .deck-head .deck-check .select-button { font-size: 13px; height: 36px; max-width: 100%; }
 html[data-form="portrait"] #editor .deck-head button.small { min-height: 36px; padding: 0 12px; font-size: 13px; }
 html[data-form="portrait"] #editor .zone > h4 { padding: 8px 10px 4px; gap: 8px; }
-html[data-form="portrait"] #editor .zone > h4 select, html[data-form="portrait"] #editor .zone > h4 .view-seg button { min-height: 36px; font-size: 13px; }
+html[data-form="portrait"] #editor .zone > h4 .select-button, html[data-form="portrait"] #editor .zone > h4 .view-seg button { min-height: 36px; font-size: 13px; }
 html[data-form="portrait"] #editor .zone > h4 .view-seg button { padding: 0 12px; }
 html[data-form="portrait"] #editor .zone-body { padding: 2px 10px 10px; }
 html[data-form="portrait"] #editor .zone-body.deck-cols { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 8px; }
@@ -658,9 +656,8 @@ html[data-form="portrait"] #drafting .pick-line { padding: 8px 12px; }
 html[data-form="portrait"] #drafting .tool-line { padding: 6px 12px; }
 html[data-form="portrait"] #drafting .tool-line .chip { font-size: 12px; }
 html[data-form="portrait"] #drafting .tool-line .chip.more { display: none; }
-html[data-form="portrait"] #drafting .tool-line .sort-by { flex: none; width: 40px; min-height: 36px; padding: 0; appearance: none; color: transparent;
-  background: var(--surface-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e6edf3' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 4v16M4 17l3 3 3-3M17 20V4M14 7l3-3 3 3'/%3E%3C/svg%3E") no-repeat center / 16px; }
-html[data-form="portrait"] #drafting .tool-line .sort-by option { color: var(--text); background: var(--surface); }
+html[data-form="portrait"] #drafting .tool-line .sort-by { width: 40px; min-height: 36px; padding: 0; justify-content: center; background: var(--surface-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e6edf3' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 4v16M4 17l3 3 3-3M17 20V4M14 7l3-3 3 3'/%3E%3C/svg%3E") no-repeat center / 16px; }
+html[data-form="portrait"] #drafting .tool-line .sort-by > * { display: none; }
 /* The sort and table buttons share the line with where your pack goes, so the table button drops the seat faces the chip already names */
 html[data-form="portrait"] #drafting .tool-line .table-btn .faces { display: none; }
 /* The table has fixed pixel sizes for a desktop panel. On a phone it is fixed across the screen and drawn at 80% size. */
@@ -717,7 +714,8 @@ html[data-form="portrait"] .ph-menu > button:active { background: var(--surface-
 html[data-form="portrait"] :is(.ph-menu > button, .ph-menu-row) svg { flex: none; width: 18px; height: 18px; fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 html[data-form="portrait"] .ph-menu-sep { margin: 4px 6px; border: 0; border-top: 1px solid var(--line); }
 html[data-form="portrait"] .ph-menu-head { padding: 2px 10px 0; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-html[data-form="portrait"] .ph-menu-row select { margin-left: auto; min-width: 0; max-width: 110px; height: 34px; background: var(--surface-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; font: inherit; font-size: 13px; }
+html[data-form="portrait"] .ph-menu-row .select { margin-left: auto; min-width: 0; max-width: 110px; }
+html[data-form="portrait"] .ph-menu-row .select-button { height: 34px; font-size: 13px; }
 /* A campaign's tabs are a strip that scrolls by itself, and fades at whichever end has more tabs past it */
 html[data-form="portrait"] .ph .cq-tabs { overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity; padding: 0 6px;
   --fade-l: 0px; --fade-r: 28px; -webkit-mask: linear-gradient(90deg, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent); mask: linear-gradient(90deg, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent);
@@ -846,11 +844,12 @@ html[data-form="portrait"] .cq-coll-bar .seg button { flex: 1; min-height: 36px;
 html[data-form="portrait"] .cq-coll-bar .find { width: auto; min-width: 0; height: 36px; }
 html[data-form="portrait"] .cq-coll-bar .colours { order: 1; gap: 1px; padding: 2px; justify-self: start; }
 html[data-form="portrait"] .cq-coll-bar .colour { width: 34px; height: 34px; }
-html[data-form="portrait"] .cq-coll-bar select { order: 2; height: 36px; min-width: 0; }
-html[data-form="portrait"] .cq-coll-bar select ~ select { order: 3; grid-column: 1; justify-self: stretch; }
+html[data-form="portrait"] .cq-coll-bar .select { order: 2; min-width: 0; }
+html[data-form="portrait"] .cq-coll-bar .select-button { height: 36px; }
+html[data-form="portrait"] .cq-coll-bar .select ~ .select { order: 3; grid-column: 1; justify-self: stretch; }
 html[data-form="portrait"] .cq-coll-note { order: 4; grid-column: 1 / -1; margin: 0; font-size: 11.5px; line-height: 1.35; }
-html[data-form="portrait"] .cq-coll-bar > :is(.colours, select, .cq-coll-note) { margin-top: 6px; }
-html[data-form="portrait"] :is(.cq-coll-bar > :is(.colours, select, .cq-coll-note), .cq-coll > .qu-products) { overflow: hidden; animation: cq-fold linear both; animation-timeline: --cq-cards; animation-range: 0 140px; }
+html[data-form="portrait"] .cq-coll-bar > :is(.colours, .select, .cq-coll-note) { margin-top: 6px; }
+html[data-form="portrait"] :is(.cq-coll-bar > :is(.colours, .select, .cq-coll-note), .cq-coll > .qu-products) { overflow: hidden; animation: cq-fold linear both; animation-timeline: --cq-cards; animation-range: 0 140px; }
 @keyframes cq-fold { from { max-height: 180px; } 45% { opacity: 0; } to { max-height: 0; margin-top: 0; padding-block: 0; border-width: 0; opacity: 0; } }
 html[data-form="portrait"] .cq-coll-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 8px; padding: 10px 12px 120px; }
 html[data-form="portrait"] .cq-cc .val { font-size: 11px; }
@@ -909,13 +908,14 @@ html[data-form="portrait"] .cq-foot:has(.qu-row) > .cq-mine { grid-column: 1; gr
 html[data-form="portrait"] .cq-foot:has(.qu-row) > .qu-row:has(input[type="checkbox"]) { grid-column: 2; grid-row: 1; justify-self: end; margin-top: 0; }
 html[data-form="portrait"] .cq-foot:has(.qu-row) > .qu-row:has(.seg) { grid-column: 1 / -1; grid-row: 2; }
 html[data-form="portrait"] .cq-foot:has(.qu-row) > .cq-warn { grid-column: 1 / -1; grid-row: 3; }
-html[data-form="portrait"] .cq-foot:has(.qu-row) > .qu-row:has(select) { grid-column: 1; grid-row: 4; }
+html[data-form="portrait"] .cq-foot:has(.qu-row) > .qu-row:has(.select) { grid-column: 1; grid-row: 4; }
 html[data-form="portrait"] .cq-foot:has(.qu-row) > button:last-child { grid-column: 2; grid-row: 4; }
-html[data-form="portrait"] .cq-foot:has(.qu-row):not(:has(> .qu-row select)) > button:last-child { grid-column: 1 / -1; }
+html[data-form="portrait"] .cq-foot:has(.qu-row):not(:has(> .qu-row .select)) > button:last-child { grid-column: 1 / -1; }
 /* A challenge's panel already shows its text */
 html[data-form="portrait"] .cq-map:has(.qu-facts) .qu-ev .t p { display: none; }
 html[data-form="portrait"] .qu-row > span:first-child { display: none; }
-html[data-form="portrait"] .qu-row select { max-width: none; width: 100%; height: 42px; }
+html[data-form="portrait"] .qu-row .select { max-width: none; width: 100%; }
+html[data-form="portrait"] .qu-row .select-button { width: 100%; height: 42px; }
 
 html[data-form="portrait"] .qu-tourney-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
 html[data-form="portrait"] .qu-tourney { grid-template-rows: 72px auto auto; }

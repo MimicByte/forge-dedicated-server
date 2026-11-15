@@ -13,6 +13,7 @@ import type { DeckSection, EditorCard, EditorSection, EditorState, LandSet } fro
 import { store, stored } from '../storage';
 import { t, tCap } from '../text';
 import { Backdrop, Dropdown } from '../dialog';
+import { Select } from '../select';
 
 const GROUP_KEY = 'forge.groupBy';
 const HAND = 7;
@@ -80,15 +81,11 @@ export function DeckHalf({ actions, state, handlers, check, adding, addTo }: {
             <button aria-pressed={cards} onClick={() => view(true)}>{t('lblCards')}</button>
             <button aria-pressed={!cards} onClick={() => view(false)}>{t('lblWebDraftList')}</button>
           </span>
-          <select aria-label={tCap('lblGroupby')} value={by} onChange={e => {
-            const next = e.currentTarget.value as GroupBy;
+          <Select<GroupBy> label={tCap('lblGroupby')} value={by} change={next => {
             setBy(next);
             store(GROUP_KEY, next);
-          }}>
-            <option value="type">{t('lblWebEditorGroupType')}</option>
-            <option value="mv">{t('lblWebEditorGroupManaValue')}</option>
-            <option value="colour">{t('lblWebEditorGroupColour')}</option>
-          </select>
+          }} choices={[{ value: 'type', label: t('lblWebEditorGroupType') }, { value: 'mv', label: t('lblWebEditorGroupManaValue') },
+            { value: 'colour', label: t('lblWebEditorGroupColour') }]} />
         </h4>
         <div class={cards ? 'zone-body deck-cols' : 'zone-body cols'}>
           {state.main.length === 0 && <p class="none">{state.commanderWanted ? t('lblWebEditorChooseCommanderFirst') : t('lblWebEditorClickToAdd')}</p>}

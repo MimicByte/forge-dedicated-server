@@ -5,6 +5,7 @@ import { Pips } from '../symbols';
 import type { Actions } from '../actions';
 import type { QuestDuelRow, QuestDuels } from '../protocol';
 import { t, type TextKey } from '../text';
+import { Select } from '../select';
 
 /** A duel's difficulty by its number, 1 to 5. The random opponent has none. */
 const DIFFICULTY: TextKey[] = ['lblEasy', 'lblMedium', 'lblHard', 'lblExpert', 'lblWebQuestWild'];
@@ -51,10 +52,8 @@ export function Brings({ page, actions, zoom, start, label, fixedDeck }: {
     {pet && (
       <div class="qu-row">
         <span>{t('lblWebQuestPet')}</span>
-        <select aria-label={t('lblWebQuestPet')} value={pet.chosen ?? ''} onChange={e => actions.questPet(1, e.currentTarget.value || null)}>
-          <option value="">{t('lblDontSummonAPet')}</option>
-          {pet.pets.map(p => <option key={p} value={p}>{summon(`"${p}"`)}</option>)}
-        </select>
+        <Select label={t('lblWebQuestPet')} value={pet.chosen ?? ''} change={v => actions.questPet(1, v || null)}
+          choices={[{ value: '', label: t('lblDontSummonAPet') }, ...pet.pets.map(p => ({ value: p, label: summon(`"${p}"`) }))]} />
       </div>
     )}
     {plant && (

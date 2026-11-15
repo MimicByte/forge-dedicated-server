@@ -34,7 +34,8 @@
 .qu-row { display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
 .qu-row > span:first-child { color: var(--muted); flex: 1; }
 .qu-row .seg button { padding: 4px 10px; font-size: 12px; }
-.qu-row select { flex: none; max-width: 170px; background: var(--surface-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font: inherit; font-size: 12.5px; }
+.qu-row .select { flex: none; max-width: 170px; }
+.qu-row .select-button { font-size: 12.5px; }
 .qu-check { display: inline-flex; align-items: center; gap: 7px; }
 
 /* The Decks page. This covers the new-deck button and the questions asked at the bottom of the panel. */

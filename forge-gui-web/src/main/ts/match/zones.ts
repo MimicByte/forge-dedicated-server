@@ -1,6 +1,7 @@
 // The zones panel, for a graveyard, exile or other zone opened over the board.
 // It folds to a bar instead of closing. So the player can look at the board during a prompt and come back to the same place.
 
+import { h, render } from 'preact';
 import { reconcile } from './reconcile';
 import { createCard, has, markPicked, updateCard, type CardClick } from './cards';
 import { fitCards } from './fit';
@@ -17,7 +18,8 @@ import type { Actions } from '../actions';
 import { keyName } from '../keys';
 import { boundKeys } from '../settings';
 import type { CardView, PlayerView, PromptButton, ZoneType } from '../protocol';
-import { t, tCap, type TextKey } from '../text';
+import { t, tCap, type TextKey } from '../text';
+import { Select } from '../select';
 import { manaValue } from './gamerules';
 
 // One open zone. It is either a zone the game asks to show or a pile the player opened by clicking
@@ -163,7 +165,7 @@ function createPanel(): HTMLElement {
   const el = make('section', 'zone-panel');
   el.innerHTML = '<p class="zone-ask"><span class="ask-source"></span><span class="ask-sep" aria-hidden="true">·</span><span class="ask-text"></span></p><div class="zone-chips" role="group"></div><header><b class="zone-who"></b><span class="zone-count"></span><span class="zone-gap"></span>'
     + '<input class="zone-find" type="search">'
-    + '<label class="zone-sort"><select></select></label>'
+    + '<span class="zone-sort"></span>'
     + '<button class="zone-fold"></button></header>'
     + '<div class="cards"></div>'
     + '<footer><span class="zone-hint"></span><button class="zone-done primary"></button>'
@@ -171,11 +173,8 @@ function createPanel(): HTMLElement {
   const find = q<HTMLInputElement>(el, '.zone-find');
   find.placeholder = t('lblWebZoneSearch');
   find.setAttribute('aria-label', t('lblWebZoneSearch'));
-  q(el, '.zone-sort').prepend(t('lblSort'));
   q(el, '.zone-fold').textContent = t('lblWebZoneShowBoard');
   q(el, '.zone-done').textContent = t('lblDone');
-  const sort = q<HTMLSelectElement>(el, '.zone-sort select');
-  for (const [id, name] of SORTS) sort.append(new Option(t(name), id));
   return el;
 }
 
@@ -193,11 +192,9 @@ function updatePanel(el: HTMLElement, model: Model, actions: Actions, p: Panel, 
     find.value = ui.zoneSearch;
   }
   find.oninput = () => changeUi(u => { u.zoneSearch = find.value; });
-  const sort = q<HTMLSelectElement>(el, '.zone-sort select');
-  sort.value = ui.zoneSort;
   // A search orders the zone by how well each name matches, so the sort is disabled until the search is cleared
-  sort.disabled = !!normalize(ui.zoneSearch);
-  sort.onchange = () => changeUi(u => { u.zoneSort = sort.value as ZoneSort; });
+  render(h(Select<ZoneSort>, { label: t('lblSort'), prefix: t('lblSort'), value: ui.zoneSort, disabled: !!normalize(ui.zoneSearch),
+    change: sort => changeUi(u => { u.zoneSort = sort; }), choices: SORTS.map(([id, name]) => ({ value: id, label: t(name) })) }), q(el, '.zone-sort'));
   const fold = q(el, '.zone-fold');
   fold.onclick = () => changeUi(u => { u.zonesMinimised = true; });
   // A pile the player opened already has Done to close it

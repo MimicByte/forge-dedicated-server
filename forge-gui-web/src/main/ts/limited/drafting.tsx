@@ -22,6 +22,7 @@ import { isPortrait } from '../form';
 import { setting } from '../settings';
 import { Backdrop, Confirm, Dropdown } from '../dialog';
 import { campaigns } from '../campaigns';
+import { Select } from '../select';
 
 type GroupBy = 'colour' | 'type' | 'mv' | 'pick';
 type PackSort = 'rarity' | 'colour' | 'mv' | 'rank';
@@ -247,9 +248,7 @@ function Pack({ state, faces, actions, log }: { state: DraftState; faces: string
         {next !== null && <span class="chip more">{tNodes('lblWebDraftNextFrom', seat(next))}</span>}
         {depths[busiest] > 2 && <span class="chip more">{busiest === 0 ? t('lblWebDraftYouHoldingPacks', depths[busiest]) : t('lblWebDraftSeatHoldingPacks', state.seats[busiest].name, depths[busiest])}</span>}
         <span class="head-end">
-          <select class="sort-by" aria-label={t('lblSort')} value={by} onChange={e => setSort(e.currentTarget.value as PackSort)}>
-            {sorts.map(([id, name]) => <option key={id} value={id}>{t(name)}</option>)}
-          </select>
+          <Select<PackSort> cls="sort-by" label={t('lblSort')} value={by} change={setSort} choices={sorts.map(([id, name]) => ({ value: id, label: t(name) }))} />
           {log && <HeadMenu label={t('lblWebDraftLog')}>{() => <DraftLog lines={state.log} />}</HeadMenu>}
           <TableMenu state={state} faces={faces} />
         </span>
