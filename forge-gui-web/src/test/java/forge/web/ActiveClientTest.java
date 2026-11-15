@@ -1,6 +1,7 @@
 package forge.web;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import forge.card.CardStateName;
 import forge.deck.Deck;
@@ -38,10 +39,11 @@ public class ActiveClientTest {
 
     // GameState calls the first player "human" and the second "ai", whoever controls them
     private static void giveWebSeat(final Game game, final String hand, final String battlefield, final String library) throws InterruptedException {
-        giveWebSeat(game, hand, battlefield, library, "");
+        giveWebSeat(game, hand, battlefield, library, "", "");
     }
 
-    private static void giveWebSeat(final Game game, final String hand, final String battlefield, final String library, final String aiBattlefield) throws InterruptedException {
+    private static void giveWebSeat(final Game game, final String hand, final String battlefield, final String library, final String aiBattlefield,
+            final String aiHand) throws InterruptedException {
         final boolean webFirst = game.getPlayers().get(0).getController() instanceof PlayerControllerHuman;
         final String web = webFirst ? "human" : "ai";
         final String ai = webFirst ? "ai" : "human";
@@ -55,7 +57,7 @@ public class ActiveClientTest {
                 web + "battlefield=" + battlefield,
                 web + "library=" + library,
                 ai + "life=20",
-                ai + "hand=",
+                ai + "hand=" + aiHand,
                 ai + "battlefield=" + aiBattlefield,
                 ai + "library=Forest;Forest;Forest;Forest;Forest"));
         TestMatch.apply(state, game);
@@ -155,20 +157,25 @@ public class ActiveClientTest {
         throw new AssertionError("no detail for card " + key);
     }
 
-    // Fails if card detail leaves out a face of a double-faced, split or own face-down card, or shows another face or the name of an opponent's face-down card
+    // Fails if card detail leaves out a face of a double-faced, split or own face-down card, shows another face or the name of an opponent's face-down card, or the visible list holds the opponent's hand card or leaves out the player's own hand or face-down card
     @Test(timeOut = 180000)
     public void cardDetailShowsOtherFacesOnlyToThoseWhoMaySeeThem() throws Exception {
         TestMatch.play(plains(), forests(), gui -> new TestBrowser(gui, false), (local, gui, browser) -> {
             keepAndHoldPriority(gui, browser);
             final Game game = local.hostedMatch().getGame();
-            giveWebSeat(game, "Fire // Ice", "Delver of Secrets;Grizzly Bears|FaceDown", "Plains;Plains;Plains", "Grizzly Bears|FaceDown");
+            giveWebSeat(game, "Fire // Ice", "Delver of Secrets;Grizzly Bears|FaceDown", "Plains;Plains;Plains", "Grizzly Bears|FaceDown", "Llanowar Elves");
             WebTestSupport.remoteGui(local.hostedMatch()).updateGameView();
             final int delver = cardKey(game, ZoneType.Battlefield, true, "Delver of Secrets", false);
             final int split = cardKey(game, ZoneType.Hand, true, "Fire // Ice", false);
             final int ownFaceDown = cardKey(game, ZoneType.Battlefield, true, "Grizzly Bears", true);
             final int theirFaceDown = cardKey(game, ZoneType.Battlefield, false, "Grizzly Bears", true);
+            final int theirHand = cardKey(game, ZoneType.Hand, false, "Llanowar Elves", false);
             WebHubTest.awaitTrue(() -> MatchProbe.objects(browser.model).keySet().containsAll(List.of(delver, split, ownFaceDown, theirFaceDown)),
                     "the browser never got the cards");
+            // Each state lists the visible cards among all those sent so far, so the latest state covers these cards
+            final List<Integer> visible = browser.last("state").getAsJsonArray("visible").asList().stream().map(JsonElement::getAsInt).toList();
+            Assert.assertTrue(visible.containsAll(List.of(split, ownFaceDown)), "the player's own hand or face-down card is not visible: " + visible);
+            Assert.assertFalse(visible.contains(theirHand), "the opponent's hand card is visible: " + visible);
 
             Assert.assertEquals(faces(gui, browser, delver).size(), 2, "a double-faced card shows both faces");
             Assert.assertEquals(faces(gui, browser, split).size(), 3, "a split card shows the whole card and each half");
@@ -180,7 +187,7 @@ public class ActiveClientTest {
         });
     }
 
-    // Fails if the browser is not told which players it may click when Jötun Grunt's upkeep asks the web seat to choose one, and the Grunt is sacrificed
+    // Fails if the player the web seat picks for Jötun Grunt's "whose graveyard" choice does not map back across netplay to that player, so the Grunt is sacrificed
     @Test(timeOut = 180000)
     public void playerChoicePromptIsAnsweredFromTheWebSeat() throws Exception {
         // Passes priority, takes the first option of optional choices and presses OK to pay costs

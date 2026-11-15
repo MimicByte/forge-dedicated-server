@@ -8,18 +8,27 @@ import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import java.util.List;
+
 public class DeckFileTest {
     @BeforeClass
     public void setUp() {
         WebTestSupport.initModel();
     }
 
-    // Fails if a card unknown to Forge stops the deck from being read, or is dropped without being counted
+    // Fails if a card unknown to Forge stops a deck file from being read, is dropped without being counted, is imported as a stand-in, or is dropped by the importer without a problem being reported
     @Test
-    public void unknownCardsAreCounted() {
-        final DeckWorkspace.FileDeck read = DeckWorkspace.readFile("[metadata]\nName=Mini\n[Main]\n4 Lightning Bolt|M10\n3 No Such Card Anywhere|M10\n");
+    public void unknownCardsAreCountedAndMarked() {
+        final String file = "[metadata]\nName=Mini\n[Main]\n4 Lightning Bolt|M10\n3 No Such Card Anywhere|M10\n";
+        final DeckWorkspace.FileDeck saved = DeckWorkspace.readFile(file);
+        Assert.assertEquals(saved.deck().getMain().countAll(), 4);
+        Assert.assertEquals(saved.leftOut(), 3);
+
+        final DeckImport.Read read = DeckImport.read(file, LegalityScope.of(GameType.Constructed, null));
         Assert.assertEquals(read.deck().getMain().countAll(), 4);
-        Assert.assertEquals(read.leftOut(), 3);
+        Assert.assertEquals(read.notImported(), 1);
+        Assert.assertEquals(read.lines().get(4).kind().name(), "problem");
+        Assert.assertTrue(read.problems().stream().anyMatch(p -> p.line() == 4));
     }
 
     // Fails if a pasted list is treated as a deck file. It would then be saved without the importer reading it
@@ -38,20 +47,9 @@ public class DeckFileTest {
         Assert.assertEquals(read.deck().get(DeckSection.Sideboard).countAll(), 2);
         Assert.assertEquals(read.notImported(), 0);
         Assert.assertEquals(read.lines().stream().map(l -> l.kind().name()).toList().subList(0, 9),
-                java.util.List.of("ignored", "heading", "heading", "read", "read", "read", "read", "heading", "read"));
+                List.of("ignored", "heading", "heading", "read", "read", "read", "read", "heading", "read"));
         final PaperCard forest = read.deck().getMain().toFlatList().stream().filter(c -> c.getName().equals("Forest")).findFirst().orElseThrow();
         Assert.assertEquals(forest.getCollectorNumber(), "246");
         Assert.assertTrue(read.deck().getMain().toFlatList().stream().anyMatch(c -> c.getName().equals("Counterspell") && c.isFoil()));
-    }
-
-    // Fails if a deck file's card unknown to Forge is imported as a stand-in, or dropped without a problem being reported
-    @Test
-    public void importerMarksADeckFilesUnknownCard() {
-        final DeckImport.Read read = DeckImport.read("[metadata]\nName=Mini\n[Main]\n4 Lightning Bolt|M10\n3 No Such Card Anywhere|M10\n",
-                LegalityScope.of(GameType.Constructed, null));
-        Assert.assertEquals(read.deck().getMain().countAll(), 4);
-        Assert.assertEquals(read.notImported(), 1);
-        Assert.assertEquals(read.lines().get(4).kind().name(), "problem");
-        Assert.assertTrue(read.problems().stream().anyMatch(p -> p.line() == 4));
     }
 }

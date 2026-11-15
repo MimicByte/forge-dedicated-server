@@ -736,7 +736,7 @@ public final class Lobby {
             return chosen;
         }
         final GameLobby lobby = view();
-        return lobby != null && index < lobby.getNumberOfSlots() ? lobby.getSlot(index).getDeck() : null;
+        return lobby != null && index >= 0 && index < lobby.getNumberOfSlots() ? lobby.getSlot(index).getDeck() : null;
     }
 
     /** What stops the match from starting: all of startGame's own refusals, then an open seat, which only the page refuses. startGame still runs as the final check. */

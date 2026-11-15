@@ -20,6 +20,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 /** Tests what one message to a client may contain. It reads every message from ten turns of the computer playing itself. */
@@ -54,7 +55,7 @@ public class BatchBoundaryTest {
         return place == null || place.isJsonNull() ? "" : place.getAsJsonObject().get("zone").getAsString();
     }
 
-    // Fails if one message to a client splits an action, such as a card leaving a battlefield before its move, or holds a cast with its resolution, a land with a later cast, or a resolution with the next turn
+    // Fails if one message to a client splits an action, such as a card leaving a battlefield before its move, holds a cast with its resolution, a land with a later cast, or a resolution with the next turn, or the browser's model built from the messages differs from a fresh snapshot
     @Test(timeOut = 360000)
     public void aMessageHoldsWholeActionsAndNoMoreThanOne() throws Exception {
         final Deck red = TestDecks.of("Red", "Mountain", 22, "Shock", 10, "Goblin Piker", 14, "Raging Goblin", 14);
@@ -150,6 +151,10 @@ public class BatchBoundaryTest {
             // Fails if a resolution arrives with the next turn, so a client shows the new turn with the spell still on the stack
             pins.assertEquals(resolvedIntoNextTurn, 0, "messages holding a resolution and the next turn");
             pins.assertAll();
+            // The game goes on, so the browser's model and a fresh snapshot are read together on the dispatch thread, between two messages
+            final List<Map<Integer, JsonObject>> both = CompletableFuture.supplyAsync(() -> List.of(MatchProbe.objects(browser.model),
+                    MatchProbe.objects(MatchProbe.freshSnapshot(gui))), gui.dispatchExecutor()).get(10, TimeUnit.SECONDS);
+            WebTestSupport.assertSameIgnoringZone(both.get(0), both.get(1));
         });
     }
 }

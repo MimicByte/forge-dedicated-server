@@ -1,5 +1,6 @@
 package forge.web;
 
+import com.google.gson.JsonObject;
 import forge.StaticData;
 import forge.game.player.Player;
 import forge.gamemodes.match.HostedMatch;
@@ -9,7 +10,12 @@ import forge.localinstance.properties.ForgeNetPreferences;
 import forge.localinstance.properties.ForgePreferences.FPref;
 import forge.model.FModel;
 import forge.player.PlayerControllerHuman;
+import org.testng.Assert;
 import org.testng.SkipException;
+
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 public final class WebTestSupport {
     private WebTestSupport() {}
@@ -38,6 +44,22 @@ public final class WebTestSupport {
             }
         }
         throw new AssertionError("no remote human seat");
+    }
+
+    /** Checks that a browser model built from updates holds the same objects as a fresh snapshot. */
+    static void assertSameIgnoringZone(final Map<Integer, JsonObject> incremental, final Map<Integer, JsonObject> fresh) {
+        // The client rewrites CardView.Zone from zone collections, and that rewrite is not in the host's packets
+        incremental.values().forEach(o -> o.remove("Zone"));
+        fresh.values().forEach(o -> o.remove("Zone"));
+        final Set<Integer> onlyIncremental = new HashSet<>(incremental.keySet());
+        onlyIncremental.removeAll(fresh.keySet());
+        final Set<Integer> onlyFresh = new HashSet<>(fresh.keySet());
+        onlyFresh.removeAll(incremental.keySet());
+        Assert.assertTrue(onlyIncremental.isEmpty() && onlyFresh.isEmpty(),
+                "keys only in incremental " + onlyIncremental + ", only in fresh " + onlyFresh);
+        for (final Map.Entry<Integer, JsonObject> e : fresh.entrySet()) {
+            Assert.assertEquals(incremental.get(e.getKey()), e.getValue(), "object " + e.getKey());
+        }
     }
 
     /** Skips a slow test unless -Drun.stress.tests=true is set. Forge's other network tests use the same switch. */

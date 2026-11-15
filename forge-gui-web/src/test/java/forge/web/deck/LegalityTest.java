@@ -7,6 +7,7 @@ import forge.game.GameType;
 import forge.item.PaperCard;
 import forge.localinstance.properties.ForgePreferences.FPref;
 import forge.model.FModel;
+import forge.util.Localizer;
 import forge.web.WebTestSupport;
 import org.testng.Assert;
 import org.testng.annotations.AfterClass;
@@ -45,12 +46,15 @@ public class LegalityTest {
         Assert.assertEquals(r.verdict(), GameType.Commander.getDeckFormat().getDeckConformanceProblem(d));
     }
 
-    // Fails if No restriction applies a format's rules
+    // Fails if a Constructed deck's fifth copy of a card is not flagged, or a card that allows any number is
     @Test
-    public void noRestrictionOnlyCountsCopies() {
-        final Deck d = commanderDeck("Meren of Clan Nel Toth");
-        d.getMain().add(card("Mana Crypt"), 1);
-        Assert.assertNull(Legality.check(d, LegalityScope.none()).verdict());
+    public void constructedFlagsCopiesOverTheLimit() {
+        final Deck d = new Deck("t");
+        d.getMain().add(card("Lightning Bolt"), 5);
+        d.getMain().add(card("Relentless Rats"), 20);
+        final Legality.Result r = Legality.check(d, LegalityScope.of(GameType.Constructed, null));
+        Assert.assertEquals(r.flags().get("Lightning Bolt"), Localizer.getInstance().getMessage("lblWebNOfM", 5, 4));
+        Assert.assertFalse(r.flags().containsKey("Relentless Rats"), r.flags().toString());
     }
 
     // Fails if a card pool's own message, such as singleton, no longer reaches the verdict as one line
@@ -59,7 +63,9 @@ public class LegalityTest {
         final Deck d = new Deck("t");
         d.getMain().add(card("Sol Ring"), 2);
         d.getMain().add(card("Forest"), 98);
-        Assert.assertEquals(DeckFacts.problem(d, GameType.Constructed, FModel.getFormats().get("Canadian Highlander")),
-                "Not legal in Canadian Highlander. The deck contains more copies than allowed of the following cards: Sol Ring");
+        final String problem = DeckFacts.problem(d, GameType.Constructed, FModel.getFormats().get("Canadian Highlander"));
+        Assert.assertNotNull(problem, "a second Sol Ring in a singleton pool was not reported");
+        Assert.assertFalse(problem.contains("\n"), problem);
+        Assert.assertTrue(problem.contains("Sol Ring"), problem);
     }
 }

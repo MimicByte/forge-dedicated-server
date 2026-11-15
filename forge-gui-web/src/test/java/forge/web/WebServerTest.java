@@ -76,13 +76,24 @@ public class WebServerTest {
         Assert.assertEquals(get("/", null).statusCode(), 403);
     }
 
-    // Fails if the access token in the address does not serve the page or does not set the token cookie
+    // Fails if the access token in the address does not serve the page, or does not set a token cookie that scripts cannot read and other sites cannot send
     @Test
     public void tokenServesThePageAndSetsTheCookie() throws Exception {
         final HttpResponse<String> r = get("/?token=secret", null);
         Assert.assertEquals(r.statusCode(), 200);
         Assert.assertTrue(r.body().contains("<title>"));
-        Assert.assertTrue(r.headers().firstValue("set-cookie").orElse("").contains("forge_token=secret"));
+        final String cookie = r.headers().firstValue("set-cookie").orElse("");
+        Assert.assertTrue(cookie.contains("forge_token=secret"), cookie);
+        Assert.assertTrue(cookie.toLowerCase().contains("; httponly"), cookie);
+        Assert.assertTrue(cookie.contains("SameSite=Strict"), cookie);
+    }
+
+    // Fails if a request that a proxy forwarded counts as this machine and is given the logs
+    @Test
+    public void theLogsAreRefusedThroughAProxy() throws Exception {
+        final HttpResponse<String> r = http.send(HttpRequest.newBuilder(URI.create(origin() + "/logs?token=secret"))
+                .header("X-Forwarded-For", "203.0.113.7").build(), HttpResponse.BodyHandlers.ofString());
+        Assert.assertEquals(r.statusCode(), 403);
     }
 
     // Fails if a proxied socket, such as one through a Cloudflare tunnel, counts as a browser on this machine, or a direct one does not
@@ -139,7 +150,8 @@ public class WebServerTest {
         } finally {
             prefs.setPref(FPref.UI_ENABLE_ONLINE_IMAGE_FETCHER, online);
         }
-        Assert.assertEquals(get("/..%2Fpom.xml?token=secret", null).statusCode(), 404);
+        // This class is on the classpath one folder above the page's files, so it would be served without the guard
+        Assert.assertEquals(get("/..%2Fforge%2Fweb%2FWebServer.class?token=secret", null).statusCode(), 404);
     }
 
     // Fails if the board's size is not shrunk to the thumbnail width, the full size is shrunk, or a browser can ask for a size of its choosing

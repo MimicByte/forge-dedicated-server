@@ -55,9 +55,9 @@ public class WebSessionTest {
         return m;
     }
 
-    // Fails if a browser on another machine can take the host's seat, which can stop the server or set up the table, without the host password once one is set
+    // Fails if a browser on another machine can take the host's seat, which can stop the server or set up the table, without the host password once one is set, if this machine's own browser has to give it, or if another machine has to when none is set
     @Test
-    public void anotherMachineNeedsTheHostPasswordWhenOneIsSet() throws Exception {
+    public void theHostPasswordGuardsTheSeatOnlyFromAnotherMachine() throws Exception {
         ServerControl.hostPassword("open sesame");
         try {
             final WebHub sessions = opened();
@@ -69,16 +69,7 @@ public class WebSessionTest {
             Assert.assertFalse(remote.awaitNewest("hello").get("host").getAsBoolean(), "a wrong password took the host's seat");
             sessions.onMessage(remote, claim("open sesame"));
             Assert.assertNotNull(remote.awaitNewest("hello", m -> m.get("host").getAsBoolean()), "the right password did not take the host's seat");
-        } finally {
-            ServerControl.hostPassword("");
-        }
-    }
 
-    // Fails if this machine's own browser has to give the host password, or a browser on another machine has to when none is set
-    @Test
-    public void thisMachineAndAnUnguardedSeatNeedNoPassword() throws Exception {
-        ServerControl.hostPassword("open sesame");
-        try {
             final WebHub guarded = opened();
             final TestBrowser local = new TestBrowser();
             guarded.connected(local, "local", true);
@@ -88,10 +79,10 @@ public class WebSessionTest {
         } finally {
             ServerControl.hostPassword("");
         }
-        final WebHub sessions = opened();
+        final WebHub unguarded = opened();
         final TestBrowser remote = new TestBrowser();
-        sessions.connected(remote, "remote", false);
-        sessions.onMessage(remote, TestBrowser.action("claimHost"));
+        unguarded.connected(remote, "remote", false);
+        unguarded.onMessage(remote, TestBrowser.action("claimHost"));
         Assert.assertNotNull(remote.awaitNewest("hello", m -> m.get("host").getAsBoolean()), "another machine could not take the seat with no password set");
     }
 

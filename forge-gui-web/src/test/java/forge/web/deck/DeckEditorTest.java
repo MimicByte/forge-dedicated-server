@@ -7,11 +7,13 @@ import forge.deck.DeckSection;
 import forge.deck.io.DeckStorage;
 import forge.game.GameType;
 import forge.item.PaperCard;
+import forge.util.FileUtil;
 import forge.util.storage.IStorage;
 import forge.util.storage.StorageImmediatelySerialized;
 import forge.web.WebTestSupport;
 import forge.web.protocol.ToBrowser;
 import org.testng.Assert;
+import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -38,21 +40,15 @@ public class DeckEditorTest {
         WebTestSupport.initModel();
     }
 
-    // Fails if a card's printings are not listed newest first, or do not carry the style that the printing picker filters by
-    @Test
-    public void printingsAreNewestFirstAndCarryTheirStyle() {
-        final List<ToBrowser.Printing> printings = CardCatalog.printings("Llanowar Elves", null);
-        for (int i = 1; i < printings.size(); i++) {
-            Assert.assertTrue(printings.get(i - 1).year() >= printings.get(i).year(), "printing " + i + " is newer than the one before it");
-        }
-        Assert.assertTrue(printings.stream().anyMatch(p -> "cards".equals(p.style())), "no printing is in its set's main run");
-        Assert.assertTrue(printings.stream().anyMatch(p -> p.style() != null && !"cards".equals(p.style())), "no printing has a style of its own");
-    }
-
     @BeforeMethod
     public void freshFolders() throws IOException {
         dir = Files.createTempDirectory("forge-editor").toFile();
         made.clear();
+    }
+
+    @AfterMethod(alwaysRun = true)
+    public void deleteFolders() {
+        FileUtil.deleteDirectory(dir);
     }
 
     private DeckEditor editor(final Deck deck, final GameType format) {
@@ -91,11 +87,16 @@ public class DeckEditorTest {
         Assert.assertEquals(storages.of(GameType.Constructed).get(DeckEditor.newDeckName()).getMain().countByName("Swamp"), 30);
     }
 
-    // Fails if a card added in a chosen printing is added in another, or a printing of a different card is accepted for it
+    // Fails if a card's printings are not listed newest first or do not carry the style that the printing picker filters by, a card added in a chosen printing is added in another, or a printing of a different card is accepted for it
     @Test
     public void aCardIsAddedInTheChosenPrinting() {
         final DeckEditor e = editor(new Deck("Printings"), GameType.Constructed);
         final List<ToBrowser.Printing> printings = CardCatalog.printings("Llanowar Elves", null);
+        for (int i = 1; i < printings.size(); i++) {
+            Assert.assertTrue(printings.get(i - 1).year() >= printings.get(i).year(), "printing " + i + " is newer than the one before it");
+        }
+        Assert.assertTrue(printings.stream().anyMatch(p -> "cards".equals(p.style())), "no printing is in its set's main run");
+        Assert.assertTrue(printings.stream().anyMatch(p -> p.style() != null && !"cards".equals(p.style())), "no printing has a style of its own");
         final String oldest = printings.get(printings.size() - 1).key();
         Assert.assertNull(e.addPrinting("Llanowar Elves", DeckSection.Main, oldest));
         final Map.Entry<PaperCard, Integer> held = e.deck().getMain().iterator().next();
@@ -103,6 +104,20 @@ public class DeckEditorTest {
         Assert.assertEquals(held.getValue().intValue(), 1);
         Assert.assertNotNull(e.addPrinting("Forest", DeckSection.Main, oldest), "a printing of another card was accepted");
         Assert.assertEquals(e.deck().getMain().countAll(), 1);
+    }
+
+    // Fails if a Limited deck adds a card its pool does not hold, or more copies than the pool holds, or a refused add changes the deck
+    @Test
+    public void aLimitedDeckAddsOnlyFromItsPool() {
+        final Deck pool = new Deck("Sealed");
+        pool.getOrCreate(DeckSection.Sideboard).add(card("Shock"), 1);
+        final DeckEditor e = editor(pool, GameType.Sealed);
+        Assert.assertNull(e.add("Shock", DeckSection.Main, 1));
+        Assert.assertNotNull(e.add("Lightning Bolt", DeckSection.Main, 1), "a card from outside the pool was added");
+        Assert.assertNotNull(e.add("Shock", DeckSection.Main, 1), "a second Shock was added from a pool of one");
+        Assert.assertEquals(e.deck().getMain().countAll(), 1, "a refused add changed the main deck");
+        Assert.assertEquals(e.deck().getMain().countByName("Shock"), 1);
+        Assert.assertEquals(e.deck().get(DeckSection.Sideboard).countAll(), 0, "a refused add changed the pool");
     }
 
     // Fails if a rename onto another deck's file overwrites it

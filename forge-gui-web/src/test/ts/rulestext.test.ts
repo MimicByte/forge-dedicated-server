@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { changesOf, plain, sortRulesText, type Line } from '../../main/ts/match/rulestext';
+import { t } from '../../main/ts/text';
 
 const lines = (text: string): Line[] => text.split('\n').map(t => [{ text: t, muted: false }]);
 const sort = (text: string) => sortRulesText(lines(text));
@@ -59,8 +60,8 @@ describe('the preview sorts a card\'s text into the parts of a printed card', ()
     expect(s.tag).toBe('Token');
     expect(s.blocks.map(b => b.kind)).toEqual(['keywords']);
     expect(s.chips).toEqual([
-      { kind: 'counter', text: '+1/+1 ×2' }, { kind: 'damage', text: '1 damage' }, { kind: 'shield', text: '1 regen shield' },
-      { kind: 'status', text: 'Exerted' },
+      { kind: 'counter', text: '+1/+1 ×2' }, { kind: 'damage', text: t('lblWebDetailDamageChip', '1') }, { kind: 'shield', text: t('lblWebDetailRegenShield', '1') },
+      { kind: 'status', text: t('lblExerted') },
     ]);
     expect(words(s.notes)).toEqual(['Attached: Bonesplitter', 'Attached to Grizzly Bears', 'chosen type: Elf', 'Owner: Alice']);
   });
@@ -71,10 +72,11 @@ describe('the preview sorts a card\'s text into the parts of a printed card', ()
     expect(sort('(Fire) Fire deals 2 damage divided as you choose among one or two targets.').blocks.map(b => b.kind)).toEqual(['text']);
   });
 
-  it('keeps text that does not apply just now greyed wherever it is sorted to', () => {
-    const s = sortRulesText([[{ text: '{T}: Add {G}. ', muted: false }, { text: 'Activate only if you control a Forest.', muted: true }]]);
-    const [block] = s.blocks;
-    expect(block.kind === 'ability' && block.effect).toEqual([{ text: 'Add {G}. ', muted: false }, { text: 'Activate only if you control a Forest.', muted: true }]);
+  it('keeps text that does not apply just now greyed, and a word a text-changing effect struck out struck, wherever it is sorted to', () => {
+    const [block] = sortRulesText([[{ text: '{T}: Target ', muted: false }, { text: 'Elf', muted: false, struck: true }, { text: ' gains haste. ', muted: false },
+      { text: 'Activate only if you control a Forest.', muted: true }]]).blocks;
+    expect(block.kind === 'ability' && block.effect).toEqual([{ text: 'Target ', muted: false }, { text: 'Elf', muted: false, struck: true }, { text: ' gains haste. ', muted: false },
+      { text: 'Activate only if you control a Forest.', muted: true }]);
   });
 });
 
@@ -83,17 +85,14 @@ describe('the preview tells what the game has changed from a card\'s printed rul
   const flying = { title: 'Flying', reminder: '' };
   const none = {};
 
-  it('names a keyword the card has but was not printed with as gained', () => {
-    const c = changesOf('', 'Flying', none, [flying]);
-    expect([...c.gained]).toEqual(['flying']);
-    expect(c.lostKeywords).toEqual([]);
-  });
-
-  it('names printed keywords the card no longer has as lost, and what replaced them as gained', () => {
+  it('names printed keywords the card no longer has as lost, and a keyword it has but was not printed with as gained', () => {
     const c = changesOf('Flying, vigilance', 'Indestructible', none, [{ title: 'Indestructible', reminder: '' }]);
     expect(c.lostKeywords).toEqual(['Flying', 'Vigilance']);
     expect([...c.gained]).toEqual(['indestructible']);
     expect(c.lostText).toEqual([]);
+    const added = changesOf('', 'Flying', none, [flying]);
+    expect([...added.gained]).toEqual(['flying']);
+    expect(added.lostKeywords).toEqual([]);
   });
 
   it('takes nothing as lost when only the reminder text was left out', () => {
@@ -111,13 +110,5 @@ describe('the preview tells what the game has changed from a card\'s printed rul
   it('names a printed ability that has gone as lost text', () => {
     const c = changesOf('{T}: Add {G}.', '', none, []);
     expect(c.lostText).toEqual(['{T}: Add {G}.']);
-  });
-});
-
-describe('the preview keeps a word a text-changing effect struck out', () => {
-  it('still strikes it once the line is sorted into a paragraph', () => {
-    const s = sortRulesText([[{ text: 'Other ', muted: false }, { text: 'Elf', muted: false, struck: true }, { text: ' Goblin creatures get +1/+1.', muted: false }]]);
-    const [block] = s.blocks;
-    expect(block.kind === 'text' && block.text.filter(r => r.struck).map(r => r.text)).toEqual(['Elf']);
   });
 });

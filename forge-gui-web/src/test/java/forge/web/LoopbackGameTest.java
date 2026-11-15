@@ -13,9 +13,6 @@ import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -31,21 +28,6 @@ public class LoopbackGameTest {
             final HostedMatch match = local.hostedMatch();
             return match != null && match.getGame() != null && browser.all("state").size() > 1;
         }, "game did not start");
-    }
-
-    static void assertSameIgnoringZone(final Map<Integer, JsonObject> incremental, final Map<Integer, JsonObject> fresh) {
-        // The client rewrites CardView.Zone from zone collections, and that rewrite is not in the host's packets
-        incremental.values().forEach(o -> o.remove("Zone"));
-        fresh.values().forEach(o -> o.remove("Zone"));
-        final Set<Integer> onlyIncremental = new HashSet<>(incremental.keySet());
-        onlyIncremental.removeAll(fresh.keySet());
-        final Set<Integer> onlyFresh = new HashSet<>(fresh.keySet());
-        onlyFresh.removeAll(incremental.keySet());
-        Assert.assertTrue(onlyIncremental.isEmpty() && onlyFresh.isEmpty(),
-                "keys only in incremental " + onlyIncremental + ", only in fresh " + onlyFresh);
-        for (final Map.Entry<Integer, JsonObject> e : fresh.entrySet()) {
-            Assert.assertEquals(incremental.get(e.getKey()), e.getValue(), "object " + e.getKey());
-        }
     }
 
     // Fails if a game on the real web path does not finish with a score, the client cannot answer while the host waits, the browser's model built from updates differs from a fresh snapshot, the log or land sound is missing, or a second match cannot start
@@ -72,7 +54,7 @@ public class LoopbackGameTest {
             final int turns = MatchProbe.objects(browser.model).get(root).get("Turn").getAsInt();
             Assert.assertTrue(turns > 2, "the game ended on turn " + turns);
             final BrowserModel fresh = CompletableFuture.supplyAsync(() -> MatchProbe.freshSnapshot(gui), gui.dispatchExecutor()).get(10, TimeUnit.SECONDS);
-            assertSameIgnoringZone(MatchProbe.objects(browser.model), MatchProbe.objects(fresh));
+            WebTestSupport.assertSameIgnoringZone(MatchProbe.objects(browser.model), MatchProbe.objects(fresh));
             Assert.assertEquals(MatchProbe.skippedProperties(gui), 0, "properties with no JSON form");
             // The client builds its log from forwarded game events
             final long turnEntries = browser.all("log").stream()

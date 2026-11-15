@@ -21,10 +21,8 @@ describe('addCard', () => {
   it('adds a card new to the deck in its preferred printing', () => {
     expect(sent(deck([]), 'Llanowar Elves')).toEqual({ op: 'add', name: 'Llanowar Elves', to: 'Main', count: 1, printings: [{ name: 'c:Llanowar Elves|DOM|1', count: 1 }] });
   });
-  it('adds a card the deck already holds as the deck has it', () => {
+  it('adds a card the deck already holds as the deck has it, and a card with no preference plainly', () => {
     expect(sent(deck(['Llanowar Elves']), 'Llanowar Elves')).toEqual({ op: 'add', name: 'Llanowar Elves', to: 'Main', count: 1 });
-  });
-  it('adds a card with no preference plainly', () => {
     expect(sent(deck([]), 'Forest')).toEqual({ op: 'add', name: 'Forest', to: 'Main', count: 1 });
   });
   it("leaves a pool's deck and a campaign's to their own printings", () => {

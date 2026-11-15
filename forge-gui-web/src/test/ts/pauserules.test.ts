@@ -7,31 +7,25 @@ const THEM = 2;
 const cast = (caster: number): GameEvent => ({ kind: 'cardMoved', card: { ref: 9 }, from: { zone: 'Hand', player: { ref: caster } }, to: { zone: 'Stack' }, caster: { ref: caster } });
 
 describe('worthSeeing', () => {
-  it("holds for another player's spell and not for your own", () => {
+  it("holds for another player's spell, and not for your own or for a card moving between hidden zones", () => {
     expect(worthSeeing([cast(THEM)], [ME])).toBe(true);
     expect(worthSeeing([cast(ME)], [ME])).toBe(false);
-  });
-  it('does not hold for a card moving between hidden zones', () => {
     const draw: GameEvent = { kind: 'cardMoved', card: { ref: 9 }, from: { zone: 'Library', player: { ref: THEM } }, to: { zone: 'Hand', player: { ref: THEM } } };
     expect(worthSeeing([draw], [ME])).toBe(false);
   });
-  it('holds for an attack by another player, and not for a combat with no attackers', () => {
+  it("holds for another player's attack and blocks, and not for a combat with no attackers or for your own blocks or none", () => {
     const attack = { attacker: { ref: 9 }, defender: { ref: ME } };
     expect(worthSeeing([{ kind: 'attackersDeclared', player: { ref: THEM }, attacks: [attack] }], [ME])).toBe(true);
     expect(worthSeeing([{ kind: 'attackersDeclared', player: { ref: THEM }, attacks: [] }], [ME])).toBe(false);
-  });
-  it("holds for another player's blocks, and not for your own or for none", () => {
     const blocks = [{ blocker: { ref: 9 }, attacker: { ref: 8 } }];
     expect(worthSeeing([{ kind: 'blockersDeclared', player: { ref: THEM }, blocks }], [ME])).toBe(true);
     expect(worthSeeing([{ kind: 'blockersDeclared', player: { ref: ME }, blocks }], [ME])).toBe(false);
     expect(worthSeeing([{ kind: 'blockersDeclared', player: { ref: THEM }, blocks: [] }], [ME])).toBe(false);
   });
-  it("holds for another player's ability on the stack and as it resolves, and not for your own", () => {
+  it("holds for another player's ability on the stack and as it resolves, not for your own, and for a life change, counters and an attachment", () => {
     expect(worthSeeing([{ kind: 'stackAdded', player: { ref: THEM } }], [ME])).toBe(true);
     expect(worthSeeing([{ kind: 'stackResolved', player: { ref: THEM }, fizzled: false }], [ME])).toBe(true);
     expect(worthSeeing([{ kind: 'stackAdded', player: { ref: ME } }, { kind: 'stackResolved', player: { ref: ME }, fizzled: false }], [ME])).toBe(false);
-  });
-  it('holds for a life change, counters and an attachment', () => {
     expect(worthSeeing([{ kind: 'lifeChanged', player: { ref: ME }, from: 20, to: 23 }], [ME])).toBe(true);
     expect(worthSeeing([{ kind: 'playerCounters', player: { ref: ME } }], [ME])).toBe(true);
     expect(worthSeeing([{ kind: 'cardCounters', card: { ref: 9 } }], [ME])).toBe(true);
@@ -79,14 +73,15 @@ describe('asksPlayer', () => {
   const prompt = (over: Partial<Prompt>): Prompt => ({ t: 'prompt', message: '', priority: false, ok: { label: 'OK', enabled: false }, cancel: { label: 'Cancel', enabled: false },
     focusOk: false, paying: false, endsTurn: false, selectable: [], selectablePlayers: [], selectableStack: [], selectableMin: 0, highlighted: [], ...over });
   const stopPassing = prompt({ cancel: { label: 'Cancel', enabled: true } });
-  it('takes Cancel as a question, except while the game passes for the player', () => {
+  it('takes Cancel as a question except while the game passes for the player, and a choice as a question even then', () => {
     expect(asksPlayer(stopPassing)).toBe(true);
     expect(asksPlayer(stopPassing, true)).toBe(false);
-  });
-  it('still takes a choice as a question while the game passes for the player', () => {
     expect(asksPlayer(prompt({ selectable: [{ ref: 9 }] }), true)).toBe(true);
     expect(asksPlayer(prompt({ priority: true }), true)).toBe(true);
   });
+});
+
+describe('passingFor', () => {
   it('knows the game is passing from any of the three ways to pass', () => {
     const controls = (over: Partial<Controls>) => ({ untilEndOfTurn: false, untilStackEmpty: false, ...over }) as Controls;
     expect(passingFor(controls({}))).toBe(false);

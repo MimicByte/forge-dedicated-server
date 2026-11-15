@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { sourceName, splitQuestion } from '../../main/ts/match/asking';
 import { createModel } from '../../main/ts/model';
+import { confirmShown, offerAnswer, withdrawAnswer } from '../../main/ts/match/questionparts';
 
 describe('splitQuestion', () => {
   it('keeps the instruction of a target prompt, without the rules text, the id or the trigger note', () => {
@@ -51,5 +52,21 @@ describe('sourceName', () => {
 
   it('keeps the name in the text when no card is known', () => {
     expect(sourceName(model, splitQuestion('Gravedigger (300) - Choose a creature'), undefined)).toBe('Gravedigger');
+  });
+});
+
+describe('the answer the OK key sends', () => {
+  it('is sent only for the question shown now, never for one closed or replaced', () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    offerAnswer(1, first);
+    withdrawAnswer(1);
+    confirmShown(1);
+    offerAnswer(1, first);
+    offerAnswer(2, second);
+    confirmShown(1);
+    expect(first).not.toHaveBeenCalled();
+    confirmShown(2);
+    expect(second).toHaveBeenCalledOnce();
   });
 });

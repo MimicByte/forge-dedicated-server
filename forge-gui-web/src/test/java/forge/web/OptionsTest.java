@@ -24,11 +24,19 @@ public class OptionsTest {
         return out;
     }
 
-    // Fails if a guest's change is not kept for that guest, or reaches the host's preferences
+    // Fails if a guest can change the rules of the host's table, a guest's own change is not kept for that guest, or either reaches the host's preferences or another guest
     @Test
-    public void aGuestsChangeIsItsOwn() {
+    public void aGuestsChangeIsItsOwnAndLeavesTheTablesRules() {
         final Map<FPref, String> host = hostPrefs();
         final PlayerSettings guest = PlayerSettings.fresh();
+        final ServerSettings before = Options.values(guest);
+        Options.set(guest, null, "filteredHands", String.valueOf(!guest.getBoolean(FPref.FILTERED_HANDS)));
+        Options.set(guest, null, "mulliganRule", "Original");
+        Options.set(guest, null, "undoMode", "off".equals(guest.get(FPref.UI_UNDO_MODE)) ? "free" : "off");
+        Options.set(guest, null, "ante", String.valueOf(!guest.getBoolean(FPref.UI_ANTE)));
+        Options.set(guest, null, "aiProfile", "Reckless");
+        Assert.assertEquals(Options.values(guest), before, "a guest changed the table's rules");
+
         final boolean attackers = guest.getBoolean(FPref.YIELD_INTERRUPT_ON_ATTACKERS);
         Options.set(guest, null, "interruptAttackers", String.valueOf(!attackers));
         Options.set(guest, null, "soundVolume", "37");
@@ -53,21 +61,6 @@ public class OptionsTest {
         Options.set(guest, null, "nonsense", "true");
         Assert.assertEquals(Options.values(guest), before);
         Assert.assertNotEquals(guest.get(FPref.PLAYER_NAME), "Mallory", "a key that names a preference but no setting set it");
-    }
-
-    // Fails if a guest can change the rules of the host's table, for itself or for the host
-    @Test
-    public void aGuestCannotChangeTheTablesRules() {
-        final Map<FPref, String> host = hostPrefs();
-        final PlayerSettings guest = PlayerSettings.fresh();
-        final ServerSettings before = Options.values(guest);
-        Options.set(guest, null, "filteredHands", String.valueOf(!guest.getBoolean(FPref.FILTERED_HANDS)));
-        Options.set(guest, null, "mulliganRule", "Original");
-        Options.set(guest, null, "undoMode", "off".equals(guest.get(FPref.UI_UNDO_MODE)) ? "free" : "off");
-        Options.set(guest, null, "ante", String.valueOf(!guest.getBoolean(FPref.UI_ANTE)));
-        Options.set(guest, null, "aiProfile", "Reckless");
-        Assert.assertEquals(Options.values(guest), before);
-        Assert.assertEquals(hostPrefs(), host);
     }
 
     // Fails if the host's change is not saved to the preferences file, or the host can set a table rule Forge does not know

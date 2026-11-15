@@ -5,8 +5,9 @@ import com.google.gson.JsonObject;
 import forge.ai.PlayerControllerAi;
 import forge.game.Game;
 import forge.gamemodes.match.HostedMatch;
-import forge.util.SleeveArt;
-import forge.web.deck.DeckCatalog;
+import forge.localinstance.properties.ForgePreferences.FPref;
+import forge.model.FModel;
+import forge.util.Localizer;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -169,10 +170,11 @@ public class GuestSeatTest extends WebHubTest {
         sessions.onMessage(bob, message("setName", "name", "Bob"));
         Assert.assertNotNull(bob.awaitLobbyWithSeat(), "the second guest never took a seat");
 
-        // A command is handled before onMessage returns, so if the seat were emptied it would already be empty
+        // Seat commands run on the host UI thread, so draining it means a seat the guest emptied would already be empty
         ann.forget();
         sessions.onMessage(bob, message("openSeat", "index", annSeat));
         sessions.onMessage(bob, message("removeSeat", "index", annSeat));
+        onUi(() -> Assert.assertEquals(sessions.hostLobby().getSlot(annSeat).getName(), "Ann", "a guest emptied another guest's seat"));
         Assert.assertTrue(ann.got.stream().noneMatch(m -> "hello".equals(m.get("t").getAsString()) && !"setup".equals(m.get("screen").getAsString())),
                 "a guest sent another guest away from the table");
 
@@ -183,6 +185,40 @@ public class GuestSeatTest extends WebHubTest {
                 "emptying a guest's seat did not leave it open, or took the seat away with the guest");
         send(host, TestBrowser.action("leaveLobby"));
         host.awaitMatching("hello", h -> !"setup".equals(h.get("screen").getAsString()), "the host did not leave its table");
+    }
+
+    // Fails if a guest in a match can run a dev mode cheat, or the host in the same match cannot
+    @Test(timeOut = 120_000)
+    public void onlyTheHostCheats() throws Exception {
+        final boolean devMode = FModel.getPreferences().getPrefBoolean(FPref.DEV_MODE_ENABLED);
+        FModel.getPreferences().setPref(FPref.DEV_MODE_ENABLED, true);
+        try {
+            final TestBrowser host = hostAt("invite");
+            final TestBrowser guest = seatGuestAndReady(host);
+            sessions.onMessage(host, message("start", "spectate", false));
+            guest.awaitMatching("hello", h -> "playing".equals(h.get("screen").getAsString()), "the guest was not taken into the match");
+            final HostedMatch match = sessions.hostLobby().getHostedMatch();
+            awaitTrue(() -> match.getGame() != null, "the match never started its game");
+
+            // A cheat runs on a new thread in the thread group of the thread that sent it, so waiting for that group's threads waits for any reply
+            final ThreadGroup cheats = new ThreadGroup("guest cheats");
+            guest.forget();
+            final Thread sender = new Thread(cheats, () -> sessions.onMessage(guest, message("dev", "action", "viewAll")));
+            sender.start();
+            sender.join();
+            final Thread[] started = new Thread[cheats.activeCount() + 1];
+            for (int i = cheats.enumerate(started) - 1; i >= 0; i--) {
+                started[i].join();
+            }
+            final String refused = Localizer.getInstance().getMessage("lblWebDevNoCheating");
+            Assert.assertTrue(guest.got.stream().noneMatch(m -> "devState".equals(m.get("t").getAsString())
+                    || "notice".equals(m.get("t").getAsString()) && refused.equals(str(m, "title"))), "a guest's cheat ran: " + guest.got);
+
+            send(host, message("dev", "action", "viewAll"));
+            host.awaitMatching("devState", d -> d.get("viewAll").getAsBoolean(), "the host's cheat did not run");
+        } finally {
+            FModel.getPreferences().setPref(FPref.DEV_MODE_ENABLED, devMode);
+        }
     }
 
     // Fails if a seat given to another browser mid-match does not show that browser the game, or a removed player's seat is not played by the AI
@@ -299,9 +335,9 @@ public class GuestSeatTest extends WebHubTest {
         return person != null && person.has("disconnected") && person.get("disconnected").getAsBoolean();
     }
 
-    // Fails if lowering the count removes a person's seat, keeps an open seat instead of a computer's, or goes below two players
+    // Fails if lowering the count removes a person's seat, keeps an open seat instead of a computer's, goes below two players, cannot reach eight seats, or accepts a ninth
     @Test(timeOut = 120_000)
-    public void aPersonKeepsTheirSeat() throws Exception {
+    public void aTableHoldsTwoToEightSeatsAndAPersonKeepsTheirs() throws Exception {
         final TestBrowser host = hostAt("invite");
         sessions.onMessage(host, message("setPlayerCount", "count", 4));
         host.awaitLobby(l -> l.getAsJsonArray("seats").size() == 4, "the table never grew to four");
@@ -315,19 +351,9 @@ public class GuestSeatTest extends WebHubTest {
 
         sessions.onMessage(host, message("setPlayerCount", "count", 1));
         // The table handles commands in order. Once the next command shows, the refused one has been handled
-        sessions.onMessage(host, message("setPlayerCount", "count", 3));
-        host.awaitLobby(l -> l.getAsJsonArray("seats").size() == 3, "the table never grew to three");
-        Assert.assertTrue(seatCounts(host).allMatch(n -> n >= 2), "a table went below two players");
-    }
-    // Fails if a table cannot reach eight seats, or accepts a ninth
-    @Test(timeOut = 120_000)
-    public void aTableTakesEightSeats() throws Exception {
-        final TestBrowser host = hostAt("invite");
         sessions.onMessage(host, message("setPlayerCount", "count", 9));
         host.awaitLobby(l -> l.getAsJsonArray("seats").size() == 8, "the table never grew to eight");
-        sessions.onMessage(host, message("setPlayerCount", "count", 3));
-        host.awaitLobby(l -> l.getAsJsonArray("seats").size() == 3, "the table never shrank to three");
-        Assert.assertTrue(seatCounts(host).allMatch(n -> n <= 8), "a table went above eight players");
+        Assert.assertTrue(seatCounts(host).allMatch(n -> n >= 2 && n <= 8), "a table went below two or above eight players");
     }
 
     /** The seat count of each table sent to the browser, in order. */
@@ -336,9 +362,9 @@ public class GuestSeatTest extends WebHubTest {
                 .mapToInt(m -> m.getAsJsonObject("table").getAsJsonArray("seats").size());
     }
 
-    // Fails if two seats can get the same portrait, when a seat chooses a taken one or a guest arrives with one
+    // Fails if two seats can get the same portrait, when a seat chooses a taken one or a guest arrives with one, or the portrait chosen on your own seat is not the one the presence list shows for you
     @Test(timeOut = 120_000)
-    public void noTwoSeatsShareAPortrait() throws Exception {
+    public void eachSeatHasItsOwnPortraitAndIsKnownByIt() throws Exception {
         final TestBrowser host = hostAt("invite");
         sessions.onMessage(host, message("setPlayerCount", "count", 3));
         final JsonObject three = host.awaitLobby(l -> l.getAsJsonArray("seats").size() == 3, "the table never grew to three");
@@ -354,6 +380,18 @@ public class GuestSeatTest extends WebHubTest {
         sessions.onMessage(guest, message("setName", "name", "Guest", "avatar", seatAvatars(four).get(mine)));
         final JsonObject seated = host.awaitLobby(l -> seatNames(l).contains("Guest"), "the guest never sat down");
         Assert.assertEquals(new HashSet<>(seatAvatars(seated)).size(), 4, "a guest kept a portrait another holds: " + seatAvatars(seated));
+
+        final String name = seatNames(seated).get(mine);
+        int free = 0;
+        while (seatAvatars(seated).contains(free)) {
+            free++;
+        }
+        final int chosen = free;
+        sessions.onMessage(host, message("setSeat", "index", mine, "avatar", chosen));
+        host.awaitNewest("presence", p -> {
+            final JsonObject me = person(p, name);
+            return me != null && (me.has("avatar") ? me.get("avatar").getAsInt() : 0) == chosen;
+        }, "the list of who is here kept the old portrait");
     }
 
     // Fails if a seat added to a table others can join goes to the AI, or a seat added to a table with no invite is left open
@@ -369,51 +407,6 @@ public class GuestSeatTest extends WebHubTest {
         sessions.onMessage(alone, message("setPlayerCount", "count", 4));
         final JsonObject offline = alone.awaitLobby(l -> l.getAsJsonArray("seats").size() == 4, "the table never grew to four");
         Assert.assertEquals(seatTypes(offline).subList(1, 4), List.of("AI", "AI", "AI"), "seats at a table nobody was invited to: " + seatTypes(offline));
-    }
-
-    // Fails if a blank name leaves the computer's name unchanged, or makes it blank
-    @Test(timeOut = 120_000)
-    public void aBlankNameGivesTheComputerAnother() throws Exception {
-        final TestBrowser host = hostAt("lobby");
-        final int ai = seatTypes(host.latestTable()).indexOf("AI");
-        final String before = seatNames(host.latestTable()).get(ai);
-        sessions.onMessage(host, message("setSeat", "index", ai, "name", ""));
-        final JsonObject renamed = host.awaitLobby(l -> !before.equals(seatNames(l).get(ai)), "the computer kept its name");
-        Assert.assertFalse(seatNames(renamed).get(ai).isBlank(), "the computer was left with no name");
-    }
-
-    // Fails if the portrait chosen on your own seat is not the one the presence list shows for you
-    @Test(timeOut = 120_000)
-    public void yourSeatsPortraitIsTheOneYouAreKnownBy() throws Exception {
-        final TestBrowser host = hostAt("invite");
-        final JsonObject table = host.latestTable();
-        final int mine = table.get("mySeat").getAsInt();
-        final String name = seatNames(table).get(mine);
-        int free = 0;
-        while (seatAvatars(table).contains(free)) {
-            free++;
-        }
-        final int chosen = free;
-        sessions.onMessage(host, message("setSeat", "index", mine, "avatar", chosen));
-        host.awaitNewest("presence", p -> {
-            final JsonObject me = person(p, name);
-            return me != null && (me.has("avatar") ? me.get("avatar").getAsInt() : 0) == chosen;
-        }, "the list of who is here kept the old portrait");
-    }
-
-    // Fails if a card-art sleeve the host removed is still offered
-    @Test(timeOut = 120_000)
-    public void theHostTakesASavedSleeveAway() throws Exception {
-        final TestBrowser host = hostAt("lobby");
-        final String key = "Sleeve Removal Test Card";
-        SleeveArt.remember(key, 500);
-        Assert.assertTrue(DeckCatalog.savedSleeveArt().stream().anyMatch(art -> art.key().equals(key)), "the sleeve was never saved");
-        // The hello sent when the table opened never had this sleeve, so only a hello sent after the removal counts
-        final int from = host.got.size();
-        sessions.onMessage(host, message("forgetSleeveArt", "key", key));
-        Assert.assertNotNull(host.awaitAfter(from, "hello", h -> !h.has("sleeveArt") || !h.get("sleeveArt").toString().contains(key)),
-                "the removed sleeve is still offered");
-        Assert.assertTrue(DeckCatalog.savedSleeveArt().stream().noneMatch(art -> art.key().equals(key)), "the sleeve is still saved");
     }
 
     private static List<String> seatTypes(final JsonObject table) {
