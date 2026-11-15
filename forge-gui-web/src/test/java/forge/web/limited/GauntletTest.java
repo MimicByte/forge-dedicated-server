@@ -5,7 +5,7 @@ import forge.deck.DeckGroup;
 import forge.game.GameRules;
 import forge.game.GameType;
 import forge.game.player.RegisteredPlayer;
-import forge.gamemodes.limited.GauntletMini;
+import forge.gamemodes.limited.LimitedMatch;
 import forge.gamemodes.limited.SealedCardPoolGenerator;
 import forge.gui.GuiBase;
 import forge.model.FModel;
@@ -58,8 +58,8 @@ public class GauntletTest {
         final List<Started> started = new ArrayList<>();
         ui().playSolo(new WebGuiBase.SoloTable(() -> new WebGuiGame(PlayerSettings.saved()),
                 (match, rules, players, human, begin) -> started.add(new Started(rules, players, human))));
-        final GauntletMini gauntlet = FModel.getGauntletMini();
-        gauntlet.launch(2, group.getHumanDeck(), GameType.Sealed);
+        final LimitedMatch gauntlet = FModel.getLimitedMatch();
+        gauntlet.launchGauntlet(GameType.Sealed, group.getHumanDeck(), 2);
         gauntlet.nextRound();
 
         assertEquals(started.size(), 2);

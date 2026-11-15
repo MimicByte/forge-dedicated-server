@@ -3,12 +3,12 @@ package forge.web.limited;
 import forge.LobbyPlayer;
 import forge.deck.Deck;
 import forge.deck.DeckGroup;
-import forge.deck.DeckSection;
 import forge.game.GameType;
 import forge.game.Match;
 import forge.game.player.RegisteredPlayer;
 import forge.gamemodes.limited.BoosterDraft;
-import forge.gamemodes.limited.GauntletMini;
+import forge.gamemodes.limited.CommanderDraftUtil;
+import forge.gamemodes.limited.LimitedMatch;
 import forge.gamemodes.match.HostedMatch;
 import forge.gamemodes.net.server.FServerManager;
 import forge.gamemodes.net.server.ServerGameLobby;
@@ -84,7 +84,7 @@ public final class OfflineLimited implements IHasForgeLog {
                 final LimitedResult result = l.lastResult;
                 if (l.gauntletRunning && result != null && result.nextRound()) {
                     l.lastResult = null;
-                    l.playRound(() -> FModel.getGauntletMini().nextRound());
+                    l.playRound(() -> FModel.getLimitedMatch().nextRound());
                 }
             }))
             .on(Plain.gauntletRestart, (l, ch, c) -> l.ui.invokeInEdtLater(() -> {
@@ -301,9 +301,9 @@ public final class OfflineLimited implements IHasForgeLog {
         });
     }
 
-    /** A drafted pool is a Commander Draft when its deck has desktop's tag or a commander. Desktop uses the same test. */
+    /** A drafted pool is a Commander Draft by the same test LimitedMatch uses. */
     private static GameType poolType(final GameType type, final Deck human) {
-        return type == GameType.Draft && (human.getTags().contains(BoosterDraft.COMMANDER_DRAFT_TAG) || human.has(DeckSection.Commander))
+        return type == GameType.Draft && CommanderDraftUtil.isCommanderDraftDeck(human)
                 ? GameType.CommanderDraft : type;
     }
 
@@ -329,16 +329,13 @@ public final class OfflineLimited implements IHasForgeLog {
         final Event back = new Event(event.kind(), play.name());
         switch (play.mode() == null ? PoolPlayMode.one : play.mode()) {
             case gauntlet -> {
-                final GauntletMini gauntlet = FModel.getGauntletMini();
-                if (event.type() == GameType.Draft) {
-                    gauntlet.resetGauntletDraft();
-                }
+                final LimitedMatch gauntlet = FModel.getLimitedMatch();
                 gauntletRunning = true;
                 gauntletBack = back;
                 gauntletType = limitedType;
                 lastResult = null;
                 // If the first round did not start, the pool stays on screen and there is no gauntlet to continue
-                if (!playRound(() -> gauntlet.launch(ai.size(), human, limitedType))) {
+                if (!playRound(() -> gauntlet.launchGauntlet(event.type(), human, ai.size()))) {
                     stopGauntlet();
                 }
             }
@@ -399,7 +396,7 @@ public final class OfflineLimited implements IHasForgeLog {
     }
 
     /**
-     * Opens a table where the browser sits alone, then runs start, which has GauntletMini start a round there. The round
+     * Opens a table where the browser sits alone, then runs start, which has LimitedMatch start a round there. The round
      * uses the names, avatars and sleeves of the Limited pages' other matches. False when the round did not start.
      */
     private boolean playRound(final Runnable start) {
@@ -438,7 +435,7 @@ public final class OfflineLimited implements IHasForgeLog {
     private void dressRound(final List<RegisteredPlayer> players, final RegisteredPlayer me) {
         for (final RegisteredPlayer player : players) {
             final NetplaySeat.Seat seat = player == me ? mySeat(player.getDeck())
-                    : opponentSeat(FModel.getGauntletMini().getCurrentRound(), 1, player.getDeck());
+                    : opponentSeat(FModel.getLimitedMatch().getCurrentRound(), 1, player.getDeck());
             final LobbyPlayer dressed = player == me ? GamePlayerUtil.getGuiPlayer(seat.name(), seat.avatar(), seat.sleeve(), false)
                     : GamePlayerUtil.createAiPlayer(seat.name(), seat.avatar(), seat.sleeve());
             dressed.setSleeveArtKey(player.getDeck().getSleeveArtKey());
@@ -460,7 +457,7 @@ public final class OfflineLimited implements IHasForgeLog {
             return;
         }
         final Match match = hosted.getMatch();
-        final GauntletMini gauntlet = FModel.getGauntletMini();
+        final LimitedMatch gauntlet = FModel.getLimitedMatch();
         if (match.getLastOutcome().isWinner(me)) {
             gauntlet.addWin();
         } else {
@@ -487,6 +484,6 @@ public final class OfflineLimited implements IHasForgeLog {
         gauntletRunning = false;
         lastResult = null;
         gauntletBack = null;
-        FModel.getGauntletMini().resetCurrentRound();
+        FModel.getLimitedMatch().resetCurrentRound();
     }
 }
