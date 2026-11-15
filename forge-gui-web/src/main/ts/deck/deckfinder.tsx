@@ -171,9 +171,17 @@ export function DeckFinder({ model, actions, seat, close }: {
     setDeleting(false);
   }, [chosen]);
 
+  // From a seat, a double-click takes the deck. Away from a table it opens one of the player's own decks in the editor
   const use = (key = chosen) => {
-    if (key && seat) {
+    if (!key) return;
+    if (seat) {
       actions.setSeat(seat.index, { deck: key });
+      close();
+      return;
+    }
+    const deck = decks.find(d => d.key === key);
+    if (deck && !deck.readOnly && !deck.generated) {
+      actions.openEditor({ key, copy: false });
       close();
     }
   };
