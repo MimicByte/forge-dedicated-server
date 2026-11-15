@@ -107,12 +107,14 @@ html[data-motion="reduced"] .ticket-foot .big { transition: none; }
 .stp-open.choosing button:not(.picked) { opacity: .45; transition: opacity .15s; }
 .stp-open.choosing .picked { border-color: var(--accent-2); }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; }
+.wiz-steps .tiles { grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .tile-choice { display: grid; gap: 3px; align-content: start; text-align: left; padding: 10px 12px; border-radius: 8px; }
 .tile-choice span { color: var(--muted); font-size: 12px; line-height: 1.35; }
 .tile-choice:hover { border-color: var(--accent-2); }
 .pick { display: grid; gap: 8px; }
-.pick-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px; max-height: 260px; overflow-y: auto; }
-.pick-list button { text-align: left; }
+.pick-list { display: grid; gap: 1px; max-height: 320px; overflow-y: auto; padding-right: 12px; }
+.pick-list button { text-align: left; background: none; border: 0; border-radius: 7px; padding: 7px 10px; }
+.pick-list button:hover, .pick-list button:focus-visible { background: var(--surface-2); }
 .stp-open .rows { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .stp-open .rows input[type=text] { flex: 1; min-width: 220px; }
 .stepper { display: inline-flex; align-items: center; gap: 6px; }

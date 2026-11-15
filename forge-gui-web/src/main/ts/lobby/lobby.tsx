@@ -252,8 +252,7 @@ function Plate({ seat, index, lobby, format, actions, leaving, joinable, avatarC
         <button class={`sleeve${hasDeck || dealt ? '' : ' empty'}${seat.sleeveArt && !commander ? ' card-art' : ''}`} title={dealt ? '' : t('lblWebLobbyChooseDeck')}
           data-label={seat.mayEdit ? t('lblWebLobbyChooseDeck') : (waiting ? '' : t('lblNoDeck'))}
           disabled={!seat.mayEdit || dealt} onClick={() => choose('deck')}
-          // A new sleeve would be hidden under the commander's image
-          onContextMenu={e => { if (hasDeck && seat.mayEdit && !commander) { e.preventDefault(); randomSleeve(); } }}>
+          onContextMenu={e => { if (randomable) { e.preventDefault(); random(); } }}>
           <img alt="" hidden={!hasDeck && !dealt} src={commander ? smallImage(imageUrl(commander)) : hasDeck || dealt ? sleeveSrc : undefined}
             style={commander ? undefined : { objectPosition: objectPosition(seat.sleeveOffset) }} />
           {/* The sleeve has two controls, so hovering over it labels what each part does */}
@@ -265,7 +264,9 @@ function Plate({ seat, index, lobby, format, actions, leaving, joinable, avatarC
         )}
         {/* A sleeve belongs to a deck, so it cannot be chosen until there is a deck */}
         <button class="sleeve-style" title={t('lblWebSleevesChooseSleeve')} hidden={!hasDeck || !seat.mayEdit}
-          onClick={() => choose('sleeve')}>{t('lblWebLobbyChangeSleeve')}</button>
+          onClick={() => choose('sleeve')}
+          // A new sleeve would be hidden under the commander's image
+          onContextMenu={e => { if (!commander) { e.preventDefault(); randomSleeve(); } }}>{t('lblWebLobbyChangeSleeve')}</button>
       </div>
       <button class="drop" aria-label={t('lblWebLobbyRemoveSeat')} hidden={mine || !lobby.host || lobby.fixedPairs || lobby.seats.length <= 2}
         onClick={() => actions.removeSeat(index)}><Icon d={ICONS.x} /></button>

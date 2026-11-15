@@ -16,8 +16,8 @@ import type { Actions } from '../actions';
 import type { Model } from '../model';
 import type { DeckSection, EditorState } from '../protocol';
 import { t } from '../text';
-import { GROUP_NAMES, groupsOf, isCardPool } from '../formatmenu';
-import { Backdrop } from '../dialog';
+import { FormatMenu, groupsOf, isCardPool } from '../formatmenu';
+import { Backdrop, Dropdown } from '../dialog';
 import { ICONS, Icon } from '../icons';
 import { showNotice } from '../notices';
 
@@ -213,26 +213,24 @@ function CheckControl({ model, state, actions }: { model: Model; state: EditorSt
 export function CheckSelect({ model, value, change }: {
   model: Model; value: string; change: (format: string, cardPool: string | null, unrestricted: boolean) => void;
 }) {
+  const [format, pool] = value.split('|');
+  const offered = model.formats.filter(f => isCardPool(f) || DECK_FORMATS.some(([id]) => id === f.id));
+  const chosen = value === 'none' ? undefined : offered.find(f => (pool ? isCardPool(f) && f.id === pool : !isCardPool(f) && f.id === format));
   return (
-    <label class="legality set">
+    <span class="legality set">
       {t('lblWebEditorCheckAgainst')}
-      <span class="pill-select"><select value={value} onChange={e => {
-        const [format, pool] = e.currentTarget.value.split('|');
-        if (format === 'none') change('Constructed', null, true);
-        else change(format, pool || null, false);
-      }}>
-        <option value="Constructed|">{t('lblConstructed')}</option>
-        {groupsOf(model.formats.filter(isCardPool)).map(([group, formats]) => (
-          <optgroup key={group} label={t(GROUP_NAMES[group])}>
-            {formats.map(f => <option key={f.id} value={`Constructed|${f.id}`}>{f.name}</option>)}
-          </optgroup>
-        ))}
-        <optgroup label={t('lblCommander')}>
-          {DECK_FORMATS.filter(([id]) => id !== 'Constructed').map(([id, name]) => <option key={id} value={`${id}|`}>{t(name)}</option>)}
-        </optgroup>
-        <option value="none">{t('lblWebEditorNoRestriction')}</option>
-      </select></span>
-    </label>
+      <Dropdown cls="popup-anchor pill-select" button={(open, toggle) => (
+        <button aria-expanded={open} onClick={toggle}>{chosen?.name ?? t('lblWebEditorNoRestriction')}</button>
+      )}>
+        {close => (
+          <div class="popup wide" role="dialog">
+            <FormatMenu groups={groupsOf(offered)} chosen={chosen} explain
+              pick={f => { close(); change(isCardPool(f) ? 'Constructed' : f.id, isCardPool(f) ? f.id : null, false); }}
+              none={{ label: t('lblWebEditorNoRestriction'), on: value === 'none', pick: () => { close(); change('Constructed', null, true); } }} />
+          </div>
+        )}
+      </Dropdown>
+    </span>
   );
 }
 

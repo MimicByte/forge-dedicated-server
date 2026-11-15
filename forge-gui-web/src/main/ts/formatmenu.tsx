@@ -20,6 +20,8 @@ const GROUP_ICONS: Record<string, ComponentChildren> = {
   Limited: <svg viewBox="0 0 16 16"><path d="M4 2h8l1 3v9H3V5z" /><path d="M3 5h10" /></svg>,
 };
 
+const NONE_ICON = <svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8" /></svg>;
+
 /** The name of each family of games. The server names a format's family with these keys. */
 export const GROUP_NAMES: Record<string, TextKey> = {
   Constructed: 'lblConstructed', Sanctioned: 'lblSanctioned', Casual: 'lblCasual', Custom: 'lblCustom',
@@ -38,9 +40,10 @@ export function groupsOf(formats: readonly Format[]): [string, Format[]][] {
   return [...groups];
 }
 
-/** The groups of formats as a list of picks. With explain, a card beside the list explains the chosen format or the one last under the pointer. */
-export function FormatMenu({ groups, chosen, pick, blocked, explain }: {
+/** The groups of formats as a list of picks. With explain, a card beside the list explains the chosen format or the one last under the pointer. none adds a last pick for no format. */
+export function FormatMenu({ groups, chosen, pick, blocked, explain, none }: {
   groups: [string, Format[]][]; chosen: Format | undefined; pick: (f: Format) => void; blocked?: (f: Format) => boolean; explain?: boolean;
+  none?: { label: string; on: boolean; pick: () => void };
 }) {
   const [pointed, setPointed] = useState<Format | null>(null);
   const shown = pointed ?? chosen ?? null;
@@ -59,6 +62,15 @@ export function FormatMenu({ groups, chosen, pick, blocked, explain }: {
           ))}
         </div>
       ))}
+      {none && (
+        <div class="game-group">
+          <span class="game-group-name">{t('lblNone')}</span>
+          <button class="game-choice" aria-pressed={none.on} onClick={() => { setPointed(null); none.pick(); }}>
+            <i class="game-icon" aria-hidden="true">{NONE_ICON}</i>
+            <span class="game-name">{none.label}</span>
+          </button>
+        </div>
+      )}
     </div>
   );
   if (!explain) return choices;

@@ -123,7 +123,7 @@ button.ghost:hover { color: var(--text); background: var(--surface-2); }
 :is(.modes .mode, .kind-card).plaque { position: relative; isolation: isolate; height: var(--plaque-h, 250px); padding: var(--plaque-pad, 18px 20px); border: 0; border-radius: 14px; overflow: hidden;
   display: flex; flex-direction: column; justify-content: flex-end; text-align: left; background: #0b0e14;
   box-shadow: 0 0 0 1px #9a7318, 0 0 0 2px #0008, 0 18px 40px #000b; }
-:is(.modes .mode, .kind-card).plaque::before { content: ''; position: absolute; inset: 0; z-index: -2; background: var(--ground); filter: saturate(.85);
+:is(.modes .mode, .kind-card).plaque::before { content: ''; position: absolute; inset: 0; z-index: -2; background: var(--ground);
   transform: scale(var(--plaque-zoom, 1.04)); transition: filter .3s ease; }
 /* Each background pattern hints at what the plaque opens. A grid means the computer, rings mean friends, and a brown crosshatch means decks. */
 :is(.modes .mode, .kind-card).plaque[data-mode="play"] { --ground: radial-gradient(90% 90% at 85% 12%, #2d4466 0%, transparent 62%),
@@ -142,7 +142,7 @@ button.ghost:hover { color: var(--text); background: var(--surface-2); }
 :is(.modes .mode, .kind-card).plaque .plaque-mark svg { width: 100%; height: 100%; fill: none; stroke: #fff; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 :is(.modes .mode, .kind-card).plaque:hover:not(:disabled) .plaque-mark { opacity: .16; }
 :is(.modes .mode, .kind-card).plaque::after { content: ''; position: absolute; inset: 0; z-index: -1;
-  background: var(--plaque-fade, linear-gradient(180deg, #0b0e1433 0%, #0b0e14cc 55%, #0b0e14f2 100%)); transition: opacity .3s ease; }
+  background: var(--plaque-fade, linear-gradient(180deg, #0b0e1433 0%, #0b0e14cc 55%, #0b0e14f2 100%)); opacity: .78; transition: opacity .3s ease; }
 :is(.modes .mode, .kind-card).plaque .plaque-rim { position: absolute; inset: 6px; border: 1px solid color-mix(in srgb, var(--accent-2) 25%, transparent); border-radius: 10px; pointer-events: none;
   transition: border-color .25s ease, box-shadow .25s ease; }
 :is(.modes .mode, .kind-card).plaque .mode-art { position: absolute; top: 16px; left: 18px; width: 46px; height: 46px; border: 0; border-radius: 50%; display: grid; place-items: center;
@@ -154,8 +154,8 @@ button.ghost:hover { color: var(--text); background: var(--surface-2); }
 /* A hovered plaque stays in place. Its inner rim lights up, its art brightens and its name turns gold. */
 :is(.modes .mode, .kind-card).plaque:hover:not(:disabled) .plaque-rim { border-color: var(--accent-2);
   box-shadow: inset 0 0 14px color-mix(in srgb, var(--accent-2) 20%, transparent), 0 0 10px color-mix(in srgb, var(--accent-2) 25%, transparent); }
-:is(.modes .mode, .kind-card).plaque:hover:not(:disabled)::before { filter: saturate(1) brightness(1.12); }
-:is(.modes .mode, .kind-card).plaque:hover:not(:disabled)::after { opacity: .78; }
+:is(.modes .mode, .kind-card).plaque:hover:not(:disabled)::before { filter: saturate(.85) brightness(.8); }
+:is(.modes .mode, .kind-card).plaque:hover:not(:disabled)::after { opacity: 1; }
 :is(.modes .mode, .kind-card).plaque:hover:not(:disabled) .mode-name { color: color-mix(in srgb, var(--accent-2) 55%, #fff); }
 :is(.modes .mode, .kind-card).plaque:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px; }
 html[data-motion="reduced"] :is(.modes .mode, .kind-card).plaque, html[data-motion="reduced"] :is(.modes .mode, .kind-card).plaque::before { transition: none; }
@@ -879,7 +879,7 @@ html[data-motion="reduced"] .dock-new { animation: none; }
   border-radius: 10px; box-shadow: 0 12px 32px #000a; min-width: 240px; }
 .page-head .popup { left: auto; right: 0; }
 .game-menu-list { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 16px; min-height: 300px; }
-.game-choices { display: grid; gap: 10px; align-content: start; max-height: min(70vh, 620px); overflow-y: auto; }
+.game-choices { display: grid; gap: 10px; align-content: start; max-height: min(70vh, 620px); overflow-y: auto; padding-right: 12px; }
 .game-group { display: grid; gap: 2px; }
 .game-group-name { font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: var(--faint); margin-bottom: 2px; }
 .game-choice { display: flex; align-items: center; gap: 9px; text-align: left; background: none; border: 0; padding: 5px 8px; border-radius: 7px; color: var(--text); font: inherit; font-size: 13px; }

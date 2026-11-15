@@ -24,16 +24,17 @@ html:not([data-form="portrait"]) #editor :is(.catalogue, .deck-half) { border: 1
 .editor-head .legality, .imp-sub .legality, .finder-head .legality { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
 /* A brass pill select: a rounded select with its own caret and an accent-coloured fill */
 .pill-select { position: relative; display: inline-flex; }
-.pill-select select {
+.pill-select > :is(select, button) {
   appearance: none; background: var(--accent-soft); color: var(--text); border: 1px solid var(--accent-2); border-radius: 999px;
   padding: 5px 30px 5px 13px; font: inherit; font-size: 13px; cursor: pointer;
 }
-.pill-select select:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.pill-select > :is(select, button):focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
 .pill-select select option, .pill-select select optgroup { background: var(--surface); color: var(--text); }
 .pill-select::after {
   content: ''; position: absolute; right: 13px; top: 50%; width: 6px; height: 6px; pointer-events: none;
   border-right: 1.5px solid var(--accent-2); border-bottom: 1.5px solid var(--accent-2); transform: translateY(-70%) rotate(45deg);
 }
+.legality .popup { left: auto; right: 0; }
 .menu-anchor { position: relative; }
 .deck-menu {
   position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; width: 230px; padding: 5px; display: grid;
