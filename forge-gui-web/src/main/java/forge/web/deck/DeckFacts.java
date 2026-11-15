@@ -118,16 +118,6 @@ public final class DeckFacts {
                 .computeIfAbsent(table, t -> Optional.ofNullable(problem(deck, format, pool))).orElse(null);
     }
 
-    /** The card whose art heads a deck. Sleeve art comes first, then the card DeckProxy.getCoverCard picks. */
-    static String cover(final Deck deck) {
-        // A deck with no sleeve art has an empty key
-        if (deck.getSleeveArtKey() != null && !deck.getSleeveArtKey().isEmpty()) {
-            return deck.getSleeveArtKey();
-        }
-        final PaperCard card = new DeckProxy(deck, null, null, null).getCoverCard();
-        return card == null ? null : card.getImageKey(false);
-    }
-
     /** The deck's colour identity as WUBRG letters, or "C" when it has none. */
     public static String colors(final Deck deck) {
         return CardCatalog.letters(DeckProxy.getColorIdentity(deck));

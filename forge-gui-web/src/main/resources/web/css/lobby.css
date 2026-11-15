@@ -455,14 +455,10 @@ html:not([data-form="portrait"]) .finder:has(.rail) :is(.dk-chosen, .finder-foot
 
 .dk-chosen { display: grid; grid-template-rows: auto 1fr; min-height: 0; }
 .dk-chosen-head { padding: 14px 18px; border-bottom: 1px solid var(--line); }
-/* The deck's cover art heads the pane. It shows the top of the card picture's art box, where faces usually are, faded into the pane */
-.dk-banner:not(.bare) { position: relative; display: flex; flex-direction: column; justify-content: flex-end; min-height: 168px; box-sizing: border-box;
-  margin: -14px -18px 10px; padding: 0 18px 10px; overflow: hidden; background: var(--bg-deep); }
-.dk-banner-art { position: absolute; left: -10%; top: 0; width: 120%; transform: translateY(-12.5%); }
-.dk-banner:not(.bare)::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 25%, color-mix(in srgb, var(--surface) 70%, transparent) 62%, var(--surface)); }
-.dk-banner:not(.bare) > :not(img) { position: relative; z-index: 1; }
-.dk-banner:not(.bare) h3 { font-size: 22px; text-shadow: 0 1px 8px #000c; }
-.dk-banner:not(.bare) .sizes { color: var(--text); text-shadow: 0 1px 6px #000c; }
+/* A coloured deck's head is tinted as the card preview tints its rules text, running from the deck's first colour to its last */
+.dk-banner:not(.bare) { margin: -14px -18px 10px; padding: 14px 18px 10px; border-bottom: 1px solid color-mix(in srgb, var(--tint-a) 45%, transparent);
+  background: linear-gradient(165deg, color-mix(in srgb, var(--tint-a) 40%, #1b2029), color-mix(in srgb, var(--tint-b) 16%, #0d1016)); }
+.dk-banner:not(.bare) .sizes { color: var(--text); }
 .dk-chosen-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
 .dk-chosen-title h3 { margin: 0; min-width: 0; }
 .dk-chosen-title .seg { flex: none; }
@@ -509,6 +505,8 @@ html:not([data-form="portrait"]) .finder:has(.rail) :is(.dk-chosen, .finder-foot
 /* The board's rows also have groups, which this spacing is not for */
 .group:not(:where(#match *)) { margin-bottom: 14px; }
 .group h4 { display: flex; justify-content: space-between; margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); border-bottom: 1px solid var(--line); padding-bottom: 3px; }
+/* A lighter count keeps it from reading as part of the next column's name */
+.group h4 > span:last-child:not(.hn) { color: color-mix(in srgb, var(--muted) 50%, var(--text)); }
 .none { color: var(--muted); padding: 18px; }
 
 .sleeves { width: min(1100px, 92vw); grid-template-rows: auto 1fr; }
@@ -590,7 +588,7 @@ html:not([data-form="portrait"]) .finder:has(.rail) :is(.dk-chosen, .finder-foot
 .types { display: grid; align-content: start; gap: 1px; }
 .types .type { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--muted); }
 .types .type b { color: var(--text); font-variant-numeric: tabular-nums; }
-.types .type.avg { margin-top: 4px; border-top: 1px solid var(--line); padding-top: 4px; }
+.types .type.avg { margin-top: 4px; }
 
 .dk-line { display: flex; gap: 8px; font-size: 13px; padding: 1px 0; cursor: default; }
 .dk-line:hover { background: var(--surface-2); }

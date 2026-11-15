@@ -230,7 +230,7 @@ public final class DeckCatalog {
                     CardCatalog.groups(deck.getMain(), NO_FLAGS), CardCatalog.cards(deck.get(DeckSection.Sideboard), NO_FLAGS),
                     deck.getSleeveArtKey(),
                     deck.getSleeveArtOffset(),
-                    format == GameType.Commander ? DeckFacts.bracket(deck) : null, DeckFacts.aiSkipNames(deck), DeckFacts.cover(deck));
+                    format == GameType.Commander ? DeckFacts.bracket(deck) : null, DeckFacts.aiSkipNames(deck));
         }
     }
 

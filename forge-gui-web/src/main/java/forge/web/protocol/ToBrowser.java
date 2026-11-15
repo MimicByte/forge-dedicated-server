@@ -121,14 +121,14 @@ public final class ToBrowser {
     public record DeckDetailsMessage(DeckDetails deck) {
     }
 
-    /** aiSkips names the main deck's cards the AI will not play. It is left out when the AI plays them all. cover is the image key of the card whose art heads the deck. */
+    /** aiSkips names the main deck's cards the AI will not play. It is left out when the AI plays them all. */
     public record DeckDetails(String key, String name, @Nullable String problem, String colors, DeckStats stats,
             List<EditorGroup> main, List<EditorCard> sideboard, @Nullable String sleeveArt, int sleeveOffset,
-            @Nullable Bracket bracket, @Nullable List<String> aiSkips, @Nullable String cover) {
+            @Nullable Bracket bracket, @Nullable List<String> aiSkips) {
         public DeckDetails(final String key, final String name, final String problem, final String colors, final DeckStats stats,
                 final List<EditorGroup> main, final List<EditorCard> sideboard, final String sleeveArt, final int sleeveOffset,
                 final Bracket bracket) {
-            this(key, name, problem, colors, stats, main, sideboard, sleeveArt, sleeveOffset, bracket, null, null);
+            this(key, name, problem, colors, stats, main, sideboard, sleeveArt, sleeveOffset, bracket, null);
         }
     }
 

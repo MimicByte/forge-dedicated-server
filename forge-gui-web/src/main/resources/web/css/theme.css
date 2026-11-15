@@ -28,6 +28,8 @@
   /* Translucent forms of the accent. They can be used as a background behind content, not only as a fill or an outline. */
   --accent-soft: #f2c3441f;
   --accent-glow: #f2c34430;
+  /* The frame colour of a card of each colour. M is gold, for more than one colour, and L is a land */
+  --frame-W: #e8dfc0; --frame-U: #5f9fd6; --frame-B: #8a7d98; --frame-R: #d9714f; --frame-G: #5fa86a; --frame-M: #d9b04e; --frame-L: #a58d6b;
   /* A control filled with the accent gets a brass gradient like the turn banner's, with dark text on it */
   --brass: linear-gradient(180deg, color-mix(in srgb, var(--accent-2) 68%, #fff) 0%, var(--accent-2) 52%,
            color-mix(in srgb, var(--accent-2) 72%, #000) 100%);

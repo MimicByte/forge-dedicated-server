@@ -16,7 +16,6 @@ import { NewDeck } from './newdeck';
 import { NameTaken } from './nametaken';
 import { CloseButton } from '../dialog';
 import { useDebounced } from '../hooks';
-import { imageUrl } from '../images';
 import { isPortrait } from '../form';
 
 /** Each net-deck category is a separate source. They share one source button, which lists the categories under it. */
@@ -58,7 +57,7 @@ interface DeckFilter {
   sort: SortKey;
 }
 
-/** The finder's starting filter. It covers every source, and only decks the lobby would accept. */
+/** The filter that Clear filters returns to: every source and every deck. */
 const FINDER_DEFAULTS: DeckFilter = {
   query: '', source: 'all', colours: new Set(), cardFormat: 'any', legalOnly: false, bracket: null, card: null, sideboard: null,
   set: null, identity: null, colourCount: null, main: null, side: null, mana: null, folder: null, favourites: false, aiPlays: false, sort: 'name',
@@ -597,21 +596,25 @@ function Title({ deck }: { deck: DeckSummary }) {
   );
 }
 
+/** The head's tint, from the deck's first colour to its last. Five colours are gold, as a multicoloured card's frame is. A colourless deck has none. */
+function headTint(colors: string): Record<string, string> | undefined {
+  const letters = colors.replace(/[^WUBRG]/g, '');
+  if (!letters) return undefined;
+  const frame = (c: string) => `var(--frame-${letters.length > 4 ? 'M' : c})`;
+  return { '--tint-a': frame(letters[0]), '--tint-b': frame(letters[letters.length - 1]) };
+}
+
 /** listed is the deck's name in the list. A generated deck is built without a name, so its details have none */
 function Chosen({ details, listed, formats, forComputer }: { details: DeckDetails; listed?: string; formats?: string; forComputer: boolean }) {
   const s = details.stats;
   // Game changers are marked in the card list, whether or not the bracket's reasons are open
   const changers = new Set(details.bracket?.reasons.find(r => r.kind === 'gameChangers')?.cards ?? []);
   const [cards, view] = useDeckView();
-  // A cover whose picture fails to load leaves the plain head, so the name stays readable. A picture that arrives later has a new address
-  const [missing, setMissing] = useState<string | null>(null);
-  const coverSrc = details.cover ? imageUrl(details.cover) : null;
-  const cover = coverSrc !== missing ? coverSrc : null;
+  const tint = headTint(details.colors);
   return (
     <>
       <div class="dk-chosen-head">
-        <div class={cover ? 'dk-banner' : 'dk-banner bare'}>
-          {cover && <img class="dk-banner-art" alt="" src={cover} onError={() => setMissing(cover)} />}
+        <div class={tint ? 'dk-banner' : 'dk-banner bare'} style={tint}>
           <div class="dk-chosen-title">
             <h3>{details.name || listed} <span class="pips"><Pips colors={details.colors} /></span></h3>
             <span class="seg view-seg" role="group" aria-label={t('lblWebEditorShowDeckAs')}>
