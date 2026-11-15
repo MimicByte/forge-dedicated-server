@@ -61,7 +61,7 @@ export function CardGroup({ heading, cards, marked, stacked }: {
     <div class="group">
       <h4>{headingText(heading)}<span>{cards.reduce((n, c) => n + c.count, 0)}</span></h4>
       {cards.map(c => stacked ? (
-        <div key={c.name} class={`deck-stack${c.problem ? ' bad' : ''}`} data-image={c.image} title={c.problem ? `${c.name}: ${c.problem}` : undefined}>
+        <div key={c.name} class={`deck-stack${c.problem ? ' bad' : ''}`} data-image={c.image} title={c.problem ?? undefined}>
           <img alt={c.name} src={imageUrl(c.image)} draggable={false} />
           {c.count > 1 && <span class="deck-count">×{c.count}</span>}
           {marked?.has(c.name) && <span class="gc" title={t('lblWebBracketGameChanger')}>GC</span>}
