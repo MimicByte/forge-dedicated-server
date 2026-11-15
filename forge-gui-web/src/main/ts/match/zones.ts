@@ -1,7 +1,7 @@
 // The zones panel, for a graveyard, exile or other zone opened over the board.
 // It folds to a bar instead of closing. So the player can look at the board during a prompt and come back to the same place.
 
-import { h, render } from 'preact';
+import { h, render } from 'preact';
 import { reconcile } from './reconcile';
 import { createCard, has, markPicked, updateCard, type CardClick } from './cards';
 import { fitCards } from './fit';
@@ -18,7 +18,7 @@ import type { Actions } from '../actions';
 import { keyName } from '../keys';
 import { boundKeys } from '../settings';
 import type { CardView, PlayerView, PromptButton, ZoneType } from '../protocol';
-import { t, tCap, type TextKey } from '../text';
+import { t, tCap, type TextKey } from '../text';
 import { Select } from '../select';
 import { manaValue } from './gamerules';
 
