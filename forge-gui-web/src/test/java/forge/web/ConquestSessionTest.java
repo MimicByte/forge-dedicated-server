@@ -651,6 +651,8 @@ public class ConquestSessionTest extends WebHubTest {
         final int shards = data.getAEtherShards();
         send(host, exile(inDeck, false));
         host.awaitMatching("notice", n -> true, "exiling a card in use was not refused");
+        // A refused trade still ends with the lists. The next send clears the replies, so a late one would be read as the next trade's
+        host.awaitMatching("trading", c -> true, "the refused exile's lists were not sent");
         Assert.assertFalse(data.isInExile(inDeck));
         Assert.assertEquals(data.getAEtherShards(), shards);
 
@@ -669,11 +671,13 @@ public class ConquestSessionTest extends WebHubTest {
         data.spendAEtherShards(data.getAEtherShards());
         send(host, exile(spare, true));
         host.awaitMatching("notice", n -> true, "a retrieval that cannot be paid for was not refused");
+        host.awaitMatching("trading", c -> true, "the refused retrieval's lists were not sent");
         Assert.assertTrue(data.isInExile(spare));
         data.rewardAEtherShards(shards + value);
 
         send(host, exile(spare, true));
         host.awaitMatching("campaignBar", b -> balance(b, "IMG_AETHER_SHARD") == shards + value - cost, "the retrieval was not charged");
+        host.awaitMatching("trading", c -> true, "the retrieval's lists were not sent");
         Assert.assertFalse(data.isInExile(spare));
         Assert.assertTrue(cardsOf(host, "collection").contains(spare.getName()));
     }
