@@ -895,11 +895,8 @@ html[data-motion="reduced"] .dock-new { animation: none; }
 .game-card .desc { margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
 .game-card .fact { font-size: 12px; padding: 2px 9px; }
 .game-card .format-play { border-top: 1px solid var(--line); padding-top: 10px; }
-.variant-list { display: grid; gap: 8px; width: min(340px, calc(100vw - 32px)); }
-.variant { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; }
-.variant span { display: grid; gap: 1px; }
-.variant .muted { font-size: 12px; }
-.variant.blocked { opacity: .55; }
+.variant-menu { width: min(300px, calc(100vw - 32px)); }
+.variant-menu button:disabled { opacity: .55; }
 /* On a phone the card would sit below the whole list, so only the deck size beside each name is shown */
 @media (max-width: 560px) { .game-menu-list { grid-template-columns: 1fr; min-height: 0; } .game-card { display: none; } }
 

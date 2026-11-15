@@ -90,15 +90,15 @@ function VariantsMenu({ lobby, formats, actions }: { lobby: LobbyTable; formats:
   return (
     <Popup label={on.length ? on.map(v => v.name).join(', ') : <span class="muted">{t('lblNone')}</span>} disabled={!lobby.host}>
       {() => (
-        <div class="variant-list">
+        <div class="menu-list kind-menu variant-menu" role="menu" aria-label={t('lblVariants')}>
           {lobby.casualVariants.map(v => {
             const blocked = variantBlocked(lobby, formats, v.id);
+            const checked = lobby.variantsOn.includes(v.id);
             return (
-              <label key={v.id} class={blocked ? 'variant blocked' : 'variant'}>
-                <input type="checkbox" checked={lobby.variantsOn.includes(v.id)} disabled={!!blocked}
-                  onChange={e => actions.setVariant(v.id, e.currentTarget.checked)} />
-                <span><b>{v.name}</b><span class="muted">{blocked ?? v.desc}</span></span>
-              </label>
+              <button key={v.id} role="menuitemcheckbox" aria-checked={checked} disabled={!!blocked} onClick={() => actions.setVariant(v.id, !checked)}>
+                {checked ? <Icon d={ICONS.check} /> : <span />}<span>{v.name}</span>
+                <small>{blocked ?? v.desc}</small>
+              </button>
             );
           })}
         </div>
