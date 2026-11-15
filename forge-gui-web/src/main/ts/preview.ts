@@ -353,7 +353,8 @@ function drawDetail(model: Model): void {
   const face = d?.faces[ui.faceIndex] ?? d?.faces[0] ?? itemFace(hover.at);
   ensureZoom(zoom);
   const img = q<HTMLImageElement>(zoom, 'img');
-  const src = face?.imageKey ? imageUrl(face.imageKey) : hover.src;
+  // Read from the element each time, because a picture that arrives after the hover is loaded from a new address
+  const src = face?.imageKey ? imageUrl(face.imageKey) : hover.at ? previewSrc(hover.at) : hover.src;
   const menu = hover.at?.dataset.image !== undefined;
   // A card the viewer may not see has no image, so only its text is shown. The same applies to an image that failed to load
   const text = (ui.cardText && (!menu || !!face)) || !src || src === brokenSrc;

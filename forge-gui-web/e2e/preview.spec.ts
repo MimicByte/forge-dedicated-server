@@ -60,6 +60,8 @@ probe('a swipe across the sheet shows the next card, and More opens the card\'s 
   const zoom = page.locator('#zoom');
   await hold(page, page.locator('.catalogue .tile').nth(1));
   await expect(zoom.locator('.sheet-at')).toHaveText(/^2 of /);
+  // A fresh server downloads each picture on first use, and the sheet shows the card's text until it arrives
+  await expect(zoom.locator('.shot')).toBeVisible();
   const shot = (await zoom.locator('.shot').boundingBox())!;
   await swipe(page, shot.x + shot.width / 2, shot.y + shot.height / 2, -140);
   await expect(zoom.locator('.sheet-at')).toHaveText(/^3 of /);
