@@ -7,6 +7,7 @@ import forge.gamemodes.net.WebSocketBytes;
 import forge.gamemodes.net.WebSocketTunnel;
 import forge.gamemodes.net.server.FServerManager;
 import forge.gamemodes.net.server.HostingServer;
+import forge.util.FileUtil;
 import forge.util.IHasForgeLog;
 import forge.util.LogExporter;
 import forge.web.images.CardThumbnails;
@@ -227,13 +228,7 @@ public final class WebServer implements AutoCloseable, IHasForgeLog {
             final File zip = LogExporter.exportLogs(dir.toFile());
             return zip == null ? null : Files.readAllBytes(zip.toPath());
         } finally {
-            final File[] made = dir.toFile().listFiles();
-            if (made != null) {
-                for (final File f : made) {
-                    Files.deleteIfExists(f.toPath());
-                }
-            }
-            Files.deleteIfExists(dir);
+            FileUtil.deleteDirectory(dir.toFile());
         }
     }
 

@@ -19,14 +19,14 @@ public class DraftPicksTest {
         WebTestSupport.initModel();
     }
 
-    /** Fails if a set is not offered with its own pick rule. Commander Legends has two picks every pack. */
+    // Fails if a set is not offered with its own pick rule, such as the two picks in every pack of Commander Legends
     @Test
     public void aSetIsOfferedWithItsOwnRule() {
         final DraftBlockOption block = OfflinePools.options().draftBlocks().stream().filter(b -> b.name().equals(BLOCK)).findFirst().orElseThrow();
         assertEquals(block.picks(), DoublePick.ALWAYS.name());
     }
 
-    /** Fails if a chosen pick rule does not replace the set's own, or if a draft with no choice loses the set's own. */
+    // Fails if a chosen pick rule does not replace the set's own, or if a draft with no choice loses the set's own
     @Test
     public void aChosenRuleReplacesTheSetsOwn() {
         final BoosterDraft chosen = OfflinePools.draft(new DraftStart("Block", BLOCK, null, null, null, null, DoublePick.NEVER.name())).get();

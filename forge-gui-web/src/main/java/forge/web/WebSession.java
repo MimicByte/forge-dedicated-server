@@ -815,7 +815,7 @@ public final class WebSession implements IHasForgeLog {
         }
         // Saves the seats' looks and the host's name, so HostedMatch does not ask for a name
         lobby.saveLooks();
-        // Prepared before leaving the lobby. If the host backs out of the illegal-deck question, the page stays where it was
+        // Prepared before leaving the lobby, so the page stays where it was if the host backs out of the illegal-deck question
         final Runnable begin;
         try {
             begin = local.prepare();

@@ -3,7 +3,6 @@ package forge.web.deck;
 import forge.StaticData;
 import forge.card.CardEdition;
 import forge.card.CardRules;
-import forge.card.ColorSet;
 import forge.card.MagicColor;
 import forge.card.mana.ManaCostShard;
 import forge.deck.CardPool;
@@ -46,7 +45,7 @@ public final class DeckEditor {
     private static final String DECK_FIXED = "lblWebCollectionDeckFixed";
     private static final String MAIN_ONLY = "lblWebCollectionMainOnly";
     static final String NOT_OWNED = "lblWebCollectionNotOwned";
-    /** The basics the land row offers, with the colour each needs. Wastes needs none. */
+    /** The basics the land row offers, with the colour each makes. */
     private static final Map<String, MagicColor.Color> BASICS = new LinkedHashMap<>();
     private final DeckStore.Storages storages;
     private final boolean guest;
@@ -65,7 +64,7 @@ public final class DeckEditor {
     /** Whether the deck exists where this editor saves it: it was opened from there, or saved there since. */
     private boolean saved;
     private String landed;
-    /** The edition new basic lands come from, or null for the usual printing. */
+    /** The edition new basic lands come from, or null for the usual printing when a collection owns no set's basics. */
     private String landSet;
     /** False for a new deck until its commander or the player names it. */
     private boolean named = true;
@@ -901,16 +900,13 @@ public final class DeckEditor {
         if (leaders.isEmpty()) {
             return true;
         }
-        final ColorSet identity = CommanderDraftUtil.getCommanderColorIdentity(leaders);
-        final MagicColor.Color needs = BASICS.get(land);
-        return needs == MagicColor.Color.COLORLESS ? identity.isColorless() : identity.hasAnyColor(needs.getColorMask());
+        // The engine's own test, so a colourless basic such as Wastes is allowed under any commander
+        return check.deckFormat().isLegalCardForCommanderPredicate(leaders).test(newLand(land));
     }
 
     private List<EditorLand> lands() {
-        final List<EditorLand> out = new ArrayList<>();
-        BASICS.forEach((name, colour) -> out.add(new EditorLand(name, colour.getShortName(), deck.getMain().countByName(name), landAllowed(name),
-                newLand(name).getImageKey(false))));
-        return out;
+        return BASICS.keySet().stream().map(name -> new EditorLand(name, deck.getMain().countByName(name), landAllowed(name),
+                newLand(name).getImageKey(false))).toList();
     }
 
     sealed interface Target permits Stored, Device, Group {

@@ -136,7 +136,7 @@ public class NetplayTunnelTest extends WebHubTest {
         return type.equals(s.get("type").getAsString()) && name.equals(s.get("name").getAsString());
     }
 
-    /** Fails if a netplay client with the invite link cannot take a seat, is missing from the table or the presence list, or is left out of the match. */
+    // Fails if a netplay client with the invite link cannot take a seat, is missing from the table or the presence list, or is left out of the match
     @Test(timeOut = 120_000)
     public void anAppSitsDownByTheInviteLinkAndFollowsTheHostIntoTheMatch() throws Exception {
         final TestBrowser host = hostAt("invite");
@@ -171,7 +171,7 @@ public class NetplayTunnelTest extends WebHubTest {
         app.screen.awaitMatching("state", m -> m.get("full").getAsBoolean(), "the app was never shown the table of the match");
     }
 
-    /** Fails if chat between a browser and an app at the same table does not arrive, or a browser is shown its own line twice. */
+    // Fails if chat between a browser and an app at the same table does not arrive, or a browser is shown its own line twice
     @Test(timeOut = 120_000)
     public void aBrowserAndAnAppReadEachOthersChat() throws Exception {
         final TestBrowser host = hostAt("invite");
@@ -192,7 +192,7 @@ public class NetplayTunnelTest extends WebHubTest {
                 "the browser was shown its own line again from netplay");
     }
 
-    /** Fails if the netplay route accepts a client whose link has the wrong token or no token. */
+    // Fails if the netplay route accepts a client whose link has the wrong token or no token
     @Test(timeOut = 60_000)
     public void anAppWithoutTheTokenIsTurnedAway() throws Exception {
         hostAt("invite");
@@ -211,7 +211,7 @@ public class NetplayTunnelTest extends WebHubTest {
         Assert.assertNotEquals(byLink, 403, "the netplay route turned away the token it should take");
     }
 
-    /** Fails if an old-style address is treated as an invite link. That would send a desktop host's guests to a web port. */
+    // Fails if an old-style address is treated as an invite link, which would send a desktop host's guests to a web port
     @Test
     public void onlyAnInviteLinkIsTunnelled() {
         Assert.assertNull(WebSocketTunnel.of("localhost:36743"));
@@ -222,7 +222,7 @@ public class NetplayTunnelTest extends WebHubTest {
         Assert.assertEquals(String.valueOf(WebSocketTunnel.of(" HTTPS://play.example.com/?token=abc ").uri()), "wss://play.example.com:443/netplay?token=abc");
     }
 
-    /** Fails if an https invite link is not joined over TLS, or the host's certificate is not checked against the client's trusted certificates. */
+    // Fails if an https invite link is not joined over TLS, or the host's certificate is not checked against the client's trusted certificates
     @Test(timeOut = 120_000)
     public void anHttpsLinkIsJoinedEncrypted() throws Exception {
         hostAt("invite");

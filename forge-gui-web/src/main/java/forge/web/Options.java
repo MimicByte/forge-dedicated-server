@@ -89,7 +89,7 @@ public final class Options implements IHasForgeLog {
     public static void set(final PlayerSettings player, final IGameController controller, final String key, final String value) {
         final FPref pref = BOOLEAN_PREFS.get(key);
         if (pref != null) {
-            // The host decides from its own copy of these, set when the game opened. A change during a game must reach that copy too
+            // The host decides from its own copy of these, set when the game opened, so a change during a game must reach that copy too
             setEverywhere(player, controller, pref, String.valueOf(Boolean.parseBoolean(value)));
         } else if (SCOPE_PREFS.containsKey(key)) {
             setEverywhere(player, controller, SCOPE_PREFS.get(key), DeclineScope.fromPref(value).name());
@@ -138,7 +138,7 @@ public final class Options implements IHasForgeLog {
             }
             final boolean effects = "soundVolume".equals(key);
             player.set(effects ? FPref.UI_VOL_SOUNDS : FPref.UI_VOL_MUSIC, value);
-            // A volume of zero turns the sound off. The desktop client reads the on/off preference, not the volume
+            // A volume of zero turns the sound off, because the desktop client reads the on/off preference, not the volume
             player.set(effects ? FPref.UI_ENABLE_SOUNDS : FPref.UI_ENABLE_MUSIC, volume > 0);
         } else {
             netLog.warn("Web client: unknown setting {}", key);

@@ -160,6 +160,18 @@ public class DeckEditorTest {
         Assert.assertNotNull(collectionEditor(GameType.Constructed, true, "Shock", "M19", 2).add("Shock", DeckSection.Sideboard, 1));
     }
 
+    // Fails if a basic land outside the commander's colours is offered, or Wastes, which has no colour identity, is not
+    @Test
+    public void theLandRowFollowsTheCommandersColourIdentity() {
+        final Deck deck = new Deck("Krenko");
+        deck.getOrCreate(DeckSection.Commander).add(card("Krenko, Mob Boss"));
+        final Map<String, Boolean> allowed = new HashMap<>();
+        editor(deck, GameType.Commander).state().lands().forEach(l -> allowed.put(l.name(), l.allowed()));
+        Assert.assertEquals(allowed.get("Mountain"), Boolean.TRUE);
+        Assert.assertEquals(allowed.get("Plains"), Boolean.FALSE);
+        Assert.assertEquals(allowed.get("Wastes"), Boolean.TRUE);
+    }
+
     // Fails if a Commander deck built from a collection can take a commander that is not owned
     @Test
     public void aCommanderMustBeOwned() {

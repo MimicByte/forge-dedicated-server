@@ -59,7 +59,7 @@ final class ImageReplies implements IHasForgeLog {
         notFound(ctx);
         if (ImageFiles.safeKey(key) && FModel.getPreferences().getPrefBoolean(FPref.UI_ENABLE_ONLINE_IMAGE_FETCHER)) {
             fetch(false, key, () -> {
-                // Forge remembers a picture it could not find. Without this it would still report the picture as missing now that it exists
+                // Forge remembers a picture it could not find, and without this it would still report the picture missing now that it exists
                 ImageKeys.clearMissingCards();
                 arrived.run();
             });

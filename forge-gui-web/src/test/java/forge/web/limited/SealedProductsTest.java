@@ -18,7 +18,7 @@ public class SealedProductsTest {
         WebTestSupport.initModel();
     }
 
-    /** Fails if the web offers a block, or a combo, that desktop's sealed dialog does not. */
+    // Fails if the web offers a block, or a combo, that desktop's sealed dialog does not
     @Test
     public void sealedListsMatchDesktop() {
         final LimitedOptions lists = OfflinePools.options();

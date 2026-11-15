@@ -30,7 +30,6 @@ public class GauntletTest {
     private record Started(GameRules rules, List<RegisteredPlayer> players, RegisteredPlayer human) { }
 
     private String pool;
-    private IStorage<DeckGroup> storage;
 
     @BeforeClass
     public void setUp() {
@@ -40,11 +39,10 @@ public class GauntletTest {
     @AfterMethod(alwaysRun = true)
     public void cleanUp() {
         ui().playSolo(null);
-        final IStorage<DeckGroup> kept = storage == null ? FModel.getDecks().getSealed() : storage;
+        final IStorage<DeckGroup> kept = FModel.getDecks().getSealed();
         if (pool != null && kept.contains(pool)) {
             kept.delete(pool);
         }
-        storage = null;
     }
 
     // Fails if a round is not started at the browser's table or meets the pool's opponents out of order

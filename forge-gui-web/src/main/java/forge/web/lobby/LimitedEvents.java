@@ -1,6 +1,5 @@
 package forge.web.lobby;
 
-import forge.card.DraftOptions;
 import forge.deck.Deck;
 import forge.deck.DeckProxy;
 import forge.deck.FormatChoices;
@@ -228,16 +227,13 @@ public final class LimitedEvents {
                 });
             }
             final BoosterDraft draft = OfflinePools.draft(new DraftStart(s.product(), s.block(), s.combo(), s.cube(), s.theme(),
-                    s.cubeId(), null)).get();
+                    s.cubeId(), s.pickRule())).get();
             if (draft == null) {
                 return Localizer.getInstance().getMessage("lblWebLobbyDraftSetUpFailed");
             }
             // Pod size as desktop chooses it: never fewer than the seats at the table, and never more than a full pod
             final int wanted = s.podSize() > 0 ? s.podSize() : draft.getPodSize();
             draft.setPodSize(Math.min(BoosterDraft.N_PLAYERS, Math.max(Math.max(2, lobby.getNumberOfSlots()), wanted)));
-            if (s.pickRule() != null) {
-                draft.setDoublePick(DraftOptions.DoublePick.valueOf(s.pickRule()));
-            }
             return owner.onTable(() -> {
                 lobby.createEvent(EventFormat.BOOSTER_DRAFT);
                 return lobby.configureEvent(LimitedPoolType.valueOf(s.product()), draft, Math.max(0, s.timer()), Math.max(0, s.grace()))

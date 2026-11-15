@@ -71,7 +71,7 @@ public final class ServerControl implements IHasForgeLog {
         fresh.quitWhenEmpty(quitWhenEmpty);
         sessions = fresh;
         server = bound;
-        // The address carries the link token. netLog also writes this line to the network log file
+        // The address carries the link token, and netLog also writes this line to the network log file
         netLog.info("Forge web UI: {}", bound.url());
         netLog.info("The web server has started on port {}.", bound.port());
         if (throughCloudflare()) {

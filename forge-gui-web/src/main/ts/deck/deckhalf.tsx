@@ -124,7 +124,7 @@ export function DeckHalf({ actions, state, handlers, check, adding, addTo }: {
       <div class="land-row" role="group" aria-label={t('lblWebEditorBasicLands')}>
         <span class="band-lab">{t('lblWebEditorBasicLands')}</span>
         {/* A land the deck may not hold, or outside the commander's colours, is listed only while the deck holds some, so it can be taken out */}
-        {state.lands.filter(l => (l.allowed && (!state.commanders.length || (state.identity || 'C').includes(l.letter))) || l.count).map(l => (
+        {state.lands.filter(l => l.allowed || l.count).map(l => (
           <span key={l.name} class={(l.allowed ? 'land' : 'land off') + (l.count ? '' : ' zero')} title={l.allowed ? undefined : t('lblWebEditorOutsideColours', l.name)}>
             <span class="land-card" data-image={l.image}>
               <img alt={l.name} draggable={false} src={smallImage(imageUrl(l.image))} onError={hideBroken} />

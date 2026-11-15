@@ -277,7 +277,7 @@ public final class ServerConsole implements IProgressBar, IHasForgeLog {
             final boolean viaRouter = !service.throughCloudflare();
             forwardPort.setSelected(wanted);
             forwardLight.lit(now == ServerControl.Forwarding.FORWARDED);
-            // A refusal only means UPnP did not forward the port. It may still be forwarded by hand, so the link stays usable
+            // A refusal only means UPnP did not forward the port, which may still be forwarded by hand, so the link stays usable
             refused.setText(TEXT.getMessage("lblWebConsoleRefused", service.port()));
             forwardHelp.setVisible(viaRouter && now == ServerControl.Forwarding.REFUSED);
             final String words = switch (now) {
@@ -410,7 +410,7 @@ public final class ServerConsole implements IProgressBar, IHasForgeLog {
             netField.setVisible(true);
             startHelp.setVisible(failure != null);
             if (failure != null) {
-                // A failed bind only says that the port is taken. Another Forge is the likely holder, because desktop Forge hosts on the same port
+                // A failed bind only says that the port is taken, most likely by another Forge, because desktop Forge hosts on the same port
                 reword(startFailure, failure instanceof BindException ? TEXT.getMessage("lblWebConsolePortInUse", service.port())
                         : TEXT.getMessage("lblWebConsoleStartFailed"), HELP_WIDTH);
                 details.setVisible(true);

@@ -33,6 +33,7 @@ public class WebGuiGameTest {
         gui.attach(browser);
     }
 
+    // Fails if a list choice is not sent to the browser with its labels, or the index the browser replies with does not come back as the matching item
     @Test
     public void getChoicesMapsReplyIndicesBackToObjects() throws Exception {
         final CompletableFuture<List<String>> picked = CompletableFuture.supplyAsync(
@@ -46,6 +47,7 @@ public class WebGuiGameTest {
         Assert.assertEquals(picked.get(60, TimeUnit.SECONDS), List.of("c"));
     }
 
+    // Fails if a choice of one optional cost is sent as a plain list instead of a cost menu, or declining it does not return an empty choice
     @Test
     public void oneOptionalCostIsAskedAsACostMenu() throws Exception {
         final String title = Localizer.getInstance().getMessage("lblChooseOptionalCosts");
@@ -57,6 +59,7 @@ public class WebGuiGameTest {
         Assert.assertEquals(picked.get(60, TimeUnit.SECONDS), List.of());
     }
 
+    // Fails if a choice of several optional costs is sent as an ordering instead of a cost menu that allows them all, or the picked cost does not come back
     @Test
     public void severalOptionalCostsAreAskedAsACostMenuNotAnOrder() throws Exception {
         final String title = Localizer.getInstance().getMessage("lblChooseOptionalCosts");
@@ -71,6 +74,7 @@ public class WebGuiGameTest {
         Assert.assertEquals(picked.get(60, TimeUnit.SECONDS).ordered(), List.of("Flash"));
     }
 
+    // Fails if conceding leaves an open request waiting instead of answering it with its default
     @Test
     public void concedeAnswersOpenRequestsWithDefaults() throws Exception {
         final CompletableFuture<List<String>> picked = CompletableFuture.supplyAsync(
@@ -80,6 +84,7 @@ public class WebGuiGameTest {
         Assert.assertEquals(picked.get(60, TimeUnit.SECONDS), List.of("a"));
     }
 
+    // Fails if a reloaded browser is not sent the request that is still open, or cannot answer it
     @Test
     public void reloadReplaysTheOpenRequest() throws Exception {
         final CompletableFuture<Boolean> answer = CompletableFuture.supplyAsync(
@@ -92,6 +97,7 @@ public class WebGuiGameTest {
         Assert.assertFalse(answer.get(60, TimeUnit.SECONDS));
     }
 
+    // Fails if a host question that needs an answer runs the version WebGuiGame inherits instead of asking the browser, so the web player never sees the prompt
     @Test
     public void everyHostCallThatReturnsAValueIsImplementedHere() throws Exception {
         for (final ProtocolMethod pm : ProtocolMethod.values()) {

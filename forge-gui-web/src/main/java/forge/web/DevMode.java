@@ -47,9 +47,9 @@ final class DevMode {
             case state -> { }
             case unlimitedLands -> cheat.setCanPlayUnlimitedLands(!controller.canPlayUnlimitedLands());
             case viewAll -> {
-                // Each game of a match has its own controller, so the switch is read from the current one
-                gui.seeAllWhen(() -> local.ownPlayer() != null && local.ownPlayer().getController() instanceof PlayerControllerHuman h && h.mayLookAtAllCards());
-                cheat.setViewAllCards(!controller.mayLookAtAllCards());
+                final boolean on = !controller.mayLookAtAllCards();
+                gui.seeAll(on);
+                cheat.setViewAllCards(on);
                 gui.resendState();
             }
             case generateMana -> cheat.generateMana();

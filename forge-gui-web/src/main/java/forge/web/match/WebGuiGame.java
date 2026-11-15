@@ -82,7 +82,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
@@ -148,7 +147,7 @@ public class WebGuiGame extends NetworkGuiGame {
     private final ReentrantLock mirrorLock = new ReentrantLock();
     private final ExecutorService dispatch = Executors.newSingleThreadExecutor(
             new ThreadFactoryBuilder().setNameFormat("WebClient").setDaemon(true).build());
-    private volatile BooleanSupplier seesAll = () -> false;
+    private volatile boolean seesAll;
     /** Every card key the browser was sent in this game. The visible list is chosen from these. */
     private final Set<Integer> cardKeys = new LinkedHashSet<>();
     private List<Integer> localPlayerKeys = List.of();
@@ -202,16 +201,16 @@ public class WebGuiGame extends NetworkGuiGame {
     }
 
     /**
-     * Lets dev mode's "see every card" reach this seat. The switch is on the host's own player controller. This GUI is a netplay
-     * client, and a netplay client's controller always answers that it may not look at every card.
+     * Turns dev mode's "see every card" on or off for this seat. The host's player controller holds the same switch, but this GUI
+     * is a netplay client, and a netplay client's controller always answers that it may not look at every card.
      */
-    public void seeAllWhen(final BooleanSupplier on) {
+    public void seeAll(final boolean on) {
         seesAll = on;
     }
 
     @Override
     public boolean mayView(final CardView c) {
-        return seesAll.getAsBoolean() || super.mayView(c);
+        return seesAll || super.mayView(c);
     }
 
     /** Sends the whole board again, so a change in which cards this seat may see reaches the browser. */
@@ -434,6 +433,8 @@ public class WebGuiGame extends NetworkGuiGame {
             keys.add(DeltaPacket.makeDeltaKey(p));
         }
         localPlayerKeys = keys;
+        // Each game has a new player controller, which starts with "see every card" off
+        seesAll = false;
         final JsonObject state = fullState();
         if (state != null) {
             send(state);
@@ -1079,13 +1080,6 @@ public class WebGuiGame extends NetworkGuiGame {
                 : loc.getMessage("lblWebGameDeclined", String.join(", ", declined)), false));
     }
 
-    /** An ability as a menu item: its first line, as desktop's menu shows it. */
-    private static String firstLine(final SpellAbilityView ability) {
-        final String text = String.valueOf(ability);
-        final int end = text.indexOf('\n');
-        return end < 0 ? text : text.substring(0, end);
-    }
-
     @Override
     public SpellAbilityView getAbilityToPlay(final CardView hostCard, final List<SpellAbilityView> abilities, final ITriggerEvent event) {
         final ITriggerEvent triggerEvent = event != null ? event : lastClick.getAndSet(null);
@@ -1106,8 +1100,9 @@ public class WebGuiGame extends NetworkGuiGame {
             return offered.get(0);
         }
         // No answer means no ability is chosen. A cancelled click gives the same result
+        // Each ability is listed by its first line, as desktop's menu lists it
         final ChoicesRequest request = choicesRequest(ChoiceKind.choices, hostCard == null ? "" : hostCard.getName(), 0, 1,
-                offered, null, WebGuiGame::firstLine, null, triggerEvent instanceof BrowserClick click ? click : null, List.of());
+                offered, null, a -> StringUtils.substringBefore(String.valueOf(a), "\n"), null, triggerEvent instanceof BrowserClick click ? click : null, List.of());
         final List<SpellAbilityView> picked = Answers.pick(offered, ask(request, Answers.indexList(offered.size(), 0, 1)));
         return picked.isEmpty() ? null : picked.get(0);
     }

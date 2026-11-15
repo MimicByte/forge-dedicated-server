@@ -49,8 +49,8 @@ public class WebServerTest {
         WebTestSupport.initModel();
         server = new WebServer(new WebServer.Endpoint() {
             @Override public void connected(final BrowserChannel channel, final String clientId, final boolean local) {
-                connected = channel;
                 connectedLocal = local;
+                connected = channel;
             }
             @Override public void disconnected(final BrowserChannel channel) { }
             @Override public void onMessage(final BrowserChannel channel, final JsonObject message) { received.add(message); }
@@ -70,11 +70,13 @@ public class WebServerTest {
         return http.send(b.build(), HttpResponse.BodyHandlers.ofString());
     }
 
+    // Fails if a request without the access token is served instead of refused
     @Test
     public void requestWithoutTokenIsForbidden() throws Exception {
         Assert.assertEquals(get("/", null).statusCode(), 403);
     }
 
+    // Fails if the access token in the address does not serve the page or does not set the token cookie
     @Test
     public void tokenServesThePageAndSetsTheCookie() throws Exception {
         final HttpResponse<String> r = get("/?token=secret", null);
@@ -83,7 +85,7 @@ public class WebServerTest {
         Assert.assertTrue(r.headers().firstValue("set-cookie").orElse("").contains("forge_token=secret"));
     }
 
-    /** Fails if a proxied socket, such as one through a Cloudflare tunnel, counts as a browser on this machine, or a direct one does not. */
+    // Fails if a proxied socket, such as one through a Cloudflare tunnel, counts as a browser on this machine, or a direct one does not
     @Test
     public void theSocketSaysWhetherItIsOnThisMachine() throws Exception {
         final WebSocket proxied = openSocket(origin(), new CopyOnWriteArrayList<>(), "Cf-Connecting-Ip");
@@ -101,6 +103,7 @@ public class WebServerTest {
         WebHubTest.awaitTrue(() -> connected != null, "the socket never reached the endpoint");
     }
 
+    // Fails if an image key that climbs out of its folder with ".." is accepted, or a normal key with two dots inside a name is refused
     @Test
     public void imageKeysThatClimbOutAreRefused() {
         for (final String key : new String[] {"i:../x", "i:a/../../x", "t:..\\x", "../x.jpg", "c:..|set", "b:..", "i:.."}) {
@@ -124,6 +127,7 @@ public class WebServerTest {
         Assert.assertEquals(Foil.seed(Foil.key(plain)), 0);
     }
 
+    // Fails if a missing card image or a path that climbs out of the web folder gets anything but a 404
     @Test
     public void missingImageAndPathTraversalAre404() throws Exception {
         // With online fetching on, a missing image gets a reply only after the fetcher gives up. That case is not tested here
@@ -216,6 +220,7 @@ public class WebServerTest {
                 }).get(5, TimeUnit.SECONDS);
     }
 
+    // Fails if a socket message from the browser does not reach the endpoint, or one from the server does not reach the browser
     @Test
     public void socketCarriesMessagesBothWays() throws Exception {
         final List<String> texts = new CopyOnWriteArrayList<>();
@@ -229,6 +234,7 @@ public class WebServerTest {
         ws.sendClose(WebSocket.NORMAL_CLOSURE, "").get(5, TimeUnit.SECONDS);
     }
 
+    // Fails if a socket opened by a page from another site is accepted
     @Test(expectedExceptions = ExecutionException.class)
     public void socketFromAnotherOriginIsRefused() throws Exception {
         openSocket("http://evil.example", new CopyOnWriteArrayList<>(), null);

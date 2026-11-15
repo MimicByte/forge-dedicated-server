@@ -61,6 +61,7 @@ public class ActiveClientTest {
         TestMatch.apply(state, game);
     }
 
+    // Fails if the web seat never gets the Temple's scry or Evolving Wilds' library search, including after a reload while a request is open, or if a property has no JSON form
     @Test(timeOut = 180000)
     public void actingSeatReachesScryAndLibrarySearch() throws Exception {
         TestMatch.play(plains(), forests(), gui -> TestBrowser.held(gui, 50), (local, gui, browser) -> {
@@ -154,6 +155,7 @@ public class ActiveClientTest {
         throw new AssertionError("no detail for card " + key);
     }
 
+    // Fails if card detail leaves out a face of a double-faced, split or own face-down card, or shows another face or the name of an opponent's face-down card
     @Test(timeOut = 180000)
     public void cardDetailShowsOtherFacesOnlyToThoseWhoMaySeeThem() throws Exception {
         TestMatch.play(plains(), forests(), gui -> new TestBrowser(gui, false), (local, gui, browser) -> {
@@ -178,7 +180,7 @@ public class ActiveClientTest {
         });
     }
 
-    // Jötun Grunt's upkeep asks the web seat to choose a player. If the browser is not told which players it may click, the Grunt is sacrificed
+    // Fails if the browser is not told which players it may click when Jötun Grunt's upkeep asks the web seat to choose one, and the Grunt is sacrificed
     @Test(timeOut = 180000)
     public void playerChoicePromptIsAnsweredFromTheWebSeat() throws Exception {
         // Passes priority, takes the first option of optional choices and presses OK to pay costs

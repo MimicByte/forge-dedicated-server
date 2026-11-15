@@ -48,6 +48,7 @@ public class LoopbackGameTest {
         }
     }
 
+    // Fails if a game on the real web path does not finish with a score, the client cannot answer while the host waits, the browser's model built from updates differs from a fresh snapshot, the log or land sound is missing, or a second match cannot start
     @Test(timeOut = 360000)
     public void passiveGameCompletesAndIncrementalMatchesFull() throws Exception {
         final Deck bears = TestDecks.of("Bears", "Grizzly Bears", 20, "Forest", 20);

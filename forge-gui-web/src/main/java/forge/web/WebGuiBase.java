@@ -199,7 +199,7 @@ public final class WebGuiBase implements IGuiBase, IHasForgeLog {
         for (final T choice : all) {
             options.add(display == null ? String.valueOf(choice) : display.apply(choice));
         }
-        // Sets are shown as their packs and cards as themselves. This is how a bonus booster's set or a reward card is chosen
+        // A bonus booster's set or a reward card is chosen by showing each set as its pack and each card as itself
         final boolean packs = !all.isEmpty() && all.stream().allMatch(CardEdition.class::isInstance);
         final boolean cards = !all.isEmpty() && all.stream().allMatch(PaperCard.class::isInstance);
         final List<String> images = packs ? all.stream().map(e -> boosterImage((CardEdition) e)).toList()
@@ -334,7 +334,7 @@ public final class WebGuiBase implements IGuiBase, IHasForgeLog {
         }
     }
 
-    /** A picture that the browser draws itself: a skin icon by its FSkinProp, or a file by its path. It only identifies which picture is meant. */
+    /** A picture named by its skin icon's FSkinProp, or by a file's path, which the Quest shop reads to show an item's picture. */
     public record WebSkinImage(FSkinProp prop, String path) implements ISkinImage {
     }
 }

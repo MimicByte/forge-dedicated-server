@@ -376,7 +376,7 @@ final class WebHub implements WebServer.Endpoint, IHasForgeLog {
             return;
         }
         spread(new ChatLine(who, text, false));
-        // Desktop and mobile players at the table read netplay's chat. relay skips the copy that comes back, because the line was already sent here
+        // Desktop and mobile players at the table read netplay's chat, and relay skips the copy that comes back because the line was already sent here
         if (HostingServer.isHosting()) {
             FServerManager.getInstance().broadcast(new MessageEvent(who, text));
         }

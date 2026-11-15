@@ -33,6 +33,8 @@ public class GuestPermissionsTest extends WebHubTest {
         sessions.onMessage(guest, message("setDeckGen", "singletons", !Boolean.parseBoolean(singletons), "noArtifacts", !Boolean.parseBoolean(artifacts)));
         sessions.onMessage(guest, message("limitedOpen", "kind", "sealed"));
         sessions.onMessage(guest, message("setSetting", "key", "soundVolume", "value", "37".equals(volume) ? "38" : "37"));
+        // The host writes its preferences on its UI thread, so any write a guest caused has happened once that thread is idle
+        onUi(() -> { });
         Assert.assertEquals(FModel.getPreferences().getPref(FPref.DECKGEN_SINGLETONS), singletons);
         Assert.assertEquals(FModel.getPreferences().getPref(FPref.DECKGEN_ARTIFACTS), artifacts);
         Assert.assertEquals(FModel.getPreferences().getPref(FPref.UI_VOL_SOUNDS), volume, "a guest's setting changed the host's preferences");

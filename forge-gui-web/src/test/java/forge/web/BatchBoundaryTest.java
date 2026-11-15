@@ -54,6 +54,7 @@ public class BatchBoundaryTest {
         return place == null || place.isJsonNull() ? "" : place.getAsJsonObject().get("zone").getAsString();
     }
 
+    // Fails if one message to a client splits an action, such as a card leaving a battlefield before its move, or holds a cast with its resolution, a land with a later cast, or a resolution with the next turn
     @Test(timeOut = 360000)
     public void aMessageHoldsWholeActionsAndNoMoreThanOne() throws Exception {
         final Deck red = TestDecks.of("Red", "Mountain", 22, "Shock", 10, "Goblin Piker", 14, "Raging Goblin", 14);

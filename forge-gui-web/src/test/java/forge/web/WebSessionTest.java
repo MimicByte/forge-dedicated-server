@@ -30,7 +30,7 @@ public class WebSessionTest {
         return sessions;
     }
 
-    /** Fails if a browser gets the host's seat just by connecting, or if two browsers can both hold it. */
+    // Fails if a browser gets the host's seat just by connecting, or if two browsers can both hold it
     @Test
     public void theFirstBrowserToAskGetsTheHostSeat() throws Exception {
         final WebHub sessions = opened();
@@ -55,7 +55,7 @@ public class WebSessionTest {
         return m;
     }
 
-    /** Fails if a browser on another machine can take the host's seat without the host password once one is set. The host's seat can stop the server or set up the table. */
+    // Fails if a browser on another machine can take the host's seat, which can stop the server or set up the table, without the host password once one is set
     @Test
     public void anotherMachineNeedsTheHostPasswordWhenOneIsSet() throws Exception {
         ServerControl.hostPassword("open sesame");
@@ -74,7 +74,7 @@ public class WebSessionTest {
         }
     }
 
-    /** Fails if this machine's own browser has to give the host password, or a browser on another machine has to when none is set. */
+    // Fails if this machine's own browser has to give the host password, or a browser on another machine has to when none is set
     @Test
     public void thisMachineAndAnUnguardedSeatNeedNoPassword() throws Exception {
         ServerControl.hostPassword("open sesame");
@@ -95,7 +95,7 @@ public class WebSessionTest {
         Assert.assertNotNull(remote.awaitNewest("hello", m -> m.get("host").getAsBoolean()), "another machine could not take the seat with no password set");
     }
 
-    /** Fails if anyone with a link can make the server track an unlimited number of browsers. */
+    // Fails if anyone with a link can make the server track an unlimited number of browsers
     @Test
     public void browsersBeyondTheLimitAreTurnedAwayUntilOthersLeave() {
         final WebHub sessions = opened();
@@ -117,7 +117,7 @@ public class WebSessionTest {
         Assert.assertFalse(next.closed, "a browser was turned away although another had left");
     }
 
-    /** Fails if two tabs of one browser can both act for its seat, or the old tab's closing detaches the new one. */
+    // Fails if two tabs of one browser can both act for its seat, or the old tab's closing detaches the new one
     @Test
     public void aSecondTabClosesTheFirst() {
         final WebHub sessions = opened();

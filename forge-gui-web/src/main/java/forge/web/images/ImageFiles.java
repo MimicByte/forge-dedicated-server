@@ -69,6 +69,6 @@ public final class ImageFiles {
     }
 
     public static String type(final File file) {
-        return file.getName().endsWith(".png") ? "image/png" : "image/jpeg";
+        return file.getName().toLowerCase(Locale.ROOT).endsWith(".png") ? "image/png" : "image/jpeg";
     }
 }

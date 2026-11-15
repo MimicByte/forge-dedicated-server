@@ -36,19 +36,19 @@ public final class WebMain implements IHasForgeLog {
         ExceptionHandler.registerErrorHandling();
         GuiBase.logHWInfo();
         final CountDownLatch quit = new CountDownLatch(1);
-        // The console uses the player's language. The language is known before FModel loads the rest
+        // The console uses the player's language, which is known before FModel loads the rest
         Localizer.getInstance().initialize(FModel.getPreferences().getPref(FPref.UI_LANGUAGE), ForgeConstants.LANG_DIR);
         // The console opens before the cards are read, because reading them takes long enough to look like a failure
         final ServerConsole console = ServerConsole.open(ui, quit::countDown);
         FModel.initialize(console, prefs -> null, false);
-        // The data for card-based deck generation takes seconds to load, so the server starts without it. With lazy card loading it is not loaded at all
+        // The server starts without the data for card-based deck generation, which takes seconds to load and is not loaded at all with lazy card loading
         if (!FModel.getPreferences().getPrefBoolean(FPref.LOAD_CARD_SCRIPTS_LAZILY)) {
             final Thread deckGen = new Thread(FModel::loadDeckGenMatrix, "DeckGenData");
             deckGen.setDaemon(true);
             deckGen.start();
         }
         final ServerControl service = new ServerControl(ui, IDLE_MILLIS, quit::countDown, console != null, newToken());
-        // Ctrl+C or a machine shutdown skips the finally below. Without this hook a forwarded port would stay open on the router
+        // Ctrl+C or a machine shutdown skips the finally below, and without this hook a forwarded port would stay open on the router
         Runtime.getRuntime().addShutdownHook(new Thread(service::stop, "ForgeWebShutdown"));
         try {
             if (console != null) {
@@ -58,7 +58,7 @@ public final class WebMain implements IHasForgeLog {
             try {
                 service.start();
             } catch (final Exception e) {
-                // The console stays open to show the error and to let the host start again. Without a console there is nothing to wait for
+                // The console stays open to show the error and let the host start again, but without a console there is nothing to wait for
                 if (console == null) {
                     throw e;
                 }

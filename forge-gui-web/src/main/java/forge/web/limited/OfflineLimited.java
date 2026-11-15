@@ -55,10 +55,12 @@ public final class OfflineLimited implements IHasForgeLog {
     private static final int MOST_OPPONENTS = 7;
     private volatile boolean gauntletRunning;
     private volatile LimitedResult lastResult;
-    /** The pool the gauntlet returns to, and the game type its rounds are played as, while one is running. */
-    private volatile Event gauntletBack;
-    private volatile GameType gauntletType;
-    private volatile LobbyPlayer gauntletPlayer;
+    /** The pool the last match returns to, and the game type it is played as, which a gauntlet keeps for its later rounds. */
+    private volatile Event matchBack;
+    private volatile GameType matchType;
+    /** The pool numbers of a match's opponents in seat order, except in a gauntlet, whose round names its opponent. */
+    private volatile List<Integer> opponentNumbers = List.of();
+    private volatile LobbyPlayer matchPlayer;
     private volatile OfflineDraft draft;
     /** What the draft is played for when the Limited pages did not start it, or null. */
     private volatile DraftOwner owner;
@@ -326,81 +328,50 @@ public final class OfflineLimited implements IHasForgeLog {
             FModel.getPreferences().setPref(FPref.UI_MATCHES_PER_GAME, String.valueOf(play.games()));
             FModel.getPreferences().save();
         }
-        final Event back = new Event(event.kind(), play.name());
-        switch (play.mode() == null ? PoolPlayMode.one : play.mode()) {
-            case gauntlet -> {
-                final LimitedMatch gauntlet = FModel.getLimitedMatch();
-                gauntletRunning = true;
-                gauntletBack = back;
-                gauntletType = limitedType;
-                lastResult = null;
-                // If the first round did not start, the pool stays on screen and there is no gauntlet to continue
-                if (!playRound(() -> gauntlet.launchGauntlet(event.type(), human, ai.size()))) {
-                    stopGauntlet();
-                }
+        final LimitedMatch limited = FModel.getLimitedMatch();
+        final PoolPlayMode mode = play.mode() == null ? PoolPlayMode.one : play.mode();
+        final List<Integer> numbers = new ArrayList<>();
+        if (mode == PoolPlayMode.several) {
+            final int count = Math.min(Math.min(play.count(), MOST_OPPONENTS), ai.size());
+            if (event.type() != GameType.Draft || count < 2) {
+                channel.send(WebSession.error(Localizer.getInstance().getMessage("lblWebSessionSeveralNeedsDraft")));
+                return;
             }
-            case several -> {
-                final int count = Math.min(Math.min(play.count(), MOST_OPPONENTS), ai.size());
-                if (event.type() != GameType.Draft || count < 2) {
-                    channel.send(WebSession.error(Localizer.getInstance().getMessage("lblWebSessionSeveralNeedsDraft")));
-                    return;
-                }
-                // Opponents are chosen at random, as on desktop's draft screen
-                final List<Integer> indices = new ArrayList<>();
-                for (int i = 0; i < ai.size(); i++) {
-                    indices.add(i);
-                }
-                Collections.shuffle(indices);
-                final List<NetplaySeat.Seat> seats = new ArrayList<>(List.of(mySeat(human)));
-                for (int k = 0; k < count; k++) {
-                    seats.add(opponentSeat(indices.get(k) + 1, k + 1, ai.get(indices.get(k))));
-                }
-                playLimited(back, limitedType, seats);
+            // Opponents are chosen at random, as on desktop's draft screen
+            for (int i = 1; i <= ai.size(); i++) {
+                numbers.add(i);
             }
-            default -> {
-                if (play.opponent() < 0 || play.opponent() >= ai.size()) {
-                    channel.send(WebSession.error(Localizer.getInstance().getMessage("lblWebSessionNoSuchOpponent")));
-                    return;
-                }
-                playLimited(back, limitedType, List.of(mySeat(human), opponentSeat(play.opponent() + 1, 1, ai.get(play.opponent()))));
+            Collections.shuffle(numbers);
+            numbers.subList(count, numbers.size()).clear();
+        } else if (mode == PoolPlayMode.one) {
+            if (play.opponent() < 0 || play.opponent() >= ai.size()) {
+                channel.send(WebSession.error(Localizer.getInstance().getMessage("lblWebSessionNoSuchOpponent")));
+                return;
             }
+            numbers.add(play.opponent() + 1);
         }
-    }
-
-    private NetplaySeat.Seat mySeat(final Deck deck) {
-        return new NetplaySeat.Seat(session.playerName(), false, session.avatarIndex(), NetplaySeat.storedIndex(FPref.UI_SLEEVES, 0), deck);
-    }
-
-    /** An opponent named by its deck's position in the pool, numbered as on desktop. seat selects its avatar and sleeve. */
-    private static NetplaySeat.Seat opponentSeat(final int number, final int seat, final Deck deck) {
-        return new NetplaySeat.Seat(Localizer.getInstance().getMessage("lblWebSessionOpponent", number), true, NetplaySeat.storedIndex(FPref.UI_AVATARS, seat),
-                NetplaySeat.storedIndex(FPref.UI_SLEEVES, seat), deck);
-    }
-
-    private void playLimited(final Event back, final GameType type, final List<NetplaySeat.Seat> seats) {
-        final Stage from = session.stage();
-        final Playing playing = new Playing(new WebGuiGame(session.settings()), false, false, back);
-        if (!session.move(from, playing)) {
-            playing.gui().close();
-            return;
-        }
-        session.attach(playing.gui());
-        try {
-            local.startLimitedMatch(seats, type, playing.gui());
-        } catch (final RuntimeException ex) {
-            netLog.error(ex, "Could not start the match");
-            local.endMatch();
-            session.move(playing, back);
-            session.tell(WebSession.error(Localizer.getInstance().getMessage("lblWebSessionMatchFailed", String.valueOf(ex.getMessage()))));
+        matchBack = new Event(event.kind(), play.name());
+        matchType = limitedType;
+        opponentNumbers = List.copyOf(numbers);
+        gauntletRunning = mode == PoolPlayMode.gauntlet;
+        lastResult = null;
+        if (gauntletRunning) {
+            // If the first round did not start, the pool stays on screen and there is no gauntlet to continue
+            if (!playRound(() -> limited.launchGauntlet(event.type(), human, ai.size()))) {
+                stopGauntlet();
+            }
+        } else {
+            final List<Deck> opponents = numbers.stream().map(n -> ai.get(n - 1)).toList();
+            playRound(() -> limited.startMatch(event.type(), human, opponents));
         }
     }
 
     /**
-     * Opens a table where the browser sits alone, then runs start, which has LimitedMatch start a round there. The round
-     * uses the names, avatars and sleeves of the Limited pages' other matches. False when the round did not start.
+     * Opens a table where the browser sits alone, then runs start, which has LimitedMatch start the match there, as desktop's
+     * Limited screens do. False when the match did not start.
      */
     private boolean playRound(final Runnable start) {
-        final Event back = gauntletBack;
+        final Event back = matchBack;
         final Stage from = session.stage();
         final Playing playing = new Playing(new WebGuiGame(session.settings()), false, false, back);
         if (back == null || !session.move(from, playing)) {
@@ -411,7 +382,7 @@ public final class OfflineLimited implements IHasForgeLog {
         playing.gui().onGameOver(this::recordGauntletGame);
         try {
             final ServerGameLobby table = local.openAlone(session.playerName(), playing.gui());
-            table.setLimitedType(gauntletType);
+            table.setLimitedType(matchType);
             final int seat = local.webSeat();
             ui.playSolo(new WebGuiBase.SoloTable(() -> FServerManager.getInstance().getGui(seat), (match, rules, players, human, begin) -> {
                 dressRound(players, human);
@@ -421,28 +392,35 @@ public final class OfflineLimited implements IHasForgeLog {
             start.run();
             return true;
         } catch (final RuntimeException ex) {
-            netLog.error(ex, "Could not start the gauntlet round");
+            netLog.error(ex, "Could not start the match");
             local.endMatch();
             session.move(playing, back);
-            session.tell(WebSession.error(Localizer.getInstance().getMessage("lblWebSessionGauntletFailed", String.valueOf(ex.getMessage()))));
+            session.tell(WebSession.error(Localizer.getInstance().getMessage("lblWebSessionMatchFailed", String.valueOf(ex.getMessage()))));
             return false;
         } finally {
             ui.playSolo(null);
         }
     }
 
-    /** Names the gauntlet's players as the Limited pages name a match's seats, and keeps the player the result is read for. */
+    /**
+     * Names the players as desktop numbers a pool's opponents, gives each opponent the avatar and sleeve of its seat, and keeps
+     * the player the result is read for.
+     */
     private void dressRound(final List<RegisteredPlayer> players, final RegisteredPlayer me) {
+        int seat = 0;
         for (final RegisteredPlayer player : players) {
-            final NetplaySeat.Seat seat = player == me ? mySeat(player.getDeck())
-                    : opponentSeat(FModel.getLimitedMatch().getCurrentRound(), 1, player.getDeck());
-            final LobbyPlayer dressed = player == me ? GamePlayerUtil.getGuiPlayer(seat.name(), seat.avatar(), seat.sleeve(), false)
-                    : GamePlayerUtil.createAiPlayer(seat.name(), seat.avatar(), seat.sleeve());
+            final LobbyPlayer dressed;
+            if (player == me) {
+                dressed = GamePlayerUtil.getGuiPlayer(session.playerName(), session.avatarIndex(), NetplaySeat.storedIndex(FPref.UI_SLEEVES, 0), false);
+                matchPlayer = dressed;
+            } else {
+                final int number = gauntletRunning ? FModel.getLimitedMatch().getCurrentRound() : opponentNumbers.get(seat);
+                seat++;
+                dressed = GamePlayerUtil.createAiPlayer(Localizer.getInstance().getMessage("lblWebSessionOpponent", number),
+                        NetplaySeat.storedIndex(FPref.UI_AVATARS, seat), NetplaySeat.storedIndex(FPref.UI_SLEEVES, seat));
+            }
             dressed.setSleeveArtKey(player.getDeck().getSleeveArtKey());
             player.setPlayer(dressed);
-            if (player == me) {
-                gauntletPlayer = dressed;
-            }
         }
     }
 
@@ -452,7 +430,7 @@ public final class OfflineLimited implements IHasForgeLog {
      */
     private void recordGauntletGame() {
         final HostedMatch hosted = local.hostedMatch();
-        final LobbyPlayer me = gauntletPlayer;
+        final LobbyPlayer me = matchPlayer;
         if (!gauntletRunning || hosted == null) {
             return;
         }
@@ -483,7 +461,6 @@ public final class OfflineLimited implements IHasForgeLog {
         }
         gauntletRunning = false;
         lastResult = null;
-        gauntletBack = null;
         FModel.getLimitedMatch().resetCurrentRound();
     }
 }

@@ -159,7 +159,7 @@ public final class TableCommands {
     }
 
     private void seatCommand(final BrowserChannel channel, final SeatCommand seat) {
-        // A guest's seat is emptied by sending the guest away, which opens it. The seat itself is removed only once it is empty
+        // A guest's seat is emptied by sending the guest away, and the seat itself is removed only once it is empty
         if (!session.hosting() || seat.t() == SeatAction.aiSeat || !sessions.releaseGuestAt(seat.index())) {
             switch (seat.t()) {
                 case openSeat -> lobby.openSeat(seat.index());

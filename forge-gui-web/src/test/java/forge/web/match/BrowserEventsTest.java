@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 public class BrowserEventsTest {
-    /** Netplay sends a cast spell's card as a snapshot with no controller, so the move must get its caster from the tracker. */
+    // Fails if a cast spell's move has no caster when netplay sends its card as a snapshot with no controller, because the caster is not taken from the tracker
     @Test
     public void castSnapshotNamesItsCasterFromTheTracker() {
         final Tracker tracker = new Tracker();
@@ -39,7 +39,7 @@ public class BrowserEventsTest {
         Assert.assertEquals(((CardMoved) moved).caster(), Ref.player(7));
     }
 
-    /** The engine lists an unblocked attacker as blocked by itself, which must not be sent as a block. */
+    // Fails if an unblocked attacker, which the engine lists as blocked by itself, is sent as a block
     @Test
     public void blocksLeaveOutAnUnblockedAttacker() {
         final Tracker tracker = new Tracker();
