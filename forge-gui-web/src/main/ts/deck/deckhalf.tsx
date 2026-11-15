@@ -121,22 +121,20 @@ export function DeckHalf({ actions, state, handlers, check, adding, addTo }: {
           <AddSection sections={state.sections.filter(s => !s.cards.length && s.section !== adding)} addTo={addTo} />
         </div>
       )}
-      <div class="land-row">
+      <div class="land-row" role="group" aria-label={t('lblWebEditorBasicLands')}>
         <span class="band-lab">{t('lblWebEditorBasicLands')}</span>
         {/* A land the deck may not hold, or outside the commander's colours, is listed only while the deck holds some, so it can be taken out */}
         {state.lands.filter(l => (l.allowed && (!state.commanders.length || (state.identity || 'C').includes(l.letter))) || l.count).map(l => (
           <span key={l.name} class={(l.allowed ? 'land' : 'land off') + (l.count ? '' : ' zero')} title={l.allowed ? undefined : t('lblWebEditorOutsideColours', l.name)}>
             <span class="land-card" data-image={l.image}>
               <img alt={l.name} draggable={false} src={smallImage(imageUrl(l.image))} onError={hideBroken} />
-              {l.count > 0 && <span class="deck-count">{l.count}</span>}
             </span>
             <span class="land-step">
-              <Pip letter={l.letter} />
-              <button class="step" disabled={!l.count} aria-label={t('lblWebEditorOneFewer', l.name)}
-                onClick={() => actions.edit({ op: 'lands', count: 0, lands: [{ name: l.name, count: l.count - 1 }] })}>&minus;</button>
-              <span class="n">{l.count}</span>
               <button class="step" disabled={!l.allowed} aria-label={t('lblWebEditorOneMore', l.name)}
                 onClick={() => actions.edit({ op: 'lands', count: 0, lands: [{ name: l.name, count: l.count + 1 }] })}>+</button>
+              <span class="n">{l.count}</span>
+              <button class="step" disabled={!l.count} aria-label={t('lblWebEditorOneFewer', l.name)}
+                onClick={() => actions.edit({ op: 'lands', count: 0, lands: [{ name: l.name, count: l.count - 1 }] })}>&minus;</button>
             </span>
           </span>
         ))}
@@ -324,13 +322,13 @@ function LandSetPicker({ sets, chosen, choose }: { sets: LandSet[]; chosen?: str
   const face = (
     <>
       <LandStrip code={current.code} />
-      <span class="nm">{current.name}<small>{t('lblLandSet')}</small></span>
+      <span class="nm">{current.code}</span>
     </>
   );
   if (sets.length === 1) return <span class="land-set">{face}</span>;
   return (
     <Dropdown cls="menu-anchor land-set-anchor" button={(open, toggle) => (
-      <button class="land-set" aria-label={t('lblWebEditorBasicLandsFrom')} aria-expanded={open} onClick={toggle}>
+      <button class="land-set" aria-label={`${t('lblWebEditorBasicLandsFrom')} ${current.name}`} aria-expanded={open} onClick={toggle}>
         {face}<span class="caret" aria-hidden="true">&#9662;</span>
       </button>
     )}>
