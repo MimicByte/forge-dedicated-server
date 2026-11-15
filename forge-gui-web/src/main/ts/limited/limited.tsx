@@ -125,7 +125,7 @@ function DraftSetup({ model, actions }: { model: Model; actions: Actions }) {
         action={t('lblWebLimitedStartDrafting')} busy={busy} submit={() => {
           setBusy(true);
           actions.draftStart({ product: value.product!, block: value.block, combo: draftCombo(value), cube: value.cube,
-            theme: value.theme, cubeId: value.cubeId });
+            theme: value.theme, cubeId: value.cubeId, pickRule: value.pickRule });
         }} />
     </div>
   );

@@ -173,7 +173,7 @@ export interface DraftValue {
   cube?: string;
   theme?: string;
   cubeId?: string;
-  /** An online draft's table rules: pod seats (0 for the set's own), a DoublePick name, and the timer and grace in seconds. */
+  /** The pick rule, a DoublePick name, offline or at a table. A table's other rules: pod seats (0 for the set's own), and the timer and grace in seconds. */
   podSize?: number;
   pickRule?: string;
   timer?: number;
@@ -194,6 +194,16 @@ function podChoices(seated: number): number[] {
 /** The starting pod size: the product's own pod, raised to the number of players seated, as on desktop. */
 function podStart(recommended: number, seated: number): number {
   return Math.min(8, Math.max(recommended, Math.max(2, seated)));
+}
+
+/** The pick rule the product starts with: a single set's own rule, or one pick. The engine works it out the same way. */
+function productPicks(options: LimitedOptions, v: DraftValue): string {
+  return (v.product === 'Block' || v.product === 'FantasyBlock') ? draftBlockOf(options, v)?.picks ?? 'NEVER' : 'NEVER';
+}
+
+/** The pick rules, with the set's own marked as desktop marks it. */
+function pickChoices(own: string): { value: string; label: string }[] {
+  return PICK_RULES.map(([id, name]) => ({ value: id, label: id === own ? t('lblDraftSetDefaultSuffix', t(name)) : t(name) }));
 }
 
 function productPod(options: LimitedOptions, v: DraftValue): number {
@@ -297,10 +307,22 @@ export function draftSteps(options: LimitedOptions, table?: DraftTable): Step<Dr
       render: (_, set) => <TextStep placeholder={t('lblWebSetupCubeCobraField')} initial={options.lastCube ?? ''} done={id => set({ cubeId: id })} />,
     },
     {
+      // Offline, the picks are the only table rule. Desktop and mobile ask for them once the product is chosen
+      id: 'picks', label: t('lblWebEventPicks'), hint: t('lblDraftPicksHelp'), fields: ['pickRule'], applies: () => !table,
+      answer: v => v.pickRule ? pickChoices(productPicks(options, v)).find(c => c.value === v.pickRule)?.label ?? null : null,
+      render: (v, set) => (
+        <div class="tiles">
+          {pickChoices(productPicks(options, v)).map(c => (
+            <button key={c.value} class="tile-choice" onClick={() => set({ pickRule: c.value })}><b>{c.label}</b></button>
+          ))}
+        </div>
+      ),
+    },
+    {
       id: 'rules', label: t('lblWebOptionsSectionTable'), hint: t('lblWebSetupHintRules'), fields: ['podSize', 'pickRule', 'timer', 'grace'],
       applies: () => !!table,
       answer: v => v.timer === undefined ? null : rulesLine(v),
-      render: (v, set) => <TableRules seated={table?.seated ?? 2} recommended={productPod(options, v)} done={set} />,
+      render: (v, set) => <TableRules seated={table?.seated ?? 2} recommended={productPod(options, v)} own={productPicks(options, v)} done={set} />,
     },
   ];
 }
@@ -317,10 +339,11 @@ function rulesLine(v: DraftValue): string {
   return t('lblWebSetupRulesLine', v.podSize ?? 0, picks, v.timer ? t('lblWebSetupSecondsToPick', v.timer) : t('lblWebEventNoPickTimer'));
 }
 
-function TableRules({ seated, recommended, done }: { seated: number; recommended: number; done: (v: Partial<DraftValue>) => void }) {
+/** own is the set's own pick rule. It starts chosen and is marked, as on desktop. */
+function TableRules({ seated, recommended, own, done }: { seated: number; recommended: number; own: string; done: (v: Partial<DraftValue>) => void }) {
   const pods = podChoices(seated);
   const [pod, setPod] = useState(() => podStart(recommended, seated));
-  const [pickRule, setPickRule] = useState('NEVER');
+  const [pickRule, setPickRule] = useState(own);
   const [timer, setTimer] = useState(60);
   const [grace, setGrace] = useState(120);
   const at = pods.indexOf(pod);
@@ -336,7 +359,7 @@ function TableRules({ seated, recommended, done }: { seated: number; recommended
         <span class="hint">{t('lblWebSetupComputersFill')}</span>
       </div>
       <label class="tr-label" for="tr-picks">{t('lblWebEventPicks')}</label>
-      <Select id="tr-picks" pill label={t('lblWebEventPicks')} value={pickRule} change={setPickRule} choices={PICK_RULES.map(([id, name]) => ({ value: id, label: t(name) }))} />
+      <Select id="tr-picks" pill label={t('lblWebEventPicks')} value={pickRule} change={setPickRule} choices={pickChoices(own)} />
       <label class="tr-label" for="tr-timer">{t('lblNetworkPickTimerCaption')}</label>
       <Select id="tr-timer" pill label={t('lblNetworkPickTimerCaption')} value={String(timer)} change={v => setTimer(Number(v))}
         choices={TIMERS.map(n => ({ value: String(n), label: seconds(n, t('lblNone')) }))} />
@@ -383,6 +406,7 @@ export function draftTicket(): Ticket<DraftValue> {
     title: t('lblBoosterDraft'),
     rows: v => [
       [t('lblProduct'), draftProduct(v)],
+      [t('lblWebEventPicks'), v.pickRule ? pickRuleName(v.pickRule) : null],
       [t('lblWebSetupDrafters'), t('lblWebSetupYouAndSevenAi')],
       [t('lblWebSetupYourDeck'), t('lblWebSetupFortyOrMore')],
       [t('lblWebSetupOpponents'), t('lblWebSetupSevenAiDrafters')],

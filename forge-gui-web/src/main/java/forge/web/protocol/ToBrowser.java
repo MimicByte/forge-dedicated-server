@@ -637,8 +637,8 @@ public final class ToBrowser {
             List<String> themes, @Nullable String lastCube) {
     }
 
-    /** A draftable block. It has no combos when the set of each pack is chosen. podSize is the pod size a draft of it starts with. */
-    public record DraftBlockOption(String name, int packs, List<String> sets, List<String> codes, List<String> combos, int podSize) {
+    /** A draftable block. It has no combos when the set of each pack is chosen. podSize is the pod size a draft of it starts with, and picks the pick rule, a DoublePick name. */
+    public record DraftBlockOption(String name, int packs, List<String> sets, List<String> codes, List<String> combos, int podSize, String picks) {
     }
 
     /** A block's sealed product: how many packs, and the set combinations desktop offers for them. */

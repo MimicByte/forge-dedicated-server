@@ -344,10 +344,10 @@ public final class FromBrowser {
             @Nullable String template, @Nullable String cubeId, int packs, String name, boolean replace) {
     }
 
-    /** Starts an offline booster draft. product is a LimitedPoolType name. The fields that product needs are set. combo is "A/B/C". */
+    /** Starts an offline booster draft. product is a LimitedPoolType name. The fields that product needs are set. combo is "A/B/C". pickRule is a DoublePick name, or null for the set's own. */
     @Command("draftStart")
     public record DraftStart(String product, @Nullable String block, @Nullable String combo, @Nullable String cube, @Nullable String theme,
-            @Nullable String cubeId) {
+            @Nullable String cubeId, @Nullable String pickRule) {
     }
 
     /** Picks the card at index from the pack. step is the draft state the click was made on, and a pick with an old step is ignored. */

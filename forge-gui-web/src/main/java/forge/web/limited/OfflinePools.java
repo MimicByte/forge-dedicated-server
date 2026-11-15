@@ -3,6 +3,7 @@ package forge.web.limited;
 import forge.StaticData;
 import forge.card.CardEdition;
 import forge.card.ColorSet;
+import forge.card.DraftOptions;
 import forge.deck.CardPool;
 import forge.deck.Deck;
 import forge.deck.DeckGroup;
@@ -136,6 +137,22 @@ public final class OfflinePools {
 
     /** Returns the code that builds the draft the form describes. It runs later on the draft's own thread, because importing a cube waits for a web site. */
     public static Supplier<BoosterDraft> draft(final DraftStart d) {
+        final Supplier<BoosterDraft> make = product(d);
+        if (d.pickRule() == null) {
+            return make;
+        }
+        // The player's choice replaces the set's own rule, as desktop's picks question does
+        final DraftOptions.DoublePick rule = DraftOptions.DoublePick.valueOf(d.pickRule());
+        return () -> {
+            final BoosterDraft draft = make.get();
+            if (draft != null) {
+                draft.setDoublePick(rule);
+            }
+            return draft;
+        };
+    }
+
+    private static Supplier<BoosterDraft> product(final DraftStart d) {
         final LimitedPoolType type = poolType(d.product());
         return switch (type) {
             case Full -> BoosterDraft::createFullDraft;
@@ -273,7 +290,7 @@ public final class OfflinePools {
             // Like a network draft, the web leaves out Conspiracy blocks
             final List<String> sets = BoosterDraft.isDraftable(b, true) ? BoosterDraft.blockSets(b) : List.of();
             if (!sets.isEmpty()) {
-                out.add(new DraftBlockOption(b.getName(), b.getCntBoostersDraft(), sets, codes(b), BoosterDraft.presetCombos(b, sets), podSize(sets)));
+                out.add(new DraftBlockOption(b.getName(), b.getCntBoostersDraft(), sets, codes(b), BoosterDraft.presetCombos(b, sets), podSize(sets), picks(sets)));
             }
         }
         return out;
@@ -283,6 +300,12 @@ public final class OfflinePools {
     private static int podSize(final List<String> sets) {
         final CardEdition edition = sets.size() == 1 ? StaticData.instance().getEditions().get(sets.get(0)) : null;
         return edition == null ? BoosterDraft.N_PLAYERS : edition.getDraftOptions().getRecommendedPodSize();
+    }
+
+    /** The pick rule a draft of these sets starts with, as BoosterDraft.setupBlock sets it: a single set's own rule at its pod size, or one pick. */
+    private static String picks(final List<String> sets) {
+        final CardEdition edition = sets.size() == 1 ? StaticData.instance().getEditions().get(sets.get(0)) : null;
+        return edition == null ? DraftOptions.DoublePick.NEVER.name() : edition.getDraftOptions().getDoublePick().resolve(podSize(sets)).name();
     }
 
     private static List<SealedBlock> sealedBlocks(final IStorage<CardBlock> storage) {

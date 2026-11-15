@@ -228,7 +228,7 @@ public final class LimitedEvents {
                 });
             }
             final BoosterDraft draft = OfflinePools.draft(new DraftStart(s.product(), s.block(), s.combo(), s.cube(), s.theme(),
-                    s.cubeId())).get();
+                    s.cubeId(), null)).get();
             if (draft == null) {
                 return Localizer.getInstance().getMessage("lblWebLobbyDraftSetUpFailed");
             }
