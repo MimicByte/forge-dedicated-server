@@ -53,7 +53,7 @@ export function Menu({ model, actions }: { model: Model; actions: Actions }) {
           <div class="modes">
             <Mode id="play" name={t('lblWebMenuVersusAi')} blurb={t('lblWebMenuVersusAiBlurb')} onClick={() => setChoosing('play')} />
             <Mode id="multiplayer" name={t('lblWebMenuWithFriends')} blurb={t('lblWebMenuWithFriendsBlurb')} onClick={() => setChoosing('friends')} />
-            <Mode id="editor" name={t('lblDecks')} blurb={t('lblWebMenuDecksBlurb')}
+            <Mode id="editor" name={t('lblWebMenuManageDecks')} blurb={t('lblWebMenuDecksBlurb')}
               onClick={() => {
                 changeUi(u => { u.browse = { format: 'Constructed' }; });
                 actions.browseFormat('Constructed');

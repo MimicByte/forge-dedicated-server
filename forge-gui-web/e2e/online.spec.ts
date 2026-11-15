@@ -6,7 +6,7 @@ let server: Server;
 test.beforeEach(async () => { server = await startServer(); });
 test.afterEach(async () => { await server.stop(); });
 
-/** The host opens a draft or sealed table from Play with friends. */
+/** The host opens a draft or sealed table from Play with Friends. */
 async function hostEvent(page: Page, kind: 'draft' | 'sealed'): Promise<void> {
   await page.goto(server.url);
   await enterName(page, 'Alice');
