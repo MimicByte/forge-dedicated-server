@@ -369,7 +369,7 @@ html[data-form="portrait"] .finder .results { min-width: 0; padding: 10px 12px; 
 /* A compact list: the source is a menu in the head, the search shares its line with a sort button, the colours are a filter chip,
    the count ends the chip line, and rows are one short line with "Legal" left out */
 html[data-form="portrait"] .finder .dk-hit { min-height: 44px; padding-top: 0; padding-bottom: 0; }
-html[data-form="portrait"] .finder .dk-hit .legal.yes { display: none; }
+html[data-form="portrait"] .finder .dk-hit :is(.legal.yes, .legal.blank) { display: none; }
 html[data-form="portrait"] .finder-head { flex-wrap: nowrap; }
 html[data-form="portrait"] .finder .source-pick { display: block; min-width: 0; max-width: 56vw; height: 36px; padding: 0 30px 0 12px; appearance: none;
   border: 1px solid var(--accent-2); border-radius: 18px; background: var(--accent-soft) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f2c344' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center / 14px;

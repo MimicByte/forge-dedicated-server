@@ -60,7 +60,7 @@ interface DeckFilter {
 
 /** The finder's starting filter. It covers every source, and only decks the lobby would accept. */
 const FINDER_DEFAULTS: DeckFilter = {
-  query: '', source: 'all', colours: new Set(), cardFormat: 'any', legalOnly: true, bracket: null, card: null, sideboard: null,
+  query: '', source: 'all', colours: new Set(), cardFormat: 'any', legalOnly: false, bracket: null, card: null, sideboard: null,
   set: null, identity: null, colourCount: null, main: null, side: null, mana: null, folder: null, favourites: false, aiPlays: false, sort: 'name',
 };
 
@@ -152,7 +152,8 @@ export function DeckFinder({ model, actions, seat, close }: {
   const tableBracket = model.lobby?.format === 'Commander' && model.lobby.maxBracket < 5 ? model.lobby.maxBracket : null;
   // For a computer seat the finder opens on decks the computer plays in full. The player can widen this like any other filter
   const forComputer = seat?.seat.type === 'AI';
-  const [filter, setFilter] = useState<DeckFilter>(() => ({ ...FINDER_DEFAULTS, colours: new Set(), bracket: tableBracket, aiPlays: forComputer }));
+  // The finder opens on the player's own decks. With none yet, that source is not offered, so it opens on all of them
+  const [filter, setFilter] = useState<DeckFilter>(() => ({ ...FINDER_DEFAULTS, source: model.decks?.some(d => d.source === 'yours') ? 'yours' : 'all', colours: new Set(), bracket: tableBracket, aiPlays: forComputer }));
   const change = (part: Partial<DeckFilter>) => setFilter(f => ({ ...f, ...part }));
   const find = useRef<HTMLInputElement>(null);
 
@@ -468,8 +469,8 @@ function finderKinds(model: Model, decks: readonly DeckSummary[], actions: Actio
     }] : []),
     {
       id: 'illegal', group: legality, label: t('lblWebFilterIllegalDecks'),
-      chip: f => (f.legalOnly ? null : t('lblWebFilterShown')),
-      clear: f => ({ ...f, legalOnly: true }),
+      chip: f => (f.legalOnly ? t('lblWebFilterHidden') : null),
+      clear: f => ({ ...f, legalOnly: false }),
       panel: (f, set, done) => <OneOf options={[['show', t('lblWebFilterShown')], ['hide', t('lblWebFilterHidden')]] as const}
         value={f.legalOnly ? 'hide' : 'show'} pick={v => { set({ ...f, legalOnly: v === 'hide' }); done(); }} />,
     },
@@ -558,6 +559,9 @@ function Hit({ deck: d, chosen, choose, use, source, forComputer, star }: {
         <Title deck={d} />
         <span class="note">{d.note ?? ''}</span>
         {source && <span class="tag">{d.source}</span>}
+        {/* Empty size and legality columns keep the source tag in line with the decks around it */}
+        <span class="size" aria-hidden="true" />
+        <span class="legal blank" aria-hidden="true" />
       </button>
     );
   }

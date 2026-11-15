@@ -95,7 +95,7 @@ public final class DeckEditor {
         this.copyOf = readOnly ? deck.getName() : null;
         this.saved = saved && !readOnly;
         this.owned = this.saved && target instanceof Stored ? deck.getName() : null;
-        this.landSet = limited() ? DeckProxy.getDefaultLandSet(deck).getCode() : collection != null ? firstLandSet() : null;
+        this.landSet = limited() || collection == null ? DeckProxy.getDefaultLandSet(deck).getCode() : firstLandSet();
     }
 
     Collection collection() {
@@ -386,7 +386,7 @@ public final class DeckEditor {
     /** Chooses the edition new basic lands come from, as desktop's Add Basic Lands dialog does. */
     String setLandSet(final String editionCode) {
         final CardEdition edition = StaticData.instance().getEditions().get(editionCode);
-        final boolean offered = collection == null ? limited() : collection.landSets().apply(deck).contains(edition);
+        final boolean offered = collection == null || collection.landSets().apply(deck).contains(edition);
         if (!offered || edition == null || !edition.hasBasicLands()) {
             return Localizer.getInstance().getMessage("lblWebEditorNoBasicsFrom", String.valueOf(editionCode));
         }
@@ -557,7 +557,7 @@ public final class DeckEditor {
                 Legality.identityLetters(leaders),
                 CardCatalog.groups(deck.getMain(), legality), CardCatalog.cards(deck.get(DeckSection.Sideboard), legality), lands(),
                 DeckFacts.stats(deck), legality.verdict(), !undo.isEmpty(), landed,
-                limited(), landSet, limited() ? LandSets.ALL : collection == null ? List.of()
+                limited(), landSet, limited() || collection == null ? LandSets.ALL
                         : collection.landSets().apply(deck).stream().map(e -> new LandSet(e.getCode(), e.getName())).toList(),
                 collection == null ? null : collection.owner(), collection != null && collection.mainOnly(), sections(legality));
     }

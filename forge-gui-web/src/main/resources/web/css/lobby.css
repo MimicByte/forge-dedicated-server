@@ -436,7 +436,7 @@ html:not([data-form="portrait"]) .finder:has(.rail) :is(.dk-chosen, .finder-foot
 .dk-hit-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dk-hit-title .pip { width: 16px; height: 16px; }
 .tag { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
-.dk-hit .tag { flex: none; width: 76px; text-align: right; }
+.dk-hit .tag { flex: none; width: 84px; text-align: right; }
 /* A tag that shows the deck is being chosen for a computer player. This matters because it changes which decks are good choices. */
 .finder-head .for-ai { display: inline-flex; align-items: center; gap: 6px; margin-left: 12px; padding: 2px 10px 2px 7px; border: 1px solid var(--line-bright); border-radius: 99px; color: var(--muted); font-size: 12px; }
 :is(.for-ai, .ai-skips-tag, .ai-skips-note) svg { flex: none; width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
@@ -570,7 +570,8 @@ html:not([data-form="portrait"]) .finder:has(.rail) :is(.dk-chosen, .finder-foot
 .pips { display: inline-flex; gap: 2px; vertical-align: middle; }
 
 .shown { margin: 0; color: var(--faint); font-size: 12px; }
-.dk-hit .size { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 46px; text-align: right; }
+.dk-hit .size { flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; width: 46px; text-align: right; }
+.dk-hit .legal { flex: none; width: 64px; text-align: right; }
 
 .sizes { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
 .stats { display: grid; grid-template-columns: auto 1fr; gap: 18px; margin-top: 12px; }
