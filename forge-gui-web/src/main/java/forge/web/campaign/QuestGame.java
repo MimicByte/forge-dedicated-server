@@ -46,6 +46,7 @@ import forge.player.GamePlayerUtil;
 import forge.util.IHasForgeLog;
 import forge.util.Localizer;
 import forge.util.storage.IStorage;
+import forge.web.WebGuiBase;
 import forge.web.deck.CardCatalog;
 import forge.web.deck.DeckCatalog;
 import forge.web.deck.DeckFacts;
@@ -645,10 +646,10 @@ public final class QuestGame implements Campaign, IHasForgeLog {
         duels = null;
     }
 
-    /** Cards Forge showed the host, such as a booster just bought. They are added to what the reveal has not shown yet. */
+    /** Cards Forge showed the host, such as a booster just bought. They are added to what the reveal has not shown yet. A product the shop sold opens as a pack. */
     public void shown(final String title, final List<PaperCard> cards) {
         final List<RewardStep> steps = new ArrayList<>(reward == null ? List.of() : reward.steps());
-        steps.add(WebQuestView.cardsStep(title, cards, false));
+        steps.add(WebGuiBase.isProductName(title) ? WebQuestView.packStep(title, cards, WebGuiBase.boosterImageNamed(title)) : WebQuestView.cardsStep(title, cards, false));
         reward = new Reward(steps);
     }
 

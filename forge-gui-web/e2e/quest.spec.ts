@@ -84,7 +84,7 @@ test('a quest deck is made, filled and chosen as current', async ({ page }) => {
   await expect(page.locator('.cq-mine b')).toHaveText('Ice deck');
 });
 
-// Fails if a booster cannot be bought and its cards revealed, or the credits do not fall by its price
+// Fails if a booster cannot be bought and opened from its pack, or the credits do not fall by its price
 test('a booster is bought in the Spell Shop and its cards revealed', async ({ page }) => {
   await page.goto(server.url);
   await enterName(page, 'Alice');
@@ -103,8 +103,10 @@ test('a booster is bought in the Spell Shop and its cards revealed', async ({ pa
   await page.locator('.cq-exile').getByRole('button', { name: 'OK', exact: true }).click();
 
   const reveal = page.locator('.cq-reveal');
-  await expect(reveal.locator('.cq-cards-card').first()).toBeVisible();
-  await reveal.getByRole('button', { name: 'OK Space', exact: true }).click();
+  await reveal.locator('.cq-pk').click({ force: true });
+  await reveal.getByRole('button', { name: 'Skip' }).click();
+  await expect(reveal.locator('.cq-rv-card.up').first()).toBeVisible({ timeout: 30_000 });
+  await reveal.getByRole('button', { name: 'Great Space', exact: true }).click();
   await expect(reveal).toHaveCount(0);
   await expect(credits).toHaveText((before - price).toLocaleString('en-GB'));
 });

@@ -98,7 +98,13 @@ final class WebQuestView implements IWinLoseView<WebQuestView.Button> {
     /** Cards shown face up under a title, as a reveal draws them. */
     static RewardStep cardsStep(final String title, final List<PaperCard> cards, final boolean lost) {
         final List<PackCard> shown = cards.stream().map(c -> new PackCard(c.getName(), Foil.key(c), c.getRarity().name(), 0)).toList();
-        return new RewardStep("CARDS", 0, lost ? "lost" : null, shown, 0, 0, false, null, null, null, title, null, null);
+        return new RewardStep("CARDS", 0, lost ? "lost" : null, shown, 0, 0, false, null, null, null, title, null, null, null);
+    }
+
+    /** A booster opened from its wrapper. packImage is its booster picture, or null for Forge's own wrapper. */
+    static RewardStep packStep(final String name, final List<PaperCard> cards, final String packImage) {
+        final List<PackCard> shown = cards.stream().map(c -> new PackCard(c.getName(), Foil.key(c), c.getRarity().name(), 0)).toList();
+        return new RewardStep("BOOSTER", 0, null, shown, 0, 0, false, name, null, null, null, null, null, packImage);
     }
 
     @Override
@@ -106,6 +112,6 @@ final class WebQuestView implements IWinLoseView<WebQuestView.Button> {
         // The controller writes for desktop's label. It uses line breaks, and underline tags around an alternate win's name
         final List<String> lines = Arrays.stream(message.replaceAll("</?u>", "").split("\n")).map(String::trim).filter(s -> !s.isEmpty()).toList();
         steps.add(new RewardStep("MESSAGE", 0, null, null, 0, 0, false, null, null, icon == null ? null : icon.name(), title,
-                lines.size() == 1 ? lines.get(0) : null, lines.size() == 1 ? null : lines));
+                lines.size() == 1 ? lines.get(0) : null, lines.size() == 1 ? null : lines, null));
     }
 }

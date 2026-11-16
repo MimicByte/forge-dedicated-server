@@ -168,11 +168,9 @@ final class QuestDraftTournaments {
             final String plural = prizes.boosterPacks.size() == 1 ? "" : "s";
             shown.showMessage(placing + text.getMessage("lblHaveBeAward") + prizes.boosterPacks.size() + " " + text.getMessage("lblBoosterPack") + plural + "!",
                     text.getMessage("lblBoosterPack") + plural + " " + text.getMessage("lblAwarded"), FSkinProp.ICO_QUEST_BOX);
-            final List<PaperCard> cards = new ArrayList<>();
             for (final BoosterPack pack : prizes.boosterPacks) {
-                cards.addAll(pack.getCards());
+                shown.steps.add(WebQuestView.packStep(pack.getName(), pack.getCards(), pack.getImageKey(false)));
             }
-            shown.showCards(text.getMessage("lblTournamentReward"), cards);
         }
         if (prizes.selectRareFromSets()) {
             final PaperCard card = GuiBase.getInterface().chooseCard(text.getMessage("lblSelectACard"), text.getMessage("lblSelectKeepCard"), prizes.selectRareCards);

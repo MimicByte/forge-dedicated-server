@@ -5,6 +5,7 @@ import { artUrl } from '../sleeves';
 import { CHAOS_MARK } from './conquestwheel';
 import type { PackCard } from '../protocol';
 import { reducedMotion } from '../dom';
+import { SEAL, packPicture } from '../boosterprint';
 import { FIRST_CARD, FLIGHT, SLICES, STAGGER, fly, tear } from '../packopen';
 
 interface PackSpec {
@@ -14,6 +15,8 @@ interface PackSpec {
   /** The art's image key, or null for a chaos pack, which shows the chaos symbol instead. */
   art: string | null;
   chaos: boolean;
+  /** The booster picture's image key, for a pack from one set. */
+  booster: string | null;
   cards: PackCard[];
   hint: string;
 }
@@ -35,20 +38,15 @@ export interface Pack {
 }
 
 /** The pack's width. The peel calculation and the stylesheet both use it. */
-const PACK_W = 196;
-/** The seal's height, as a percentage of the pack's height. */
-const SEAL = 9;
+const PACK_W = 170;
 const SOFT = 'cubic-bezier(.22,.8,.26,1)';
 /** The delay before a card of each rarity flips, counted from the flip of the card before it. */
 const GAP: Record<string, number> = { Common: 70, BasicLand: 70, Uncommon: 200, Rare: 500, Special: 500, MythicRare: 900 };
 export const isRare = (rarity: string): boolean => rarity === 'Rare' || rarity === 'Special' || rarity === 'MythicRare';
 
-// A crimped edge as polygon points: n teeth between two heights
+// The outline of the pack's crimped picture, used as the shape of its glow
 const teeth = (n: number, y0: string, y1: string): string[] => Array.from({ length: n + 1 }, (_, k) => `${(100 * k / n).toFixed(1)}% ${k % 2 ? y0 : y1}`);
-const TOP = `polygon(${teeth(40, '0%', '34%').join(', ')}, 100% 100%, 0 100%)`;
-const BODY = `polygon(0 0, 100% 0, ${teeth(40, '100%', '96.6%').reverse().join(', ')})`;
-// The outline of the whole pack, used as the shape of its glow
-const OUTLINE = `polygon(${teeth(40, '0%', `${(SEAL * .34).toFixed(2)}%`).join(', ')}, ${teeth(40, '100%', `${(SEAL + (100 - SEAL) * .966).toFixed(2)}%`).reverse().join(', ')})`;
+const OUTLINE = `polygon(${teeth(50, '0%', '1.2%').join(', ')}, ${teeth(50, '100%', '98.8%').reverse().join(', ')})`;
 
 function el(spec: string, style: Partial<CSSStyleDeclaration> = {}, ...kids: (Node | string | null)[]): HTMLElement {
   const [tag, ...cls] = spec.split('.');
@@ -84,15 +82,16 @@ export function mountPack(host: HTMLElement, spec: PackSpec, hooks: PackHooks): 
   const grid = el('div.cq-rv-grid', {}, ...slots);
   grid.style.setProperty('--per-row', String(Math.min(8, Math.max(1, cards.length))));
 
-  // The seal is cut into strips, so it can roll up behind the tear
-  const top = el('div.cq-pk-top', {}, ...Array.from({ length: SLICES }, (_, i) => el('div.cq-pk-slice', { left: `${i * PACK_W / SLICES}px`, width: `${PACK_W / SLICES + .6}px` },
-    el('div.cq-pk-slice-in', { left: `${-i * PACK_W / SLICES}px`, width: `${PACK_W}px`, clipPath: TOP }, el('div.cq-pk-crimp')))));
-  const art = el('div.cq-pk-art', spec.art ? { backgroundImage: `url("${artUrl(spec.art)}")` } : {});
-  if (spec.chaos) art.innerHTML = CHAOS_MARK;
-  const body = el('div.cq-pk-body', { clipPath: BODY }, art, el('div.cq-pk-crimp'), el('div.cq-pk-name', {}, spec.name), el('div.cq-pk-sub', {}, spec.sub),
-    el('div.cq-pk-shade'), el('div.cq-pk-sheen'));
+  // The seal is cut into strips, so it can roll up behind the tear. Each strip paints only its own piece of the picture
+  const slices = Array.from({ length: SLICES }, (_, i) => el('div.cq-pk-slice', { left: `${i * PACK_W / SLICES}px`, width: `${PACK_W / SLICES + .6}px`,
+    backgroundSize: `${PACK_W}px auto`, backgroundPosition: `${-i * PACK_W / SLICES}px 0` }));
+  const top = el('div.cq-pk-top', { height: `${SEAL}%` }, ...slices);
+  const body = document.createElement('img');
+  body.className = 'cq-pk-body';
+  body.alt = '';
+  body.style.clipPath = `inset(${SEAL}% 0 0 0)`;
   const whole = el('div.cq-pk-whole', {}, body, top);
-  const zip = el('div.cq-pk-zip'), mouth = el('div.cq-pk-mouth');
+  const zip = el('div.cq-pk-zip', { top: `${SEAL}%` }), mouth = el('div.cq-pk-mouth', { top: `${SEAL}%` });
   const glow = [el('div.cq-pk-glow.far', { clipPath: OUTLINE }), el('div.cq-pk-glow.near', { clipPath: OUTLINE }),
     ...[20, 50, 78].map((x, i) => el('i.cq-pk-speck', { left: `${x}%`, animationDelay: `${-i * .9}s` }))];
   const pk = el(spec.chaos ? 'button.cq-pk.chaos' : 'button.cq-pk', {}, ...glow, mouth, el('div.cq-pk-lit', {}, whole), zip);
@@ -101,6 +100,16 @@ export function mountPack(host: HTMLElement, spec: PackSpec, hooks: PackHooks): 
   const cell = el('div.cq-bp-cell', {}, pk, hint);
   const stage = el('div.cq-bp-stage', {}, grid, cell);
   host.replaceChildren(stage);
+  // Hidden until its picture is ready, so it never opens empty
+  cell.style.visibility = 'hidden';
+  const ready = packPicture({ booster: spec.booster, title: spec.name, strip: spec.chaos ? spec.sub : undefined,
+    art: spec.art ? artUrl(spec.art) : null, mark: spec.chaos ? CHAOS_MARK.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" fill="none" stroke="#b79cff" stroke-width="2.4" stroke-linecap="round"') : null }).then(picture => {
+    body.src = picture;
+    slices.forEach(slice => { slice.style.backgroundImage = `url("${picture}")`; });
+    cell.style.visibility = '';
+  });
+  let pictured = false;
+  void ready.then(() => { pictured = true; });
 
   let opening: Promise<void> | null = null;
   let settle: () => void = () => { };
@@ -129,6 +138,7 @@ export function mountPack(host: HTMLElement, spec: PackSpec, hooks: PackHooks): 
   }
 
   function open(): Promise<void> {
+    if (!pictured) return ready.then(open);
     if (opening) return opening;
     opening = new Promise<void>(done => { settle = done; });
     hooks.opening();

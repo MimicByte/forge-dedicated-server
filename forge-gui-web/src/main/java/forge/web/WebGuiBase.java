@@ -12,6 +12,7 @@ import forge.gui.download.GuiDownloadService;
 import forge.gui.interfaces.IGuiBase;
 import forge.gui.interfaces.IGuiGame;
 import forge.item.PaperCard;
+import forge.item.SealedProduct;
 import forge.localinstance.skin.FSkinProp;
 import forge.model.FModel;
 import forge.localinstance.skin.ISkinImage;
@@ -269,6 +270,29 @@ public final class WebGuiBase implements IGuiBase, IHasForgeLog {
     /** The image key of a set's booster picture, named as BoosterPack names its first one. */
     public static String boosterImage(final CardEdition edition) {
         return ImageKeys.BOOSTER_PREFIX + edition.getCode() + (edition.getCntBoosterPictures() > 1 ? "_1" : "");
+    }
+
+    /** The words a sealed product's name ends with, after its set's or colour's name. */
+    private static final List<String> PRODUCTS = List.of("Booster Pack", "Fat Pack", "Booster Box", "Tournament Pack", "Starter Deck");
+
+    /** Whether a name is a sealed product's, such as "Bloomburrow Play Booster Pack" or "White Booster Pack". */
+    public static boolean isProductName(final String name) {
+        return PRODUCTS.stream().anyMatch(type -> name.endsWith(" " + type));
+    }
+
+    /** The booster picture of a sealed product named as isProductName expects, or null when no set or colour has that name. */
+    public static String boosterImageNamed(final String name) {
+        final String color = name.endsWith(" Booster Pack") ? name.substring(0, name.length() - " Booster Pack".length()) : null;
+        if (SealedProduct.specialSets.contains(color)) {
+            return ImageKeys.BOOSTER_PREFIX + color;
+        }
+        CardEdition best = null;
+        for (final CardEdition edition : FModel.getMagicDb().getEditions()) {
+            if (name.startsWith(edition.getName() + " ") && (best == null || edition.getName().length() > best.getName().length())) {
+                best = edition;
+            }
+        }
+        return best == null ? null : boosterImage(best);
     }
 
     /** The booster picture of the set most of these cards come from, or null when no set has at least half of them, as in a cube or a full card pool. */

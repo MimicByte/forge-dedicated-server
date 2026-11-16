@@ -332,10 +332,11 @@ public final class CampaignProtocol {
     public record PackCard(String name, String image, String rarity, int shards) {
     }
 
-    /** One step a reward shows. kind is the mode's name for it, and icon is the balance it pays into. MESSAGE and CARDS steps carry their own text. outcome "lost" marks cards lost to ante. */
+    /** One step a reward shows. kind is the mode's name for it, and icon is the balance it pays into. MESSAGE and CARDS steps carry their own text. outcome "lost" marks cards lost to ante.
+     *  packImage is a BOOSTER step's booster picture, for a pack from one set. */
     public record RewardStep(String kind, int amount, @Nullable String outcome, @Nullable List<PackCard> cards,
             int number, int total, boolean chaos, @Nullable String pack, @Nullable String art, @Nullable String icon,
-            @Nullable String title, @Nullable String text, @Nullable List<String> lines) {
+            @Nullable String title, @Nullable String text, @Nullable List<String> lines, @Nullable String packImage) {
     }
 
     /** What a match gave. It is already saved, and the browser shows it step by step. */

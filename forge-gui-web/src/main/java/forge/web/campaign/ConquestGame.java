@@ -351,7 +351,7 @@ public final class ConquestGame implements Campaign {
         final String title = s.kind() == ConquestRewardStep.Kind.REGION_COMMANDER
                 ? Localizer.getInstance().getMessage("lblConqueredNReceivedCommander", battle.getLocation().getRegion().getName()).replace("\n", " \u00b7 ") : null;
         return new RewardStep(s.kind().name(), s.amount(), s.outcome() == null ? null : s.outcome().name(), cards,
-                s.number(), s.total(), s.chaos(), pack, art, icon, title, null, null);
+                s.number(), s.total(), s.chaos(), pack, art, icon, title, null, null, null);
     }
 
     @Override

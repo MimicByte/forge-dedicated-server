@@ -300,7 +300,7 @@ html[data-motion="reduced"] .cq-wheel-stop .cq-dl::after { display: none; }
 .cq-bp-stage { position: relative; display: grid; place-items: center; min-height: 440px; }
 .cq-bp-stage > .cq-rv-grid { width: 100%; align-self: center; }
 .cq-bp-cell { position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: 30px; pointer-events: none; }
-.cq-pk { position: relative; width: 196px; height: 312px; padding: 0; border: 0; border-radius: 0; background: none; cursor: pointer; pointer-events: auto; animation: cq-pk-float 3.6s ease-in-out infinite; }
+.cq-pk { position: relative; width: 170px; height: 323px; padding: 0; border: 0; border-radius: 0; background: none; cursor: pointer; pointer-events: auto; animation: cq-pk-float 3.6s ease-in-out infinite; }
 @keyframes cq-pk-float { 50% { transform: translateY(-9px) rotate(-1deg); } }
 /* The same glow a hand card gets when it can be cast from another zone. Here it follows the pack's own outline. */
 .cq-pk-lit { position: absolute; inset: 0; transition: filter .35s ease;
@@ -314,27 +314,13 @@ html[data-motion="reduced"] .cq-wheel-stop .cq-dl::after { display: none; }
 /* The pack is a foil pouch, shaded to look padded, and crimped shut at both ends */
 .cq-pk-whole { position: absolute; inset: 0; }
 .cq-pk-top, .cq-pk-body { position: absolute; left: 0; right: 0; }
-.cq-pk-top { top: 0; height: 9%; transform-origin: 100% 50%; }
-.cq-pk-body { top: 9%; bottom: 0; overflow: hidden; }
-.cq-pk-slice { position: absolute; top: 0; height: 100%; overflow: hidden; will-change: transform; }
-.cq-pk-slice-in { position: absolute; top: 0; height: 100%; }
-.cq-pk-crimp { position: absolute; left: 0; right: 0; height: 100%;
-  background: repeating-linear-gradient(90deg, #ffffff30 0 1px, #00000030 1px 3px), linear-gradient(180deg, #8b98b4, #56617c 55%, #7c89a6); }
-.cq-pk-body .cq-pk-crimp { top: auto; bottom: 0; height: 9.9%; }
-.cq-pk-art { position: absolute; inset: 0 0 9.9%; background: #111 center / cover; display: grid; place-items: center; color: #b79cff; }
-.cq-pk-art::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, #0b0e1400 30%, #0b0e14d9 78%, #0b0e14 100%); }
-.cq-pk-art svg { width: 58%; margin-bottom: 22%; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
-.cq-pk-name { position: absolute; left: 4px; right: 4px; bottom: 24%; text-align: center; font: 700 20px/1.05 Georgia, "Times New Roman", serif; letter-spacing: .12em; text-transform: uppercase; color: var(--gold-hi); text-shadow: 0 2px 6px #000; }
-.cq-pk-sub { position: absolute; left: 0; right: 0; bottom: 17%; text-align: center; font: 700 9.5px/1 system-ui, sans-serif; letter-spacing: .28em; text-transform: uppercase; color: #cfd6e2; }
-.cq-pk-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, #000000b3 0, #00000000 14%, #ffffff24 40%, #00000000 58%, #00000099 100%); }
-.cq-pk-sheen { position: absolute; inset: 0; background: linear-gradient(105deg, transparent 40%, #ffffff3d 50%, transparent 60%); background-size: 280% 100%; animation: cq-pk-sheen 3.2s linear infinite; mix-blend-mode: screen; pointer-events: none; }
-@keyframes cq-pk-sheen { from { background-position: 140% 0; } to { background-position: -140% 0; } }
+.cq-pk-top { top: 0; transform-origin: 100% 50%; }
+.cq-pk-body { top: 0; display: block; width: 100%; }
+.cq-pk-slice { position: absolute; top: 0; height: 100%; background-repeat: no-repeat; will-change: transform; }
 /* One chaos pack is used for every chaos-battle booster. It has a darker foil, and the chaos mark in place of the plane's art. */
-.cq-pk.chaos .cq-pk-art { background: radial-gradient(circle at 50% 38%, #3a2a6e 0, #171033 46%, #07060f 100%); }
-.cq-pk.chaos .cq-pk-crimp { background: repeating-linear-gradient(90deg, #ffffff22 0 1px, #00000040 1px 3px), linear-gradient(180deg, #4a4470, #25223f 55%, #3d3861); }
 /* The tear has a point of light at its front. Light comes from the opening as far as the tear has gone. Flecks of foil fly off (.pk-fleck, limited.css). */
-.cq-pk-zip { position: absolute; left: 0; top: 9%; width: 12px; height: 12px; margin: -6px 0 0 -6px; z-index: 6; border-radius: 50%; pointer-events: none; background: #fff; box-shadow: 0 0 16px 7px #ffe2a0; opacity: 0; }
-.cq-pk-mouth { position: absolute; left: 0; right: 0; top: 9%; height: 6px; border-radius: 50%; background: #fff3d2; box-shadow: 0 0 34px 18px #ffdf9ccc; opacity: 0; pointer-events: none; }
+.cq-pk-zip { position: absolute; left: 0; width: 12px; height: 12px; margin: -6px 0 0 -6px; z-index: 6; border-radius: 50%; pointer-events: none; background: #fff; box-shadow: 0 0 16px 7px #ffe2a0; opacity: 0; }
+.cq-pk-mouth { position: absolute; left: 0; right: 0; height: 6px; border-radius: 50%; background: #fff3d2; box-shadow: 0 0 34px 18px #ffdf9ccc; opacity: 0; pointer-events: none; }
 .cq-pk-hint { margin: 0; font: 600 12.5px/1 system-ui, sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--gold-hi); animation: cq-breathe 2s ease-in-out infinite; }
 
 /* The cards are shown eight to a row, whatever count the pack held. A short last row is centred. */
@@ -366,7 +352,7 @@ html[data-motion="reduced"] .cq-wheel-stop .cq-dl::after { display: none; }
 .cq-mote { position: fixed; left: 0; top: 0; width: 22px; height: 22px; margin: -11px; z-index: 80; pointer-events: none; filter: drop-shadow(0 0 6px #7fe0ff); }
 .cq-mote[data-icon="ICO_QUEST_COINSTACK"] { filter: drop-shadow(0 0 6px var(--accent-2)); }
 
-html[data-motion="reduced"] :is(.cq-dl-glow, .cq-pk, .cq-pk-sheen, .cq-pk-speck, .cq-pk-hint) { animation: none; }
+html[data-motion="reduced"] :is(.cq-dl-glow, .cq-pk, .cq-pk-speck, .cq-pk-hint) { animation: none; }
 html[data-motion="reduced"] .cq-pk-glow { filter: blur(6px); }
 
 @media (max-width: 900px) {

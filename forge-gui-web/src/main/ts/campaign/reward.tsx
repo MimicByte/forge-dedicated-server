@@ -204,7 +204,7 @@ function PackStop({ step, release, next }: { step: RewardStep; release: (shards:
   useEffect(() => {
     pack.current = mountPack(host.current!, {
       name: step.chaos ? t('lblChaos') : step.pack ?? '', sub: step.chaos ? step.pack ?? '' : t('lblBoosterPack'),
-      art: step.chaos ? null : step.art ?? null, chaos: step.chaos, cards, hint: t('lblWebConquestClickToOpen'),
+      art: step.chaos ? null : step.art ?? null, chaos: step.chaos, booster: step.packImage ?? null, cards, hint: t('lblWebConquestClickToOpen'),
     }, {
       flipped: (card, rect) => { if (card.shards) flyShards(rect, () => { if (here.current) release(card.shards); }); },
       opening: () => setPhase('opening'),
