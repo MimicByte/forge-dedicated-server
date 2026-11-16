@@ -47,9 +47,10 @@ function loadImage(src: string, wait = 0): Promise<HTMLImageElement | null> {
 
 async function print(pack: PackPrint): Promise<string> {
   const pearl = !pack.art && !pack.mark;
-  const [base, crinkle] = await Promise.all([
+  // The pearl artwork has its lettering printed in dark ink. Any other wrapper takes the same lettering in silver
+  const [base, crinkle, lettering] = await Promise.all([
     pack.art ? loadImage(pack.art) : pack.mark ? loadImage(`data:image/svg+xml,${encodeURIComponent(pack.mark)}`) : loadImage('/booster/generic.jpg'),
-    loadImage('/booster/crinkle.jpg')]);
+    loadImage('/booster/crinkle.jpg'), pearl ? null : loadImage('/booster/lettering.png')]);
   const canvas = document.createElement('canvas');
   canvas.width = W;
   canvas.height = H;
@@ -87,15 +88,7 @@ async function print(pack: PackPrint): Promise<string> {
     [[0, '#00000080'], [.2, '#00000000'], [.56, '#00000000'], [.8, '#000000b0'], [1, '#000000c0']].forEach(([at, colour]) => shade.addColorStop(at as number, colour as string));
     g.fillStyle = shade;
     g.fillRect(0, 0, W, H);
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.fillStyle = '#f1f3f6';
-    g.font = `900 ${15 * S}px Georgia, "Times New Roman", serif`;
-    g.letterSpacing = `${3 * S}px`;
-    g.shadowColor = '#000000c0';
-    g.shadowBlur = 3 * S;
-    g.fillText('FORGE', W / 2 + 1.5 * S, H * .12);
-    g.shadowBlur = 0;
+    if (lettering) g.drawImage(lettering, 0, 0, W, W * lettering.height / lettering.width);
   }
 
   const strip = { y: H * (1 - .095 - .052), h: H * .052 };
