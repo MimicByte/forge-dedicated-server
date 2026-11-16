@@ -332,10 +332,9 @@ html[data-motion="reduced"] .cq-wheel-stop .cq-dl::after { display: none; }
 /* One chaos pack is used for every chaos-battle booster. It has a darker foil, and the chaos mark in place of the plane's art. */
 .cq-pk.chaos .cq-pk-art { background: radial-gradient(circle at 50% 38%, #3a2a6e 0, #171033 46%, #07060f 100%); }
 .cq-pk.chaos .cq-pk-crimp { background: repeating-linear-gradient(90deg, #ffffff22 0 1px, #00000040 1px 3px), linear-gradient(180deg, #4a4470, #25223f 55%, #3d3861); }
-/* The tear has a point of light at its front. Light comes from the opening as far as the tear has gone. Flecks of foil fly off. */
+/* The tear has a point of light at its front. Light comes from the opening as far as the tear has gone. Flecks of foil fly off (.pk-fleck, limited.css). */
 .cq-pk-zip { position: absolute; left: 0; top: 9%; width: 12px; height: 12px; margin: -6px 0 0 -6px; z-index: 6; border-radius: 50%; pointer-events: none; background: #fff; box-shadow: 0 0 16px 7px #ffe2a0; opacity: 0; }
 .cq-pk-mouth { position: absolute; left: 0; right: 0; top: 9%; height: 6px; border-radius: 50%; background: #fff3d2; box-shadow: 0 0 34px 18px #ffdf9ccc; opacity: 0; pointer-events: none; }
-.cq-pk-fleck { position: absolute; width: 6px; height: 3px; margin: -1px 0 0 -3px; background: linear-gradient(90deg, #fff, #f0c05a); opacity: 0; pointer-events: none; z-index: 7; }
 .cq-pk-hint { margin: 0; font: 600 12.5px/1 system-ui, sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--gold-hi); animation: cq-breathe 2s ease-in-out infinite; }
 
 /* The cards are shown eight to a row, whatever count the pack held. A short last row is centred. */

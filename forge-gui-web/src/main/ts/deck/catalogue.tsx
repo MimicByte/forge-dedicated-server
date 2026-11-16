@@ -1,6 +1,6 @@
 // The editor's left half. Cards the deck can't use are hidden until a filter shows them
 
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { imageUrl, hideBroken, smallImage } from '../images';
 import { lift, liftFromLine } from '../flight';
 import { ColourToggles, SymbolText, toggled } from '../symbols';
@@ -16,6 +16,7 @@ import { CARD_TYPES } from './decklist';
 import { t, type TextKey } from '../text';
 import { GROUP_NAMES, groupsOf, isCardPool } from '../formatmenu';
 import { Select } from '../select';
+import { playPackIntro, takeSealedIntro } from '../limited/packintro';
 
 export const TYPES: [string, TextKey][] = [['any', 'lblWebCatalogueAnyType'], ...CARD_TYPES.map(([type, , heading]): [string, TextKey] => [type.toLowerCase(), heading])];
 const SORTS: [string, TextKey][] = [['name', 'lblWebEditorSortName'], ['mv', 'lblWebDraftSortManaValue'], ['colour', 'lblWebEditorSortColour'],
@@ -117,6 +118,19 @@ export function Catalogue({ model, actions, state, handlers, adding, stopAdding 
     const key = choosesPrintings(state) ? preferredPrinting(row.name) : undefined;
     return key ? { ...row, image: key } : row;
   });
+  // A sealed pool that has just been opened is dealt onto its first page of cards
+  const grid = useRef<HTMLDivElement>(null);
+  const endIntro = useRef<() => void>(() => { });
+  useLayoutEffect(() => {
+    const el = grid.current;
+    if (!el || !rows.length || view !== 'cards') return;
+    const intro = takeSealedIntro();
+    if (!intro) return;
+    const bottom = el.getBoundingClientRect().bottom;
+    const tiles = [...el.querySelectorAll<HTMLElement>('.slot')].filter(s => s.getBoundingClientRect().bottom <= bottom + 1);
+    endIntro.current = playPackIntro(intro, el, tiles, (page?.total ?? rows.length) - tiles.length, null);
+  }, [rows.length > 0]);
+  useEffect(() => () => endIntro.current(), []);
   const counts = extra ? new Map(extra.cards.map(c => [c.name, c.count])) : countsInDeck(state);
   const room = (row: CatalogueRow, count: number) => (extra ? Infinity : roomFor(state, row, count));
   const canAdd = (row: CatalogueRow) => !row.problem && room(row, counts.get(row.name) ?? 0) > 0;
@@ -173,7 +187,7 @@ export function Catalogue({ model, actions, state, handlers, adding, stopAdding 
           <button aria-pressed={view === 'table'} onClick={() => { setView('table'); store(VIEW_KEY, 'table'); }}>{t('lblWebDraftList')}</button>
         </span>
       </div>
-      <div class={view === 'cards' ? 'cat-grid' : 'cat-table'} data-list onScroll={more}>
+      <div class={view === 'cards' ? 'cat-grid' : 'cat-table'} data-list onScroll={more} ref={grid}>
         {page && page.total === 0 && <Empty text={searched} identity={state.identity} hidden={page.hiddenBySwitch}
           showThem={() => setFilter(f => ({ ...f, showAll: true }))} />}
         {view === 'cards'

@@ -23,6 +23,7 @@ import { setting } from '../settings';
 import { Backdrop, Confirm, Dropdown } from '../dialog';
 import { campaigns } from '../campaigns';
 import { Select } from '../select';
+import { playPackIntro } from './packintro';
 
 type GroupBy = 'colour' | 'type' | 'mv' | 'pick';
 type PackSort = 'rarity' | 'colour' | 'mv' | 'rank';
@@ -216,11 +217,19 @@ function Pack({ state, faces, actions, log }: { state: DraftState; faces: string
   const grid = useRef<HTMLDivElement>(null);
   const shown = useRef('');
   const cards = state.cards.map(c => c.image).join('|');
+  const endIntro = useRef<() => void>(() => { });
   useLayoutEffect(() => {
     if (cards === shown.current) return;
     shown.current = cards;
-    if (grid.current && state.cards.length) arrive(grid.current, -passSide(state.direction) as -1 | 1);
+    if (!grid.current || !state.cards.length) return;
+    // The draft's first pack is opened on screen. Every later pack slides in from the seat it came from
+    if (state.pack === 1 && state.pick === 1 && !state.picks.length) {
+      endIntro.current = playPackIntro({ title: state.product || t('lblBoosterDraft'), line: t('lblWebIntroDraftLine', state.seats.length, state.packs),
+        packImage: state.packImage ?? null, packs: state.packs }, grid.current, [...grid.current.querySelectorAll<HTMLElement>('.draft-slot .tile')], 0,
+      grid.current.closest('.draft-pack')?.querySelector<HTMLElement>('.pick-title') ?? null);
+    } else arrive(grid.current, -passSide(state.direction) as -1 | 1);
   }, [cards]);
+  useEffect(() => () => endIntro.current(), []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Enter' && selected !== null && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement)) pick(selected);

@@ -39,6 +39,7 @@ import { forgetWakeLock, keepAwake } from './wakelock';
 import { deleteDeviceDeck, listDeviceDecks, putDeviceDeck } from './deck/devicedecks';
 import type { Send, ServerMessage } from './protocol';
 import { closeShownZones } from './match/zones';
+import { packsOpened } from './limited/packintro';
 
 const model = createModel();
 const pacer = createPacer(model, apply);
@@ -370,6 +371,7 @@ function apply(msg: ServerMessage): void {
     case 'cardSearch': model.cardNames = msg.names ?? []; break;
     case 'printings': model.printings = { name: msg.name, list: msg.printings ?? [] }; break;
     case 'hostChoice': model.hostChoice = msg; break;
+    case 'packsOpened': packsOpened(msg.packImage ?? null); break;
     case 'error':
       // A stored name can belong to someone else on this server. It is forgotten so the player is asked for another
       if (model.nameSent) {

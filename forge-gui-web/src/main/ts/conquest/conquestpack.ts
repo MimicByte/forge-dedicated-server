@@ -5,6 +5,7 @@ import { artUrl } from '../sleeves';
 import { CHAOS_MARK } from './conquestwheel';
 import type { PackCard } from '../protocol';
 import { reducedMotion } from '../dom';
+import { FIRST_CARD, FLIGHT, SLICES, STAGGER, fly, tear } from '../packopen';
 
 interface PackSpec {
   name: string;
@@ -35,7 +36,6 @@ export interface Pack {
 
 /** The pack's width. The peel calculation and the stylesheet both use it. */
 const PACK_W = 196;
-const SLICES = 16;
 /** The seal's height, as a percentage of the pack's height. */
 const SEAL = 9;
 const SOFT = 'cubic-bezier(.22,.8,.26,1)';
@@ -144,48 +144,17 @@ export function mountPack(host: HTMLElement, spec: PackSpec, hooks: PackHooks): 
     const n = cards.length, mid = (n - 1) / 2;
     const px = box.left + box.width / 2;
 
-    // The seal peels from one corner. The tear runs across, and the freed seal is pulled up and back in an arc behind it
-    const W = box.width, R = 84, D = 640, S = 30, w = W / SLICES;
-    const prog = (u: number) => { const v = Math.max(0, (u - .14) / .86); return v < .5 ? 2 * v * v : 1 - (-2 * v + 2) ** 2 / 2; };
-    const sample = <T>(fn: (xk: number) => T): T[] => Array.from({ length: S + 1 }, (_, j) => fn(prog(j / S) * (W + 8)));
-    [...top.children].forEach((slice, i) => {
-      const x = (i + .5) * w;
-      slice.animate(sample(xk => {
-        const s = Math.max(0, xk - x), a = s / R;
-        return { transform: `translate(${s ? xk - R * Math.sin(a) - x : 0}px, ${-R * (1 - Math.cos(a))}px) rotate(${a}rad)` };
-      }), { duration: D, fill: 'forwards' });
-    });
-    top.animate([{ transform: 'none', opacity: 1 }, { transform: 'translate(60px, -90px) rotate(70deg)', opacity: 1, offset: .5 }, { transform: 'translate(150px, 40px) rotate(200deg)', opacity: 0 }],
-      { duration: 520, delay: D + 30, easing: 'cubic-bezier(.3,.6,.6,1)', fill: 'forwards' });
-    zip.animate(sample(xk => ({ left: `${xk}px`, opacity: 1 })), { duration: D, fill: 'forwards' });
-    zip.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, delay: D, fill: 'forwards' });
-    mouth.animate(sample(xk => ({ opacity: 1, clipPath: `inset(-70px ${Math.max(0, 100 - 100 * xk / W)}% -70px -70px)` })), { duration: D, fill: 'forwards' });
-    pk.animate([{ transform: 'none' }, { transform: 'rotate(-3deg) translate(-5px, 2px)', offset: .13 }, { transform: 'rotate(2.5deg) translate(4px, -2px)', offset: .55 },
-      { transform: 'rotate(-1.2deg) translate(-1px, 3px)', offset: .82 }, { transform: 'none' }], { duration: D + 260, easing: 'ease-in-out' });
-    for (let k = 0; k < 14; k++) {
-      const u = .2 + k * .055, side = (k * 37) % 17 - 8, rise = 26 + (k * 53) % 34;
-      const fleck = el('i.cq-pk-fleck', { left: `${prog(u) * W}px`, top: `${SEAL}%` });
-      pk.append(fleck);
-      fleck.animate([{ transform: 'translate(0, 0) rotate(0deg)', opacity: 1 }, { transform: `translate(${side * 2.4}px, ${-rise}px) rotate(200deg)`, opacity: 1, offset: .4, easing: 'ease-in' },
-        { transform: `translate(${side * 4.4}px, ${50 + rise}px) rotate(520deg)`, opacity: 0 }], { duration: 620, delay: u * D, easing: 'ease-out', fill: 'both' });
-    }
-    pk.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 460, delay: 700 + n * 78 + 120, easing: 'ease-in', fill: 'forwards' });
+    tear({ pk, top, zip, mouth, seal: SEAL }, box.width);
+    pk.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 460, delay: FIRST_CARD + n * STAGGER + 120, easing: 'ease-in', fill: 'forwards' });
 
-    // Each card moves sideways and vertically on separate curves, so its path from the mouth to its place bends
-    const FLIGHT = 860;
     let flipAt = 0;
     const flips = slots.map((slot, i) => {
       const card = slot.firstElementChild as HTMLElement, y = card.firstElementChild as HTMLElement, inner = y.firstElementChild as HTMLElement;
       const r = slot.getBoundingClientRect();
       const dx = px - (r.left + r.width / 2), mouthDy = box.top + box.height * SEAL / 100 - (r.top + r.height / 2);
-      const start = 700 + i * 78, lean = (i - mid) * 3.2;
+      const start = FIRST_CARD + i * STAGGER;
       slot.classList.add('shown');
-      // The flight ends where the card rests, so it does not fill forwards. A card with an animation left on it gets no hover preview
-      card.animate([{ transform: `translateX(${dx}px) rotate(0deg) scale(.6)`, opacity: 0 }, { transform: `translateX(${dx}px) rotate(0deg) scale(.6)`, opacity: 1, offset: .06, easing: 'cubic-bezier(.3,.6,.5,1)' },
-        { transform: `translateX(${dx * .86}px) rotate(${lean}deg) scale(.72)`, opacity: 1, offset: .34, easing: 'cubic-bezier(.45,0,.3,1)' }, { transform: 'translateX(0px) rotate(0deg) scale(1)', opacity: 1 }],
-        { duration: FLIGHT, delay: start, fill: 'backwards' });
-      y.animate([{ transform: `translateY(${mouthDy + 96}px)`, easing: 'cubic-bezier(.3,.7,.4,1)' }, { transform: `translateY(${mouthDy - 118}px)`, offset: .34, easing: 'cubic-bezier(.45,0,.3,1)' }, { transform: 'translateY(0px)' }],
-        { duration: FLIGHT, delay: start, fill: 'both' });
+      fly(card, y, dx, mouthDy + 96, mouthDy - 118, start, (i - mid) * 3.2);
       // A card flips as it lands, but no sooner after the previous card than its rarity's delay allows
       const rare = isRare(cards[i].rarity);
       flipAt = Math.max(start + FLIGHT * .6, i ? flipAt + (GAP[cards[i].rarity] ?? 70) : 0);

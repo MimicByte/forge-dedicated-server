@@ -121,14 +121,14 @@ public final class ToBrowser {
     public record DeckDetailsMessage(DeckDetails deck) {
     }
 
-    /** aiSkips names the main deck's cards the AI will not play. It is left out when the AI plays them all. */
+    /** aiSkips names the main deck's cards the AI will not play. It is left out when the AI plays them all. cover is the image key of the card the deck box shows. */
     public record DeckDetails(String key, String name, @Nullable String problem, String colors, DeckStats stats,
             List<EditorGroup> main, List<EditorCard> sideboard, @Nullable String sleeveArt, int sleeveOffset,
-            @Nullable Bracket bracket, @Nullable List<String> aiSkips) {
+            @Nullable Bracket bracket, @Nullable List<String> aiSkips, @Nullable String cover) {
         public DeckDetails(final String key, final String name, final String problem, final String colors, final DeckStats stats,
                 final List<EditorGroup> main, final List<EditorCard> sideboard, final String sleeveArt, final int sleeveOffset,
                 final Bracket bracket) {
-            this(key, name, problem, colors, stats, main, sideboard, sleeveArt, sleeveOffset, bracket, null);
+            this(key, name, problem, colors, stats, main, sideboard, sleeveArt, sleeveOffset, bracket, null, null);
         }
     }
 
@@ -660,11 +660,17 @@ public final class ToBrowser {
     public record Opponent(String name, String colors) {
     }
 
-    /** pick counts from 1 within the pack. direction is 1 while packs pass to the next seat and -1 while they pass to the previous one. */
+    /** pick counts from 1 within the pack. direction is 1 while packs pass to the next seat and -1 while they pass to the previous one.
+     *  packImage is the booster picture of the pack's set, or null when the pack has no main set. */
     @Message("draft")
     public record DraftState(int step, String product, int pack, int packs, int pick, int packSize, int direction, List<DraftSeat> seats,
             List<DraftCard> cards, List<DraftCard> picks, List<Integer> moved, int clockSeconds, int clockLeftMillis,
-            List<DraftLogLine> log, boolean done) {
+            List<DraftLogLine> log, boolean done, @Nullable String packImage) {
+    }
+
+    /** A sealed pool's packs are open, and its deck opens in the editor next. packImage is as in DraftState. */
+    @Message("packsOpened")
+    public record PacksOpened(@Nullable String packImage) {
     }
 
     /** A line of the draft log: the start of a pack, the player's own pick, or another seat's pick. */

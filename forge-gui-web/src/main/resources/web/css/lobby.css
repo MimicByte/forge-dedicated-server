@@ -463,6 +463,19 @@ html:not([data-form="portrait"]) .finder:has(.rail) :is(.dk-chosen, .finder-foot
 .dk-chosen-title h3 { margin: 0; min-width: 0; }
 .dk-chosen-title .seg { flex: none; }
 .dk-chosen-title .seg button { padding: 2px 9px; font-size: 11.5px; }
+.dk-banner { display: flex; align-items: center; gap: 18px; }
+.dk-banner-text { flex: 1; min-width: 0; }
+/* A deck box drawn in CSS (deckfinder.tsx). The cover card's art covers the front, and the deck's tint colours the side and lid */
+.dk-box { position: relative; flex: none; width: 80px; height: 110px; margin: 10px 14px 4px 0; }
+.dk-box i { position: absolute; display: block; }
+.dk-box .front { inset: 0; border-radius: 3px; background: var(--art) center / cover no-repeat, var(--surface-3); box-shadow: inset 0 0 0 1px #ffffff30, 0 6px 14px #0009; }
+.dk-box .front::before { content: ''; position: absolute; inset: 0; border-radius: 3px; background: linear-gradient(115deg, #ffffff26 0%, transparent 30%, transparent 64%, #00000059 100%); }
+.dk-box .front::after { content: ''; position: absolute; left: 0; right: 0; top: 24%; height: 1px; background: #0000008c; box-shadow: 0 1px 0 #ffffff2a; }
+.dk-box .side { top: 0; bottom: 0; left: 100%; width: 15px; transform: skewY(-28deg); transform-origin: left top; border-radius: 0 2px 2px 0; box-shadow: inset 0 0 0 1px #ffffff14;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tint-b, var(--line-bright)) 60%, #0c0e12), color-mix(in srgb, var(--tint-a, var(--line)) 40%, #050608)); }
+.dk-box .side::after { content: ''; position: absolute; left: 0; right: 0; top: 24%; height: 1px; background: #00000080; }
+.dk-box .lid { left: 0; right: 0; top: -8px; height: 8px; transform: skewX(-62deg); transform-origin: left bottom;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--tint-a, var(--line-bright)) 60%, #1a1d24), color-mix(in srgb, var(--tint-b, var(--line)) 50%, #14171d)); }
 .verdict { margin: 0; font-size: 13px; }
 .verdict.yes { color: var(--muted); }
 

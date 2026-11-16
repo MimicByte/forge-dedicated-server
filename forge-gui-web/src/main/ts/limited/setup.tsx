@@ -123,11 +123,11 @@ export function sealedSentence(options: LimitedOptions, v: SealedValue): string 
 }
 
 /** How many packs a sealed pool opens, for products where the form asks. A CubeCobra pool opens one more than the number asked for. */
-function packCount(v: SealedValue): number | undefined {
+export function packCount(v: SealedValue): number | undefined {
   return hasPackCount(v) && v.packs !== undefined ? v.packs + (v.product === 'Import' ? 1 : 0) : undefined;
 }
 
-function sealedProduct(options: LimitedOptions, v: SealedValue): string | null {
+export function sealedProduct(options: LimitedOptions, v: SealedValue): string | null {
   if (!v.product) return null;
   if (isBlock(v)) return v.block ?? productName(v.product);
   if (v.product === 'Prerelease') return options.prereleases.find(e => e.code === v.edition)?.name ?? productName(v.product);

@@ -18,6 +18,8 @@ import { CloseButton } from '../dialog';
 import { useDebounced } from '../hooks';
 import { isPortrait } from '../form';
 import { Select } from '../select';
+import { artUrl } from '../images';
+import { cssUrl } from '../avatarsleeves';
 
 /** Each net-deck category is a separate source. They share one source button, which lists the categories under it. */
 const NET = 'net';
@@ -610,6 +612,15 @@ function headTint(colors: string): Record<string, string> | undefined {
   return { '--tint-a': frame(letters[0]), '--tint-b': frame(letters[letters.length - 1]) };
 }
 
+/** A deck box drawn in CSS. The cover card's art covers its front, and the deck's tint colours its side and lid. */
+function DeckBox({ cover }: { cover: string }) {
+  return (
+    <span class="dk-box" aria-hidden="true" style={{ '--art': cssUrl(artUrl(cover)) }}>
+      <i class="lid" /><i class="side" /><i class="front" />
+    </span>
+  );
+}
+
 /** listed is the deck's name in the list. A generated deck is built without a name, so its details have none */
 function Chosen({ details, listed, formats, forComputer }: { details: DeckDetails; listed?: string; formats?: string; forComputer: boolean }) {
   const s = details.stats;
@@ -621,14 +632,17 @@ function Chosen({ details, listed, formats, forComputer }: { details: DeckDetail
     <>
       <div class="dk-chosen-head">
         <div class={tint ? 'dk-banner' : 'dk-banner bare'} style={tint}>
-          <div class="dk-chosen-title">
-            <h3>{details.name || listed} <span class="pips"><Pips colors={details.colors} /></span></h3>
-            <span class="seg view-seg" role="group" aria-label={t('lblWebEditorShowDeckAs')}>
-              <button aria-pressed={cards} onClick={() => view(true)}>{t('lblCards')}</button>
-              <button aria-pressed={!cards} onClick={() => view(false)}>{t('lblWebDraftList')}</button>
-            </span>
+          {details.cover && <DeckBox cover={details.cover} />}
+          <div class="dk-banner-text">
+            <div class="dk-chosen-title">
+              <h3>{details.name || listed} <span class="pips"><Pips colors={details.colors} /></span></h3>
+              <span class="seg view-seg" role="group" aria-label={t('lblWebEditorShowDeckAs')}>
+                <button aria-pressed={cards} onClick={() => view(true)}>{t('lblCards')}</button>
+                <button aria-pressed={!cards} onClick={() => view(false)}>{t('lblWebDraftList')}</button>
+              </span>
+            </div>
+            <p class="sizes">{s.sideboard ? t('lblWebEditorSizes', s.total, s.sideboard, s.lands) : t('lblWebFinderSizesNoSideboard', s.total, s.lands)}</p>
           </div>
-          <p class="sizes">{s.sideboard ? t('lblWebEditorSizes', s.total, s.sideboard, s.lands) : t('lblWebFinderSizesNoSideboard', s.total, s.lands)}</p>
         </div>
         <p class={details.problem ? 'verdict no' : 'verdict yes'}>{details.problem ?? t('lblWebFinderLegalForFormat')}</p>
         {formats && <p class="deck-formats">{formats}</p>}

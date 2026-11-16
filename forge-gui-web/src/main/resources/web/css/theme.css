@@ -1,6 +1,6 @@
 /* Z-index layers, lowest first. Below 0: the board's backdrops. 1-10: layers inside the table. 20-35: the match's panels and bars, menus inside a page, the editor panel and the dock.
    38: notices. 40-45: cards in flight (motion.ts, leaving.ts, stack.ts), open zones and the stack next to them, and the out-of-game banner. 50-61: scrims and what is drawn on them.
-   This includes dialogs, sheets, reveals, the game-end screen and a card flying between lists (flight.ts). 62: planeswalking in a conquest. 65: the turn banner. 70: the card preview, the stack menu, the coin toss,
+   This includes dialogs, sheets, reveals, the game-end screen, a limited event's opening (packintro.ts) and a card flying between lists (flight.ts). 62: planeswalking in a conquest. 65: the turn banner. 70: the card preview, the stack menu, the coin toss,
    the who-goes-first reveal and the importer. 80: the host's questions, the concede question, the hit flash and conquest's shards. 90: tips, dragged items and the press ring.
    95-100: the phone's leave question, the warning to turn the phone, and the connection banner. A max-width rule below 900px also applies to a phone held upright (form.ts). */
 /* One width for every card preview */

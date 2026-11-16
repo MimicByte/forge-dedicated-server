@@ -13,6 +13,7 @@ import forge.gui.interfaces.IGuiBase;
 import forge.gui.interfaces.IGuiGame;
 import forge.item.PaperCard;
 import forge.localinstance.skin.FSkinProp;
+import forge.model.FModel;
 import forge.localinstance.skin.ISkinImage;
 import forge.sound.IAudioClip;
 import forge.sound.IAudioMusic;
@@ -51,6 +52,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /** Forge's interface to the program it runs in, implemented for the web. One "WebUI" thread takes the place of Swing's event thread. */
 public final class WebGuiBase implements IGuiBase, IHasForgeLog {
@@ -267,6 +269,15 @@ public final class WebGuiBase implements IGuiBase, IHasForgeLog {
     /** The image key of a set's booster picture, named as BoosterPack names its first one. */
     public static String boosterImage(final CardEdition edition) {
         return ImageKeys.BOOSTER_PREFIX + edition.getCode() + (edition.getCntBoosterPictures() > 1 ? "_1" : "");
+    }
+
+    /** The booster picture of the set most of these cards come from, or null when no set has at least half of them, as in a cube or a full card pool. */
+    public static String boosterImageOf(final Collection<PaperCard> cards) {
+        return cards.stream().collect(Collectors.groupingBy(PaperCard::getEdition, Collectors.counting())).entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .filter(e -> e.getValue() * 2 >= cards.size())
+                .map(e -> FModel.getMagicDb().getEditions().get(e.getKey()))
+                .map(WebGuiBase::boosterImage).orElse(null);
     }
 
     @Override public ISkinImage getSkinIcon(final FSkinProp skinProp) { return new WebSkinImage(skinProp, null); }

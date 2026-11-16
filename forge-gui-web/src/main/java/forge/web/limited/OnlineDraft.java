@@ -9,6 +9,7 @@ import forge.gamemodes.net.event.NetEvent;
 import forge.gui.interfaces.IDraftEventHandler;
 import forge.item.PaperCard;
 import forge.util.Localizer;
+import forge.web.WebGuiBase;
 import forge.web.protocol.ToBrowser.DraftCard;
 import forge.web.protocol.ToBrowser.DraftLogKind;
 import forge.web.protocol.ToBrowser.DraftSeat;
@@ -237,6 +238,6 @@ public final class OnlineDraft implements IDraftEventHandler, Draft {
         final int left = clockEnd == 0 ? 0 : (int) Math.max(0, clockEnd - System.currentTimeMillis());
         publish.accept(view.state(newPack, step -> new DraftState(step, e == null || e.getProductDescription() == null ? "" : e.getProductDescription(), packNumber,
                 e == null ? 0 : e.getNumRounds(), pick, packSize, DraftView.passDirection(packNumber), seats, cards, List.copyOf(picks), movedHere,
-                clockSeconds, left, view.lines(), false)));
+                clockSeconds, left, view.lines(), false, WebGuiBase.boosterImageOf(pack))));
     }
 }

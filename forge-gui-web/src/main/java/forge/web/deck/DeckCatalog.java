@@ -17,6 +17,7 @@ import forge.deck.io.DeckPreferences;
 import forge.game.GameFormat;
 import forge.game.GameType;
 import forge.gamemodes.quest.QuestController;
+import forge.item.PaperCard;
 import forge.localinstance.properties.ForgePreferences.FPref;
 import forge.model.FModel;
 import forge.util.Localizer;
@@ -230,8 +231,15 @@ public final class DeckCatalog {
                     CardCatalog.groups(deck.getMain(), NO_FLAGS), CardCatalog.cards(deck.get(DeckSection.Sideboard), NO_FLAGS),
                     deck.getSleeveArtKey(),
                     deck.getSleeveArtOffset(),
-                    format == GameType.Commander ? DeckFacts.bracket(deck) : null, DeckFacts.aiSkipNames(deck));
+                    format == GameType.Commander ? DeckFacts.bracket(deck) : null, DeckFacts.aiSkipNames(deck), coverKey(key));
         }
+    }
+
+    /** The image key of the card the deck box shows, picked as desktop picks a deck's cover. A generated deck has none. */
+    private String coverKey(final String key) {
+        final Entry e = byKey.get(key);
+        final PaperCard cover = e == null || e.proxy() == null ? null : e.proxy().getCoverCard();
+        return cover == null ? null : cover.getImageKey(false);
     }
 
     /** The keys of listed decks that hold a matching card. A card matches by name outside or inside the sideboard, or by set code or set name. */

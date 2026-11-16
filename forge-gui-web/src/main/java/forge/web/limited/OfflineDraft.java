@@ -10,6 +10,7 @@ import forge.gamemodes.limited.LimitedPlayer;
 import forge.gamemodes.limited.LimitedPlayerAI;
 import forge.item.PaperCard;
 import forge.util.Localizer;
+import forge.web.WebGuiBase;
 import forge.web.protocol.ToBrowser.DraftCard;
 import forge.web.protocol.ToBrowser.DraftSeat;
 import forge.web.protocol.ToBrowser.DraftState;
@@ -161,6 +162,6 @@ public final class OfflineDraft implements Draft {
         // Offline, all packs are passed at the same time, so a pass moves every seat's pack
         final List<Integer> moved = passed ? IntStream.range(0, seats.size()).boxed().toList() : List.of();
         publish.accept(view.state(newPack, step -> new DraftState(step, product, round, draft.getNumRounds(), pick, packSize,
-                DraftView.passDirection(round), seats, cards, List.copyOf(picks), moved, 0, 0, List.of(), done)));
+                DraftView.passDirection(round), seats, cards, List.copyOf(picks), moved, 0, 0, List.of(), done, WebGuiBase.boosterImageOf(pack))));
     }
 }

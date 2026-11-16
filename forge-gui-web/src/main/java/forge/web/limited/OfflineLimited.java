@@ -178,6 +178,7 @@ public final class OfflineLimited implements IHasForgeLog {
                     session.move(now, new Event(EventKind.sealed, name));
                 }
                 session.tell(OfflinePools.pools());
+                session.tell(new PacksOpened(WebGuiBase.boosterImageOf(group.getHumanDeck().getAllCardsInASinglePool().toFlatList())));
                 decks.openPool(group.getHumanDeck(), OfflinePools.sealed(), GameType.Sealed, null, session.browser());
             } finally {
                 openingPacks.set(false);
