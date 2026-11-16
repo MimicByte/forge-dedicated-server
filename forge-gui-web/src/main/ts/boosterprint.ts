@@ -118,7 +118,8 @@ async function print(pack: PackPrint): Promise<string> {
   let size = 23 * S;
   const font = () => `small-caps 700 ${size}px Georgia, "Times New Roman", serif`;
   g.font = font();
-  const lines = balance(g, pack.title, W - 16 * S);
+  // The strip and the lettering already say booster pack, as in a quest product named "Green Booster Pack"
+  const lines = balance(g, pack.title.replace(/ Booster Pack$/, ''), W - 16 * S);
   const widest = Math.max(...lines.map(line => g.measureText(line).width));
   if (widest > W - 16 * S) {
     size *= (W - 16 * S) / widest;
