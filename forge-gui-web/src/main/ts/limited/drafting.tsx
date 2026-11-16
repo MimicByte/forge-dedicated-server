@@ -224,7 +224,7 @@ function Pack({ state, faces, actions, log }: { state: DraftState; faces: string
     if (!grid.current || !state.cards.length) return;
     // The draft's first pack is opened on screen. Every later pack slides in from the seat it came from
     if (state.pack === 1 && state.pick === 1 && !state.picks.length) {
-      endIntro.current = playPackIntro({ title: state.product || t('lblBoosterDraft'), line: t('lblWebIntroDraftLine', state.seats.length, state.packs),
+      endIntro.current = playPackIntro({ title: state.product || t('lblBoosterDraft'), line: [t('lblWebDraftProductSeats', t('lblBoosterDraft'), state.seats.length), t('lblWebSetupNPacks', state.packs)].join(' \u00b7 '),
         packImage: state.packImage ?? null, packs: state.packs }, grid.current, [...grid.current.querySelectorAll<HTMLElement>('.draft-slot .tile')], 0,
       grid.current.closest('.draft-pack')?.querySelector<HTMLElement>('.pick-title') ?? null);
     } else arrive(grid.current, -passSide(state.direction) as -1 | 1);

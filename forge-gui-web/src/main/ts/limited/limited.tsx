@@ -94,7 +94,7 @@ function SealedSetup({ model, actions }: { model: Model; actions: Actions }) {
   const send = (replace: boolean) => {
     setBusy(true);
     const packs = packCount(value) ?? 6;
-    expectSealedIntro({ title: sealedProduct(options, value) ?? t('lblSealed'), line: t('lblWebIntroSealedLine', packs), packImage: null, packs });
+    expectSealedIntro({ title: sealedProduct(options, value) ?? t('lblSealed'), line: [t('lblSealed'), t('lblWebSetupNPacks', packs), t('lblWebSetupFortyOrMore')].join(' \u00b7 '), packImage: null, packs });
     actions.sealedCreate({
       product: value.product!, block: value.block, combo: value.combo, edition: value.edition, template: value.template,
       cubeId: value.cubeId, packs: value.packs ?? 0, name: value.name!, replace,

@@ -115,7 +115,7 @@ export function playPackIntro(intro: PackIntro, grid: HTMLElement, tiles: HTMLEl
   const scrim = make('div', 'pi-scrim');
   const title = make('div', 'pi-title');
   title.append(Object.assign(make('div', 'pi-set'), { textContent: intro.title }), Object.assign(make('div', 'pi-line'), { textContent: intro.line }));
-  const skip = Object.assign(make('div', 'pi-skip'), { textContent: t('lblWebIntroSkip') });
+  const skip = Object.assign(make('div', 'pi-skip'), { textContent: t('lblSkip') });
   const flyers = make('div', 'pi-flyers'), packs = make('div', 'pi-packs');
   layer.append(scrim, title, flyers, packs, skip);
   grid.style.opacity = '0';
