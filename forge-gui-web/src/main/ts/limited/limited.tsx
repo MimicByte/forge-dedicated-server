@@ -4,7 +4,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { Shelf } from '../shelf';
 import { StepForm } from '../stepform';
 import { draftCombo, draftSteps, draftTicket, packCount, sealedAction, sealedProduct, sealedSteps, sealedTicket, type DraftValue, type SealedValue } from './setup';
-import { expectSealedIntro } from './packintro';
+import { expectSealedIntro, sealedIntro } from './packintro';
 import { BackButton, backStep, HeadControls, PageHeader, PhoneHead, SetupHead, WAY_NAMES } from '../header';
 import { isPortrait } from '../form';
 import { COLOUR_NAMES, Pips } from '../symbols';
@@ -93,8 +93,7 @@ function SealedSetup({ model, actions }: { model: Model; actions: Actions }) {
   if (!options) return <p class="muted pools-wait">{t('lblWebLimitedReadingOpen')}</p>;
   const send = (replace: boolean) => {
     setBusy(true);
-    const packs = packCount(value) ?? 6;
-    expectSealedIntro({ title: sealedProduct(options, value) ?? t('lblSealed'), line: [t('lblSealed'), t('lblWebSetupNPacks', packs), t('lblWebSetupFortyOrMore')].join(' \u00b7 '), packImage: null, packs });
+    expectSealedIntro(sealedIntro(sealedProduct(options, value) ?? t('lblSealed'), packCount(value) ?? 6));
     actions.sealedCreate({
       product: value.product!, block: value.block, combo: value.combo, edition: value.edition, template: value.template,
       cubeId: value.cubeId, packs: value.packs ?? 0, name: value.name!, replace,

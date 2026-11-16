@@ -6,6 +6,7 @@ import { rememberedSleeve } from '../identity';
 import { make, reducedMotion } from '../dom';
 import { FIRST_CARD, FLIGHT, SLICES, STAGGER, fly, tear } from '../packopen';
 import { t } from '../text';
+import type { PacksOpened } from '../protocol';
 
 export interface PackIntro {
   title: string;
@@ -30,16 +31,23 @@ const ROW_RISE = [0, 180, 70, 320, 140, 260];
 /** When each sealed pack tears, after the first. The middle packs go first and the ends last. */
 const ROW_TEAR = [380, 140, 0, 230, 520, 660];
 
-/** A sealed event's intro, from the form, and whether the server has opened its packs. A pool that failed to open never plays it. */
+/** A sealed event's intro, and whether the server has opened its packs. A pool that failed to open never plays it. */
 let pending: { intro: PackIntro; opened: boolean } | null = null;
 
+export function sealedIntro(title: string, packs: number): PackIntro {
+  return { title, line: [t('lblSealed'), t('lblWebSetupNPacks', packs), t('lblWebSetupFortyOrMore')].join(' · '), packImage: null, packs };
+}
+
+/** Keeps the intro of the sealed event this browser's form is opening. */
 export function expectSealedIntro(intro: PackIntro): void {
   pending = { intro, opened: false };
 }
 
-/** The server opened the packs. It does nothing when this browser was not opening a sealed pool. */
-export function packsOpened(packImage: string | null): void {
-  if (pending) pending = { intro: { ...pending.intro, packImage }, opened: true };
+/** The server opened a sealed pool's packs. An online event names its product. Offline, the intro kept from the form is used, and nothing plays without one. */
+export function packsOpened(msg: PacksOpened): void {
+  const packImage = msg.packImage ?? null;
+  if (msg.product) pending = { intro: { ...sealedIntro(msg.product, msg.packs), packImage }, opened: true };
+  else if (pending) pending = { intro: { ...pending.intro, packImage }, opened: true };
 }
 
 /** The sealed intro to play now, once, when the packs it was kept for are open. */

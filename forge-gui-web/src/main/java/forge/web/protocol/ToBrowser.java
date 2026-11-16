@@ -668,9 +668,10 @@ public final class ToBrowser {
             List<DraftLogLine> log, boolean done, @Nullable String packImage) {
     }
 
-    /** A sealed pool's packs are open, and its deck opens in the editor next. packImage is as in DraftState. */
+    /** A sealed pool's packs are open, and its deck opens in the editor next. packImage is as in DraftState.
+     *  An online event names its product and pack count. Offline they are left out, because the browser's own form chose them. */
     @Message("packsOpened")
-    public record PacksOpened(@Nullable String packImage) {
+    public record PacksOpened(@Nullable String product, int packs, @Nullable String packImage) {
     }
 
     /** A line of the draft log: the start of a pack, the player's own pick, or another seat's pick. */

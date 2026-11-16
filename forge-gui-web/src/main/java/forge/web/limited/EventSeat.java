@@ -6,6 +6,7 @@ import forge.gamemodes.match.GameLobby;
 import forge.gamemodes.net.EventFormat;
 import forge.gamemodes.net.NetworkEventView;
 import forge.gamemodes.net.server.ServerGameLobby;
+import forge.item.PaperCard;
 import forge.model.FModel;
 import forge.util.storage.IStorage;
 import forge.web.WebGuiBase;
@@ -19,7 +20,9 @@ import forge.web.match.NetplaySeat;
 import forge.web.match.WebGuiGame;
 import forge.web.protocol.BrowserChannel;
 import forge.web.protocol.ToBrowser.DraftState;
+import forge.web.protocol.ToBrowser.PacksOpened;
 
+import java.util.List;
 import java.util.function.Supplier;
 
 /** One session's seat in its table's draft or sealed event. It tracks the draft it picks in, the pool it is dealt, and its player leaving and returning. */
@@ -151,6 +154,11 @@ public final class EventSeat {
         final NetworkEventView event = eventView();
         final GameType type = event != null && event.getFormat() == EventFormat.SEALED ? GameType.Sealed : GameType.Draft;
         final BrowserChannel b = session.browser();
+        if (type == GameType.Sealed) {
+            final List<PaperCard> cards = pool.getAllCardsInASinglePool().toFlatList();
+            // An online event does not record how many packs a sealed pool opened. A pack holds about 14 cards
+            session.tell(new PacksOpened(event.getProductDescription(), Math.max(1, Math.round(cards.size() / 14f)), WebGuiBase.boosterImageOf(cards)));
+        }
         if (session.hosting()) {
             final IStorage<Deck> eventDecks = FModel.getDecks().getNetworkEventDecks();
             final Deck kept;
