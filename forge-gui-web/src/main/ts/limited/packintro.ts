@@ -11,14 +11,13 @@ import type { PacksOpened } from '../protocol';
 export interface PackIntro {
   title: string;
   line: string;
-  /** The booster picture's image key, or null to draw a plain pack with the title on it. */
+  /** The booster picture's image key, or null for Forge's own pack with the title on it. */
   packImage: string | null;
   packs: number;
 }
 
-/** The seal's height on a booster picture, as a percentage of its height. A drawn pack's seal is taller. */
-const PICTURE_SEAL = 6.3;
-const DRAWN_SEAL = 9;
+/** The seal's height on a booster picture, as a percentage of its height. */
+const SEAL = 6.3;
 const TURN = 440;
 /** A card turns face up no sooner than this after the card before it. */
 const FLIP_GAP = 70;
@@ -71,32 +70,134 @@ function loadPicture(key: string | null): Promise<string | null> {
   });
 }
 
+const generic = new Map<string, Promise<string>>();
+
+/** Forge's own pack, for a product with no booster picture: the foil artwork with the title and strip printed on it, then lit as foil. */
+function genericPack(title: string): Promise<string> {
+  let pack = generic.get(title);
+  if (!pack) {
+    pack = Promise.all([loadImage('/booster/generic.jpg'), loadImage('/booster/crinkle.jpg')]).then(([art, crinkle]) => drawGeneric(title, art, crinkle));
+    generic.set(title, pack);
+  }
+  return pack;
+}
+
+function loadImage(src: string): Promise<HTMLImageElement | null> {
+  return new Promise(done => {
+    const img = new Image();
+    img.onload = () => done(img);
+    img.onerror = () => done(null);
+    img.src = src;
+  });
+}
+
+function drawGeneric(title: string, art: HTMLImageElement | null, crinkle: HTMLImageElement | null): string {
+  const W = 480, H = 912, s = W / 175;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const g = canvas.getContext('2d')!;
+  // The heat-sealed ends are crimped into teeth
+  const teeth = 50, depth = H * .012;
+  g.beginPath();
+  g.moveTo(0, depth);
+  for (let i = 1; i <= teeth; i++) g.lineTo(W * i / teeth, i % 2 ? 0 : depth);
+  for (let i = teeth; i >= 0; i--) g.lineTo(W * i / teeth, i % 2 ? H : H - depth);
+  g.clip();
+  g.fillStyle = '#dfe3ea';
+  g.fillRect(0, 0, W, H);
+  if (art) g.drawImage(art, 0, 0, W, H);
+
+  const strip = { y: H * (1 - .095 - .052), h: H * .052 };
+  g.fillStyle = '#3a414e';
+  g.fillRect(0, strip.y, W, strip.h);
+  const ui = getComputedStyle(document.body).fontFamily;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillStyle = '#f4f7fb';
+  g.font = `800 ${8.5 * s}px ${ui}`;
+  g.letterSpacing = `${1.9 * s}px`;
+  // Printed artwork, in English like the rest of the wrapper's lettering
+  g.fillText('BOOSTER', W / 2 + .95 * s, strip.y + strip.h / 2);
+
+  g.letterSpacing = '0px';
+  g.textBaseline = 'alphabetic';
+  let size = 23 * s;
+  g.font = `small-caps 700 ${size}px Georgia, "Times New Roman", serif`;
+  const lines = balance(g, title, W - 16 * s);
+  if (lines.some(line => g.measureText(line).width > W - 16 * s)) {
+    size *= (W - 16 * s) / Math.max(...lines.map(line => g.measureText(line).width));
+    g.font = `small-caps 700 ${size}px Georgia, "Times New Roman", serif`;
+  }
+  const bottom = H * (1 - .175) - size * .2;
+  lines.forEach((line, i) => {
+    const y = bottom - (lines.length - 1 - i) * size * .95;
+    g.fillStyle = '#ffffffb0';
+    g.fillText(line, W / 2, y + s);
+    g.fillStyle = '#20242c';
+    g.fillText(line, W / 2, y);
+  });
+
+  // The filled wrapper darkens towards its edges and catches light across its middle
+  const across = g.createLinearGradient(0, 0, W, 0);
+  [[0, '#00000070'], [.06, '#00000018'], [.16, '#00000000'], [.34, '#ffffff14'], [.5, '#00000000'], [.82, '#00000000'], [.94, '#00000030'], [1, '#00000078']]
+    .forEach(([at, colour]) => across.addColorStop(at as number, colour as string));
+  g.fillStyle = across;
+  g.fillRect(0, 0, W, H);
+  const down = g.createLinearGradient(0, 0, 0, H);
+  [[0, '#00000040'], [.09, '#00000000'], [.91, '#00000000'], [1, '#00000055']].forEach(([at, colour]) => down.addColorStop(at as number, colour as string));
+  g.fillStyle = down;
+  g.fillRect(0, 0, W, H);
+  if (crinkle) {
+    g.globalCompositeOperation = 'soft-light';
+    g.globalAlpha = .7;
+    g.drawImage(crinkle, 0, 0, W, H);
+    g.globalAlpha = 1;
+  }
+  g.globalCompositeOperation = 'overlay';
+  for (const y of [0, H - H * .065]) {
+    for (let x = 0; x < W; x += 2.4 * s) {
+      g.fillStyle = '#ffffff55';
+      g.fillRect(x, y, .8 * s, H * .065);
+      g.fillStyle = '#00000030';
+      g.fillRect(x + .8 * s, y, 1.6 * s, H * .065);
+    }
+  }
+  return canvas.toDataURL('image/jpeg', .9);
+}
+
+/** Splits a title that is too wide for one line into two lines of about the same width. */
+function balance(g: CanvasRenderingContext2D, title: string, width: number): string[] {
+  const words = title.split(' ');
+  if (words.length < 2 || g.measureText(title).width <= width) return [title];
+  let best = [title], worst = Infinity;
+  for (let i = 1; i < words.length; i++) {
+    const pair = [words.slice(0, i).join(' '), words.slice(i).join(' ')];
+    const widest = Math.max(...pair.map(line => g.measureText(line).width));
+    if (widest < worst) { worst = widest; best = pair; }
+  }
+  return best;
+}
+
 interface BuiltPack { pk: HTMLElement; inner: HTMLElement; body: HTMLElement; top: HTMLElement; zip: HTMLElement; mouth: HTMLElement; seal: number }
 
-function buildPack(width: number, picture: string | null, title: string): BuiltPack {
+function buildPack(width: number, picture: string): BuiltPack {
   const pk = make('div', 'pi-pack');
   pk.style.width = `${width}px`;
   const inner = make('div', 'pi-pack-in');
-  const seal = picture ? PICTURE_SEAL : DRAWN_SEAL;
+  const seal = SEAL;
   const top = make('div', 'pi-top');
   top.style.height = `${seal}%`;
   const w = width / SLICES;
   for (let i = 0; i < SLICES; i++) {
-    const slice = make('div', picture ? 'pi-slice' : 'pi-slice drawn');
-    Object.assign(slice.style, { left: `${i * w}px`, width: `${w + .6}px` });
+    const slice = make('div', 'pi-slice');
     // Each strip paints only its own piece of the picture, so no part of it can show outside the strip
-    if (picture) Object.assign(slice.style, { backgroundImage: `url("${picture}")`, backgroundSize: `${width}px auto`, backgroundPosition: `${-i * w}px 0` });
+    Object.assign(slice.style, { left: `${i * w}px`, width: `${w + .6}px`, backgroundImage: `url("${picture}")`, backgroundSize: `${width}px auto`, backgroundPosition: `${-i * w}px 0` });
     top.append(slice);
   }
-  let body: HTMLElement;
-  if (picture) {
-    body = make('img', 'pi-body');
-    (body as HTMLImageElement).src = picture;
-    (body as HTMLImageElement).alt = '';
-  } else {
-    body = make('div', 'pi-body drawn');
-    body.append(Object.assign(make('span', 'pi-name'), { textContent: title }));
-  }
+  const body = make('img', 'pi-body');
+  body.src = picture;
+  body.alt = '';
   body.style.clipPath = `inset(${seal}% 0 0 0)`;
   const zip = make('div', 'pi-zip'), mouth = make('div', 'pi-mouth');
   zip.style.top = mouth.style.top = `${seal}%`;
@@ -145,12 +246,12 @@ export function playPackIntro(intro: PackIntro, grid: HTMLElement, tiles: HTMLEl
   layer.addEventListener('click', end);
   addEventListener('keydown', onKey, true);
 
-  void loadPicture(intro.packImage).then(picture => {
+  void loadPicture(intro.packImage).then(picture => picture ?? genericPack(intro.title)).then(picture => {
     if (ended) return;
     run(picture);
   });
 
-  function run(picture: string | null): void {
+  function run(picture: string): void {
     const draft = !!fold;
     const vw = innerWidth, vh = innerHeight, k = Math.min(vw / 1440, vh / 900, 1.15);
     const count = draft ? Math.max(1, Math.min(3, intro.packs)) : Math.max(1, Math.min(MAX_PACKS, intro.packs));
@@ -158,7 +259,7 @@ export function playPackIntro(intro: PackIntro, grid: HTMLElement, tiles: HTMLEl
     const cx = vw / 2, cy = vh * (draft ? .52 : .53);
     const rest = draft ? 1650 : 1800, tearAt = draft ? 2300 : 2050;
     const ps = Array.from({ length: count }, (_, i) => {
-      const p = buildPack(pw, picture, intro.title);
+      const p = buildPack(pw, picture);
       packs.append(p.pk);
       const ph = p.pk.offsetHeight || pw * 1.9;
       const off = i - (count - 1) / 2;

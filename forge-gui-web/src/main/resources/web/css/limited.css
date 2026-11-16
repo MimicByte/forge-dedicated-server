@@ -157,13 +157,8 @@ button.outline:hover { background: var(--accent-soft); }
 .pi-pack { position: absolute; left: 0; top: 0; filter: drop-shadow(0 18px 30px #000c); will-change: transform, opacity; }
 .pi-pack-in { position: relative; }
 .pi-body { display: block; width: 100%; }
-/* With no booster picture, a plain foil pouch carries the event's name */
-.pi-body.drawn { aspect-ratio: 5 / 9; display: grid; place-items: center; padding: 0 10%; border-radius: 4px; text-align: center;
-  background: repeating-linear-gradient(90deg, #ffffff10 0 1px, transparent 1px 3px) bottom / 100% 6% no-repeat, linear-gradient(90deg, #00000080, #ffffff1a 40%, #00000066), linear-gradient(180deg, #3b4660, #1f2636 60%, #2c3548); }
-.pi-name { font-size: 15px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--accent-2); text-shadow: 0 2px 6px #000; }
 .pi-top { position: absolute; left: 0; right: 0; top: 0; transform-origin: 100% 50%; }
 .pi-slice { position: absolute; top: 0; height: 100%; background-repeat: no-repeat; will-change: transform; }
-.pi-slice.drawn { background: repeating-linear-gradient(90deg, #ffffff30 0 1px, #00000030 1px 3px), linear-gradient(180deg, #8b98b4, #56617c 55%, #7c89a6); }
 .pi-zip { position: absolute; left: 0; width: 12px; height: 12px; margin: -6px 0 0 -6px; z-index: 6; border-radius: 50%; background: #fff; box-shadow: 0 0 16px 7px #ffe2a0; opacity: 0; }
 .pi-mouth { position: absolute; left: 0; right: 0; height: 6px; border-radius: 50%; background: #fff3d2; box-shadow: 0 0 34px 18px #ffdf9ccc; opacity: 0; }
 /* Flecks of foil from a tearing pack, here and in Planar Conquest (packopen.ts) */
