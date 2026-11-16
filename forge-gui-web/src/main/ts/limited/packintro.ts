@@ -122,7 +122,8 @@ export function playPackIntro(intro: PackIntro, grid: HTMLElement, tiles: HTMLEl
   layer.addEventListener('click', end);
   addEventListener('keydown', onKey, true);
 
-  void packPicture({ booster: intro.packImage, title: intro.title }).then(picture => {
+  // A draft opens one pack, so its size is known. A sealed pool's packs are only estimated, so their count is left off
+  void packPicture({ booster: intro.packImage, title: intro.title, cards: fold ? tiles.length : undefined }).then(picture => {
     if (ended) return;
     run(picture);
   });

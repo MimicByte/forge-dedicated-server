@@ -102,7 +102,7 @@ export function mountPack(host: HTMLElement, spec: PackSpec, hooks: PackHooks): 
   host.replaceChildren(stage);
   // Hidden until its picture is ready, so it never opens empty
   cell.style.visibility = 'hidden';
-  const ready = packPicture({ booster: spec.booster, title: spec.name, strip: spec.chaos ? spec.sub : undefined,
+  const ready = packPicture({ booster: spec.booster, title: spec.name, strip: spec.chaos ? spec.sub : undefined, cards: cards.length,
     art: spec.art ? artUrl(spec.art) : null, mark: spec.chaos ? CHAOS_MARK.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" fill="none" stroke="#b79cff" stroke-width="2.4" stroke-linecap="round"') : null }).then(picture => {
     body.src = picture;
     slices.forEach(slice => { slice.style.backgroundImage = `url("${picture}")`; });

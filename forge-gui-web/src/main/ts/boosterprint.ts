@@ -13,6 +13,8 @@ export interface PackPrint {
   mark?: string | null;
   /** The strip's words. They are printed artwork, in English like the rest of the wrapper's lettering. */
   strip?: string;
+  /** How many cards the pack holds, printed in its corner. Left off when it is not known. */
+  cards?: number;
 }
 
 /** The pack's picture as a URL, with its seal SEAL percent of its height. */
@@ -26,7 +28,7 @@ export async function packPicture(pack: PackPrint): Promise<string> {
     const src = imageUrl(pack.booster);
     if (await loadImage(src, 1000)) return src;
   }
-  const key = JSON.stringify([pack.title, pack.art ?? null, pack.mark ?? null, pack.strip ?? null]);
+  const key = JSON.stringify([pack.title, pack.art ?? null, pack.mark ?? null, pack.strip ?? null, pack.cards ?? null]);
   let picture = printed.get(key);
   if (!picture) {
     picture = print(pack);
@@ -91,13 +93,23 @@ async function print(pack: PackPrint): Promise<string> {
     if (lettering) g.drawImage(lettering, 0, 0, W, W * lettering.height / lettering.width);
   }
 
+  const ui = getComputedStyle(document.body).fontFamily;
+  if (pack.cards) {
+    g.textAlign = 'left';
+    g.textBaseline = 'middle';
+    g.fillStyle = pearl ? '#3b4250c0' : '#dfe8f5b0';
+    g.font = `600 ${6.5 * S}px ${ui}`;
+    g.letterSpacing = `${.9 * S}px`;
+    g.fillText(`${pack.cards} CARDS`, W * .08, H * .086 + 3.25 * S);
+  }
+
   const strip = { y: H * (1 - .095 - .052), h: H * .052 };
   g.fillStyle = pack.mark ? '#3a2a6e' : pearl ? '#3a414e' : '#262c37';
   g.fillRect(0, strip.y, W, strip.h);
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   g.fillStyle = '#f4f7fb';
-  g.font = `800 ${8.5 * S}px ${getComputedStyle(document.body).fontFamily}`;
+  g.font = `800 ${8.5 * S}px ${ui}`;
   g.letterSpacing = `${1.9 * S}px`;
   g.fillText((pack.strip ?? 'Booster').toUpperCase(), W / 2 + .95 * S, strip.y + strip.h / 2, W - 12 * S);
 
