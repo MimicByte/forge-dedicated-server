@@ -177,9 +177,11 @@ export function playPackIntro(intro: PackIntro, grid: HTMLElement, tiles: HTMLEl
       ps.filter(p => p !== first).forEach((p, n) => {
         anim(p.pk, [{ transform: `translate(${p.x}px, ${p.y}px) rotate(${p.r}deg) scale(1)`, opacity: 1 },
           { transform: `translate(${head.left + 8 - pw * .45}px, ${head.top + head.height / 2 - p.ph * .45}px) rotate(0deg) scale(.1)`, opacity: 0 }],
-        { duration: 480, delay: rest + n * 70, easing: 'cubic-bezier(.5,0,.2,1)' });
+        { duration: 480, delay: rest + n * 70, easing: 'cubic-bezier(.5,0,.2,1)', fill: 'forwards' });
       });
-      anim(first.pk, [{ transform: `translate(${first.x}px, ${first.y}px) scale(1)` }, { transform: `translate(${cx - pw / 2}px, ${cy - first.ph / 2}px) scale(1.1)` }], { duration: 420, delay: rest });
+      // These fill forwards only, so they do not hold the packs in place while the packs rise
+      anim(first.pk, [{ transform: `translate(${first.x}px, ${first.y}px) scale(1)` }, { transform: `translate(${cx - pw / 2}px, ${cy - first.ph / 2}px) scale(1.1)` }],
+        { duration: 420, delay: rest, fill: 'forwards' });
       Object.assign(first, { x: cx - pw / 2, y: cy - first.ph / 2, r: 0, scale: 1.1 });
       openers = [first];
     }
@@ -237,16 +239,27 @@ export function playPackIntro(intro: PackIntro, grid: HTMLElement, tiles: HTMLEl
       landed = Math.max(landed, flipAt + TURN);
     });
 
-    // The heading stays up while the packs wait. Once the cards are down the screen lifts, then the real cards and what sits on them fade in
-    const T = landed + 1500, at = (ms: number) => Math.min(1, Math.max(0, ms / T));
+    // The heading stays up while the packs wait. Once the cards are down the screen lifts and the real cards take their place
+    const swap = landed + 150, T = swap + 1100, at = (ms: number) => Math.min(1, Math.max(0, ms / T));
     anim(scrim, [{ opacity: 0 }, { opacity: .9, offset: at(350) }, { opacity: .9, offset: at(landed - 500) }, { opacity: 0, offset: at(landed + 200) }, { opacity: 0 }], { duration: T, easing: 'linear' });
     anim(title, [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 0, offset: at(250) }, { opacity: 1, transform: 'none', offset: at(750) },
       { opacity: 1, offset: at(tearAt - 100) }, { opacity: 0, offset: at(tearAt + 250) }, { opacity: 0 }], { duration: T, easing: 'linear' });
     anim(skip, [{ opacity: 0 }, { opacity: 0, offset: at(500) }, { opacity: .7, offset: at(900) }, { opacity: .7, offset: at(landed - 500) }, { opacity: 0, offset: at(landed + 200) }, { opacity: 0 }],
       { duration: T, easing: 'linear' });
-    const fade: Keyframe[] = [{ opacity: 0 }, { opacity: 0, offset: at(landed + 350), easing: 'cubic-bezier(.3,0,.3,1)' }, { opacity: 1, offset: at(landed + 1350) }, { opacity: 1 }];
-    anim(grid, fade, { duration: T, easing: 'linear' });
-    anim(flyers, fade.map(f => ({ ...f, opacity: 1 - (f.opacity as number) })), { duration: T, easing: 'linear' });
+    window.setTimeout(() => { if (!ended) settle(); }, swap);
+
+    const fadeIn = (el: Element) => anim(el, [{ opacity: 0 }, { opacity: 1 }], { duration: 1000, easing: 'cubic-bezier(.3,0,.3,1)', fill: 'backwards' });
+    /** The landed cards are the same pictures in the same places as the real cards, so the real ones replace them at once. Only what sits on them fades in. */
+    function settle(): void {
+      flyers.remove();
+      grid.style.opacity = '';
+      const dealt = new Set<Element>(tiles);
+      for (const tile of tiles) {
+        const face = tile.querySelector('img:not(.sym)');
+        for (const part of tile.children) if (!face || (part !== face && !part.contains(face))) fadeIn(part);
+      }
+      for (const other of grid.children) if (!dealt.has(other) && !tiles.some(tile => other.contains(tile))) fadeIn(other);
+    }
     timer = window.setTimeout(end, T);
   }
   return end;
