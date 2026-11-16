@@ -109,6 +109,10 @@ public final class ComboGuard {
         if (host == null) {
             return null;
         }
+        final String duplicate = LoopRunner.redundantEngine(ai, sa);
+        if (duplicate != null) {
+            return duplicate; // a second Mind Over Matter or Candelabra of Tawnos
+        }
         // A second working copy of a legendary permanent is wasted even when it is cast directly (not reanimated).
         // Respect cards with an explicit AI legendary exception; Mirror Gallery is handled by duplicatesWorkingLegend.
         if (sa.isSpell() && host.isPermanent() && !host.ignoreLegendRule() && !host.hasSVar("AILegendaryException")
@@ -161,6 +165,14 @@ public final class ComboGuard {
             return untimely;
         }
         // an activated ability with nothing to act on (Oran-Rief with no new green creature): see ActivationGuard
+        final String burn = LegalityGuard.wastedBurn(ai, sa, aim);
+        if (burn != null) {
+            return burn;
+        }
+        final String idleSpell = ActivationGuard.spellProblem(ai, sa);
+        if (idleSpell != null) {
+            return idleSpell; // an instant or sorcery with nothing to act on
+        }
         final String idle = ActivationGuard.problem(ai, sa);
         // "valuable-sacrifice" is the outlet guard's own reading of the evaluator: the combo guard has the sacrifice rules of
         // the deck plan (sacrifice-key), and a deck without a combo plan sacrifices as the heuristics decide
