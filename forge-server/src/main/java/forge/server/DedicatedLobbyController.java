@@ -224,7 +224,7 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
             return ActionResult.failure("unsupported_product", "source must be FULL, SET with an available setCode, or CUBE with an uploaded assetId.");
         }
         lobby.clearCurrentEvent();
-        lobby.setLimitedMode(true);
+        lobby.setLimitedType(configuration.format() == EventFormat.SEALED ? GameType.Sealed : GameType.Draft);
         limitedSource = source;
         lobby.createEvent(configuration.format());
         NetworkEvent event = lobby.getCurrentEvent();
@@ -270,7 +270,7 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
                 return ActionResult.failure("event_not_waiting", "Only an unstarted Limited event may be cancelled.");
             }
             lobby.clearCurrentEvent();
-            lobby.setLimitedMode(false);
+            lobby.setLimitedType(null);
             limitedSource = null;
             server.updateLobbyState();
             return ActionResult.ok();
@@ -491,7 +491,7 @@ public final class DedicatedLobbyController implements DedicatedServerPolicy {
         ++generation;
         current = null;
         lobby.clearCurrentEvent();
-        lobby.setLimitedMode(false);
+        lobby.setLimitedType(null);
         limitedSource = null;
         disconnected.clear();
         draftDisconnected.clear();
