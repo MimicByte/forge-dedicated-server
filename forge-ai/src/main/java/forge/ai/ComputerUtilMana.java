@@ -9,6 +9,9 @@ import com.google.common.collect.MultimapBuilder;
 import com.google.common.collect.SetMultimap;
 import forge.ai.AiCardMemory.MemorySet;
 import forge.ai.ability.AnimateAi;
+import forge.ai.simulation.ComboCatalog;
+import forge.ai.simulation.ComboPlan;
+import forge.ai.simulation.VetoLog;
 import forge.card.ColorSet;
 import forge.card.MagicColor;
 import forge.card.mana.ManaAtom;
@@ -886,6 +889,24 @@ public class ComputerUtilMana {
                 }
             } else {
                 System.out.println("ComputerUtilMana: payManaCost() cost was not paid for " + sa + " (" +  sa.getHostCard().getName() + "). Didn't find what to pay for " + toPay);
+                if (VetoLog.isEnabled()) {
+                    // what the payer could use, for the report: the estimate said yes and the payer did not find it
+                    int lands = 0;
+                    int creatures = 0;
+                    for (final Card c : ai.getCardsIn(ZoneType.Battlefield)) {
+                        if (c.isTapped() || c.isCreature() && c.isSick() && !c.hasKeyword(Keyword.HASTE)) {
+                            continue;
+                        }
+                        if (c.isLand()) {
+                            lands++;
+                        } else if (c.isCreature()) {
+                            creatures++;
+                        }
+                    }
+                    VetoLog.note(ai, "pay-failed " + sa.getHostCard().getName() + " toPay=" + toPay
+                            + " convoke=" + sa.getHostCard().hasKeyword(Keyword.CONVOKE) + " x=" + sa.getXManaCostPaid()
+                            + " pool=" + ai.getManaPool().totalMana() + " untappedLands=" + lands + " readyCreatures=" + creatures);
+                }
                 sa.setSkip(true);
             }
             return null;
@@ -947,6 +968,8 @@ public class ComputerUtilMana {
      * This never changes how many sources get tapped, only which.
      * A colour that a card in hand needs outranks the source scores, so a held spell stays castable;
      * leaving a colour untapped just to hide information only reorders equally scored sources.
+     * A source that uses itself up, such as a spirit guide or a Treasure, keeps its scored place
+     * and does not count as keeping a colour available.
      */
     private static Collection<SpellAbility> sparingSourcesFirst(final Collection<SpellAbility> candidates,
             final Multimap<ManaCostShard, SpellAbility> sourcesForShards, final SpellAbility sa, final Player ai) {
@@ -957,7 +980,9 @@ public class ComputerUtilMana {
         // untapped sources per colour; a card counts once for every colour it can make
         final Map<Card, Integer> colorsOf = new HashMap<>();
         for (final SpellAbility ma : sourcesForShards.values()) {
-            colorsOf.merge(ma.getHostCard(), producedColors(ma), (a, b) -> a | b);
+            if (!usesUpSource(ma)) {
+                colorsOf.merge(ma.getHostCard(), producedColors(ma), (a, b) -> a | b);
+            }
         }
         final int[] perColor = new int[MagicColor.WUBRG.length];
         for (final int mask : colorsOf.values()) {
@@ -999,17 +1024,24 @@ public class ComputerUtilMana {
         final Comparator<SpellAbility> byAny = Comparator.comparingInt(ma -> Integer.bitCount(drained.applyAsInt(ma)));
 
         // stable sorts: ties keep the existing order, including the hand colour tie-break
-        list.sort(byHeld);
+        final List<SpellAbility> reusable = list.stream().filter(ma -> !usesUpSource(ma)).sorted(byHeld).collect(Collectors.toList());
+        final Iterator<SpellAbility> nextReusable = reusable.iterator();
+        list.replaceAll(ma -> usesUpSource(ma) ? ma : nextReusable.next());
 
         final int lead = scoreManaProducingCard(list.get(0).getHostCard());
-        int end = 1;
-        while (end < list.size() && scoreManaProducingCard(list.get(end).getHostCard()) == lead) {
+        int end = 0;
+        while (end < list.size() && !usesUpSource(list.get(end)) && scoreManaProducingCard(list.get(end).getHostCard()) == lead) {
             end++;
         }
         if (end > 1) {
             list.subList(0, end).sort(byHeld.thenComparing(byAny));
         }
         return list;
+    }
+
+    private static boolean usesUpSource(final SpellAbility ma) {
+        return ComputerUtilCost.isSacrificeSelfCost(ma.getPayCosts())
+                || ma.getPayCosts().getCostParts().stream().anyMatch(part -> part instanceof CostExile && part.payCostFromSource());
     }
 
     private static int producedColors(final SpellAbility ma) {
@@ -1316,8 +1348,8 @@ public class ComputerUtilMana {
         // A Command-zone mana effect that is a piece of a known win combo is reserved for that combo's payoff.
         // Other Command-zone mana abilities (including unrelated commanders) keep their normal payment behavior.
         if (ai.isAI() && sourceCard.isInZone(ZoneType.Command)
-                && forge.ai.simulation.ComboCatalog.isWinComboPiece(sourceCard)
-                && !forge.ai.simulation.ComboCatalog.canUseCommandManaSourceFor(ai, sourceCard, sa)) {
+                && ComboCatalog.isWinComboPiece(sourceCard)
+                && !ComboCatalog.canUseCommandManaSourceFor(ai, sourceCard, sa)) {
             return false;
         }
 
@@ -1329,7 +1361,7 @@ public class ComputerUtilMana {
         // finisher or the engine of a storm deck: it was cracked with Tendrils of Agony in hand and the kill was gone
         if (ma != sa && ma.getPayCosts() != null && ma.getPayCosts().hasSpecificCostType(forge.game.cost.CostDiscard.class)
                 && ai.getController() instanceof PlayerControllerAi
-                && forge.ai.simulation.ComboPlan.holdsKillPiece(ai)) {
+                && ComboPlan.holdsKillPiece(ai)) {
             return false;
         }
 
@@ -1440,13 +1472,21 @@ public class ComputerUtilMana {
             return false;
         }
 
+        final AiController flatMcAi = ((PlayerControllerAi)ai.getController()).getAi();
+        if (flatMcAi.flatMonteCarloActive()) {
+            // Flat Monte Carlo compares plays with every source free, and the heuristics reserve sources for the "next
+            // spell" while they judge each candidate: a play it picked then found itself one or two mana short of its
+            // own cost (Regal Force with six of seven, Force of Will with four of five) and was not cast
+            return false;
+        }
+
         // reserved for spell synchronization
         if (AiCardMemory.isRememberedCard(ai, sourceCard, AiCardMemory.MemorySet.HELD_MANA_SOURCES_FOR_NEXT_SPELL)) {
             return true;
         }
 
         PhaseType curPhase = ai.getGame().getPhaseHandler().getPhase();
-        AiController aic = ((PlayerControllerAi)ai.getController()).getAi();
+        AiController aic = flatMcAi;
 
         // For combat tricks, always obey mana reservation
         if (curPhase == PhaseType.COMBAT_DECLARE_BLOCKERS || curPhase == PhaseType.CLEANUP) {
@@ -1805,6 +1845,9 @@ public class ComputerUtilMana {
         final CardCollectionView list = CardCollection.combine(ai.getCardsIn(ZoneType.Battlefield), ai.getCardsIn(ZoneType.Hand),
                 ai.getCardsIn(ZoneType.Command));
         final List<Card> manaSources = CardLists.filter(list, c -> {
+            if (ComputerUtil.sacrificePunished(ai, c) && c.isInZone(ZoneType.Battlefield)) {
+                return false; // a Treasure that gives the AI poison counters when it is sacrificed (Bloodroot Apothecary)
+            }
             for (final SpellAbility am : getAIPlayableMana(c)) {
                 am.setActivatingPlayer(ai);
                 if (!checkPlayable || (am.canPlay() && am.checkRestrictions(ai))) {
