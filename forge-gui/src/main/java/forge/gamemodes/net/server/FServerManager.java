@@ -149,14 +149,14 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
     private volatile boolean loopbackOnly;
     private final ChannelGroup adopted = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
     // Created by startServer: an offline game reaches getInstance() but never needs the selectors
-    private EventLoopGroup bossGroup;
-    private EventLoopGroup workerGroup;
+    private final List<EventLoopGroup> bossGroups = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private final List<EventLoopGroup> workerGroups = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private final List<io.netty.channel.Channel> listeningChannels = new java.util.concurrent.CopyOnWriteArrayList<>();
     private PortForward portForward;
     private ServerGameLobby localLobby;
     private DedicatedServerPolicy dedicatedPolicy;
     private DedicatedServerSession dedicatedSession;
     private volatile boolean finalShutdown;
-    private io.netty.channel.Channel listeningChannel;
 
     public void setDedicatedPolicy(DedicatedServerPolicy policy) {
         dedicatedPolicy = policy;
@@ -188,7 +188,7 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
 
     public void shutdownDedicated() {
         finalShutdown = true;
-        if (listeningChannel != null) { listeningChannel.close(); }
+        for (io.netty.channel.Channel channel : listeningChannels) { channel.close(); }
         clients.values().forEach(RemoteClient::close);
         stopServer(false);
     }
@@ -329,13 +329,15 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
 
     private void bind(final SocketAddress address, final boolean startUPnP) {
         netLog.info("Starting Multiplayer Server");
-        loopbackOnly = address instanceof LocalAddress;
-        bossGroup = loopbackOnly ? new DefaultEventLoopGroup(1) : new NioEventLoopGroup(1);
-        workerGroup = loopbackOnly ? new DefaultEventLoopGroup() : new NioEventLoopGroup();
+        loopbackOnly = address instanceof LocalAddress && !HostingServer.isHosting();
+        final EventLoopGroup bossGroup = address instanceof LocalAddress ? new DefaultEventLoopGroup(1) : new NioEventLoopGroup(1);
+        final EventLoopGroup workerGroup = address instanceof LocalAddress ? new DefaultEventLoopGroup() : new NioEventLoopGroup();
+        bossGroups.add(bossGroup);
+        workerGroups.add(workerGroup);
         try {
             final ServerBootstrap b = new ServerBootstrap()
                     .group(bossGroup, workerGroup)
-                    .channel(loopbackOnly ? LocalServerChannel.class : NioServerSocketChannel.class)
+                    .channel(address instanceof LocalAddress ? LocalServerChannel.class : NioServerSocketChannel.class)
                     .handler(new LoggingHandler(LogLevel.INFO))
                     .childHandler(new ChannelInitializer<Channel>() {
                         @Override
@@ -344,13 +346,14 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
                         }
                     });
 
-            if (!loopbackOnly) {
+            if (!(address instanceof LocalAddress)) {
                 b.option(ChannelOption.SO_REUSEADDR, true);  // Allow quick port reuse after server shutdown
             }
 
             // Bind and start to accept incoming connections.
-            listeningChannel = b.bind(address).sync().channel();
-            final ChannelFuture ch = listeningChannel.closeFuture();
+            final io.netty.channel.Channel boundChannel = b.bind(address).sync().channel();
+            listeningChannels.add(boundChannel);
+            final ChannelFuture ch = boundChannel.closeFuture();
             new Thread(() -> {
                 try {
                     ch.sync();
@@ -408,10 +411,13 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
         adopted.close();
 
         try {
-            if (bossGroup != null) {
+            if (!bossGroups.isEmpty()) {
                 // Netty's default 2 s quiet period per group made every stop take about 4 s
-                bossGroup.shutdownGracefully(0, 15, TimeUnit.SECONDS).sync();
-                workerGroup.shutdownGracefully(0, 15, TimeUnit.SECONDS).sync();
+                for (EventLoopGroup group : bossGroups) { group.shutdownGracefully(0, 15, TimeUnit.SECONDS).sync(); }
+                for (EventLoopGroup group : workerGroups) { group.shutdownGracefully(0, 15, TimeUnit.SECONDS).sync(); }
+                bossGroups.clear();
+                workerGroups.clear();
+                listeningChannels.clear();
             }
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();

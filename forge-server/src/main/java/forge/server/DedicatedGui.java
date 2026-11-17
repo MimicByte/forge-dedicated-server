@@ -12,6 +12,7 @@ import java.util.function.Consumer;
 /** Headless desktop services retain the real EDT, but never construct a local match UI. */
 public final class DedicatedGui extends GuiDesktop {
     private final Path assets;
+    private final forge.util.ImageFetcher imageFetcher = new forge.web.images.WebImageFetcher();
     private Consumer<HostedMatch> onMatch = match -> { };
     private Consumer<String> onFatalMatchError = error -> { };
     public DedicatedGui(Path assets) { this.assets = assets.toAbsolutePath(); }
@@ -21,6 +22,8 @@ public final class DedicatedGui extends GuiDesktop {
         this.onFatalMatchError = onFatalMatchError;
     }
     @Override public String getAssetsDir() { return assets + java.io.File.separator; }
+    /** Browsers get card pictures through the web module's fetcher; it is unused while online fetching is off. */
+    @Override public forge.util.ImageFetcher getImageFetcher() { return imageFetcher; }
     @Override public HostedMatch hostMatch() {
         HostedMatch match = new HostedMatch();
         onMatch.accept(match);

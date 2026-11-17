@@ -8,7 +8,7 @@ import forge.MulliganDefs;
 import forge.game.GameType;
 
 /** Immutable startup configuration. Lobby rules may be replaced in memory by the admin API. */
-public record ServerConfig(int port, int adminPort, String adminToken, int maxPlayers,
+public record ServerConfig(int port, int webPort, int adminPort, String adminToken, int maxPlayers,
                            int startDelaySeconds, int reconnectSeconds, int postgameSeconds,
                            int afkTimeoutMinutes,
                            Set<String> allowedPlayers, int loginFailureLimit,
@@ -65,8 +65,15 @@ public record ServerConfig(int port, int adminPort, String adminToken, int maxPl
     public static ServerConfig from(Map<String, String> env) {
         Mode mode = mode(env.getOrDefault("FORGE_SERVER_MODE", "COMMANDER"));
         int port = number(env, "PORT", 36743, 1, 65535);
+        int webPort = number(env, "WEB_PORT", 36744, 0, 65535);
         String token = env.getOrDefault("FORGE_SERVER_ADMIN_TOKEN", "").trim();
         int adminPort = number(env, "ADMIN_PORT", 8080, 1, 65535);
+        if (webPort != 0 && webPort == port) {
+            throw new IllegalArgumentException("FORGE_SERVER_WEB_PORT must differ from FORGE_SERVER_PORT");
+        }
+        if (!token.isEmpty() && webPort != 0 && webPort == adminPort) {
+            throw new IllegalArgumentException("FORGE_SERVER_WEB_PORT must differ from FORGE_SERVER_ADMIN_PORT");
+        }
         if (!token.isEmpty() && port == adminPort) {
             throw new IllegalArgumentException("FORGE_SERVER_ADMIN_PORT must differ from FORGE_SERVER_PORT");
         }
@@ -75,7 +82,7 @@ public record ServerConfig(int port, int adminPort, String adminToken, int maxPl
                 number(env, "COMMANDER_BRACKET", 5, 1, 5), bool(env, "ENFORCE_DECK_LEGALITY", true),
                 bool(env, "MANA_BURN", false), bool(env, "LEGACY_ORDER_COMBATANTS", false),
                 bool(env, "FILTERED_HANDS", false), number(env, "AI_TIMEOUT_SECONDS", 5, 1, 600));
-        return new ServerConfig(port, adminPort, token, number(env, "MAX_PLAYERS", 4, 2, 8),
+        return new ServerConfig(port, webPort, adminPort, token, number(env, "MAX_PLAYERS", 4, 2, 8),
                 number(env, "START_DELAY_SECONDS", 10, 1, 300),
                 number(env, "RECONNECT_SECONDS", 300, 1, 3600),
                 number(env, "POSTGAME_SECONDS", 120, 1, 3600),

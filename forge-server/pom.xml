@@ -5,6 +5,7 @@
   <name>Forge Dedicated Server</name>
   <dependencies>
     <dependency><groupId>forge</groupId><artifactId>forge-gui-desktop</artifactId><version>${project.version}</version><type>test-jar</type><scope>test</scope></dependency>
+    <dependency><groupId>forge</groupId><artifactId>forge-gui-web</artifactId><version>${project.version}</version></dependency>
     <dependency><groupId>forge</groupId><artifactId>forge-gui-desktop</artifactId><version>${project.version}</version></dependency>
     <dependency><groupId>org.testng</groupId><artifactId>testng</artifactId><version>7.11.0</version><scope>test</scope></dependency>
   </dependencies>

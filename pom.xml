@@ -373,6 +373,7 @@
         <profile>
             <id>dedicated</id>
             <modules>
+                <module>forge-gui-web</module>
                 <module>forge-server</module>
             </modules>
             <build>

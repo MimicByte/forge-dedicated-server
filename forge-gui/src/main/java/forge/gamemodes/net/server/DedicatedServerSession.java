@@ -78,12 +78,13 @@ final class DedicatedServerSession implements IHasForgeLog {
             context.close();
             return;
         }
-        String source = sourceOf(context.channel().remoteAddress());
+        boolean localChannel = context.channel().remoteAddress() instanceof io.netty.channel.local.LocalAddress;
+        String source = localChannel ? null : sourceOf(context.channel().remoteAddress());
         boolean allowed = policy.allowsPlayer(name);
         long now = System.currentTimeMillis();
-        boolean blocked = failedLogins.isBlocked(source, now);
+        boolean blocked = source != null && failedLogins.isBlocked(source, now);
         if (blocked || !allowed) {
-            if (!blocked && !allowed) { failedLogins.recordFailure(source, now); }
+            if (source != null && !blocked && !allowed) { failedLogins.recordFailure(source, now); }
             rejectPrivateLogin(context, client);
             return;
         }

@@ -56,12 +56,18 @@ final class WebHub implements WebServer.Endpoint, IHasForgeLog {
     private volatile String cloudflare;
     private final Deque<ChatLine> said = new ArrayDeque<>();
 
+    private final ServerGameLobby dedicatedLobby;
+
     WebHub(final WebGuiBase ui, final long idleMillis, final Runnable onQuit) {
+        this(ui, idleMillis, onQuit, null);
+    }
+
+    WebHub(final WebGuiBase ui, final long idleMillis, final Runnable onQuit, final ServerGameLobby dedicatedLobby) {
         this.ui = ui;
         this.idleMillis = idleMillis;
         this.onQuit = onQuit;
-        // This also covers a browser that never opens
-        idle = ThreadUtil.delay((int) idleMillis, onQuit);
+        this.dedicatedLobby = dedicatedLobby;
+        if (dedicatedLobby == null) { idle = ThreadUtil.delay((int) idleMillis, onQuit); }
     }
 
     /** The address Cloudflare gives this server while players connect that way. It then replaces the router's address. */
@@ -110,11 +116,12 @@ final class WebHub implements WebServer.Endpoint, IHasForgeLog {
 
     /** Whether the host's seat is free. The browser offers the seat when this is true. */
     boolean hostSeatFree() {
-        return host == null;
+        return dedicatedLobby == null && host == null;
     }
 
     /** Takes the host's seat for this session if it is still free. If two claims arrive at once, only one wins. */
     synchronized boolean claimHost(final WebSession session) {
+        if (dedicatedLobby != null) { return false; }
         if (host != null) {
             return host == session;
         }
@@ -292,6 +299,7 @@ final class WebHub implements WebServer.Endpoint, IHasForgeLog {
 
     /** The host's lobby, where the table's event and its draft run, or null when nobody is hosting one. */
     ServerGameLobby hostLobby() {
+        if (dedicatedLobby != null) { return dedicatedLobby; }
         final WebSession h = host;
         return h == null ? null : h.local().hostedLobby();
     }
@@ -334,6 +342,7 @@ final class WebHub implements WebServer.Endpoint, IHasForgeLog {
     }
 
     boolean hostHasGame() {
+        if (dedicatedLobby != null) { return true; }
         final WebSession h = host;
         return h != null && h.local().isHost();
     }
@@ -354,10 +363,13 @@ final class WebHub implements WebServer.Endpoint, IHasForgeLog {
     /** The seats at the host's table held by desktop or mobile Forge players. These have no session here. */
     private List<LobbySlot> appSeats() {
         final WebSession h = host;
-        if (h == null) {
-            return List.of();
+        final ServerGameLobby table = dedicatedLobby != null ? dedicatedLobby : h == null ? null : h.local().hostedLobby();
+        if (table == null) { return List.of(); }
+        final List<LobbySlot> seats = new ArrayList<>();
+        for (int i = 0; i < table.getNumberOfSlots(); i++) {
+            final LobbySlot seat = table.getSlot(i);
+            if (seat.getType() == LobbySlotType.REMOTE) { seats.add(seat); }
         }
-        final List<LobbySlot> seats = h.lobby().seatsOf(LobbySlotType.REMOTE);
         seats.removeIf(seat -> byId.values().stream().anyMatch(s -> s.hasGame() && seat.getName().equalsIgnoreCase(s.playerName())));
         return seats;
     }
@@ -420,7 +432,7 @@ final class WebHub implements WebServer.Endpoint, IHasForgeLog {
         final WebSession h = host;
         final List<LobbySlot> apps = appSeats();
         for (final LobbySlot seat : apps) {
-            people.add(new Person(seat.getName(), seat.getAvatarIndex(), h.doing(), false, false));
+            people.add(new Person(seat.getName(), seat.getAvatarIndex(), h == null ? null : h.doing(), false, false));
         }
         appSeatNames = apps.stream().map(LobbySlot::getName).toList();
         return new Presence(people);

@@ -10,6 +10,7 @@ import forge.localinstance.properties.ForgeNetPreferences;
 import forge.localinstance.properties.ForgePreferences.FPref;
 import forge.model.FModel;
 import forge.util.BuildInfo;
+import forge.web.EmbeddedWebServer;
 import forge.interfaces.IUpdateable;
 import forge.gamemodes.match.LobbySlotType;
 import forge.gamemodes.match.GameLobby.GameLobbyData;
@@ -53,7 +54,7 @@ public final class DedicatedServerMain {
             preferences.setPref(FPref.UI_MATCHES_PER_GAME, Integer.toString(config.rules().gamesPerMatch()));
             preferences.setPref(FPref.DECKGEN_MAXIMUM_COMMANDER_BRACKET, Integer.toString(config.rules().commanderBracket()));
             preferences.setPref(FPref.MULLIGAN_RULE, config.mulliganRule().name());
-            preferences.setPref(FPref.UI_ENABLE_ONLINE_IMAGE_FETCHER, false);
+            preferences.setPref(FPref.UI_ENABLE_ONLINE_IMAGE_FETCHER, config.webPort() != 0);
             preferences.setPref(FPref.UI_ENABLE_SOUNDS, false);
             preferences.setPref(FPref.UI_ENABLE_MUSIC, false);
             preferences.setPref(FPref.MATCH_AI_SIDEBOARDING_MODE, "AI");
@@ -66,11 +67,13 @@ public final class DedicatedServerMain {
         System.out.println("[server] Forge " + BuildInfo.getVersionString() + " upstream=" + UPSTREAM + " packaging=1");
         FServerManager server = FServerManager.getInstance();
         AtomicReference<DedicatedLobbyController> controllerRef = new AtomicReference<>();
+        AtomicReference<ServerGameLobby> lobbyRef = new AtomicReference<>();
         SwingUtilities.invokeAndWait(() -> {
             ServerGameLobby lobby = new ServerGameLobby(config.maxPlayers());
             DedicatedLobbyController.applyRules(lobby, config.rules());
             DedicatedLobbyController controller = new DedicatedLobbyController(config, lobby, server);
             controllerRef.set(controller);
+            lobbyRef.set(lobby);
             gui.setOnMatch(controller::attachMatch);
             gui.setOnFatalMatchError(controller::recoverFromFatalMatchError);
             server.setLobby(lobby);
@@ -90,6 +93,13 @@ public final class DedicatedServerMain {
         });
         DedicatedLobbyController controller = controllerRef.get();
         server.startServer(config.port());
+        EmbeddedWebServer web = null;
+        if (config.webPort() != 0) {
+            server.startLoopbackServer();
+            web = EmbeddedWebServer.start(lobbyRef.get(), config.webPort());
+            System.out.println("[server] Browser invite link: " + web.inviteUrl(FServerManager.getLocalAddress()));
+        }
+        final EmbeddedWebServer embeddedWeb = web;
         DedicatedAdminServer admin = config.adminEnabled() ? new DedicatedAdminServer(config, controller) : null;
         if (admin != null) {
             admin.start();
@@ -120,6 +130,7 @@ public final class DedicatedServerMain {
                 if (state.get() != DedicatedLobbyController.State.WAITING) { Runtime.getRuntime().halt(1); }
                 SwingUtilities.invokeAndWait(() -> { pulse.stop(); controller.stopping(); });
                 Files.deleteIfExists(status);
+                if (embeddedWeb != null) { embeddedWeb.close(); }
                 server.shutdownDedicated();
                 if (admin != null) { admin.stop(); }
             } catch (Throwable error) {

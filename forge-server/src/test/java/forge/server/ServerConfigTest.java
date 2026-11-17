@@ -10,6 +10,7 @@ public class ServerConfigTest {
         ServerConfig c = ServerConfig.from(Map.of());
         Assert.assertEquals(c.mode(), ServerConfig.Mode.COMMANDER);
         Assert.assertEquals(c.maxPlayers(), 4);
+        Assert.assertEquals(c.webPort(), 36744);
         Assert.assertEquals(c.startDelaySeconds(), 10);
         Assert.assertEquals(c.reconnectSeconds(), 300);
         Assert.assertEquals(c.afkTimeoutMinutes(), 5);
@@ -92,6 +93,15 @@ public class ServerConfigTest {
     }
     @Test(expectedExceptions = IllegalArgumentException.class) public void rejectsDuplicateVariant() {
         ServerConfig.from(Map.of("FORGE_SERVER_VARIANTS", "PLANECHASE,PLANECHASE"));
+    }
+    @Test public void disablesWebPortWhenConfiguredZero() {
+        Assert.assertEquals(ServerConfig.from(Map.of("FORGE_SERVER_WEB_PORT", "0")).webPort(), 0);
+    }
+    @Test(expectedExceptions = IllegalArgumentException.class) public void rejectsInvalidWebPort() {
+        ServerConfig.from(Map.of("FORGE_SERVER_WEB_PORT", "65536"));
+    }
+    @Test(expectedExceptions = IllegalArgumentException.class) public void rejectsWebPortCollision() {
+        ServerConfig.from(Map.of("FORGE_SERVER_PORT", "36744", "FORGE_SERVER_WEB_PORT", "36744"));
     }
     @Test(expectedExceptions = IllegalArgumentException.class) public void rejectsBadPort() {
         ServerConfig.from(Map.of("FORGE_SERVER_PORT", "0"));

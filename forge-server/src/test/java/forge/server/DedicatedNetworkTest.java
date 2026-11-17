@@ -12,7 +12,16 @@ import forge.gui.GuiBase;
 import forge.localinstance.properties.ForgeNetPreferences;
 import forge.localinstance.properties.ForgePreferences.FPref;
 import forge.model.FModel;
+import forge.interfaces.ILobbyListener;
 import forge.util.BuildInfo;
+import forge.web.EmbeddedWebServer;
+import forge.web.PlayerSettings;
+import forge.web.match.WebGuiGame;
+import forge.gamemodes.net.WebSocketTunnel;
+import forge.gamemodes.net.client.FGameClient;
+import forge.gamemodes.net.client.ClientGameLobby;
+import forge.gamemodes.match.GameLobby.GameLobbyData;
+import forge.gamemodes.net.ChatMessage;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -23,6 +32,10 @@ import org.testng.annotations.*;
 import javax.swing.SwingUtilities;
 import java.nio.file.*;
 import java.net.ServerSocket;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.BooleanSupplier;
@@ -346,6 +359,71 @@ public class DedicatedNetworkTest {
             await(() -> server.connectedPlayers().isEmpty() && lobby.getSlot(0).getType() == LobbySlotType.OPEN);
             SwingUtilities.invokeAndWait(() -> lobby.applyVariant(forge.game.GameType.Commander));
             round++;
+        }
+    }
+
+    @Test(dependsOnMethods = "admissionUpdatesAndCleanup", timeOut = 60000)
+    public void websocketTunnelAndTcpJoinTheSameDedicatedLobby() throws Exception {
+        server.startLoopbackServer();
+        EmbeddedWebServer web = EmbeddedWebServer.start(lobby, 0);
+        HttpResponse<Void> wrongToken = HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + web.port() + "/netplay?token=wrong"))
+                        .GET().build(), HttpResponse.BodyHandlers.discarding());
+        Assert.assertEquals(wrongToken.statusCode(), 403, "a wrong WebSocket tunnel token must be refused");
+        WebGuiGame gui = new WebGuiGame(PlayerSettings.saved());
+        WebGuiGame localGui = new WebGuiGame(PlayerSettings.saved());
+        ClientGameLobby clientLobby = new ClientGameLobby();
+        ClientGameLobby localLobby = new ClientGameLobby();
+        CountDownLatch seated = new CountDownLatch(1);
+        CountDownLatch localSeated = new CountDownLatch(1);
+        int[] seat = {-1};
+        FGameClient local = new FGameClient("Loopback Player", localGui, FServerManager.LOOPBACK);
+        local.setDispatchExecutor(localGui.dispatchExecutor());
+        local.addLobbyListener(new ILobbyListener() {
+            @Override public void message(String source, String message, ChatMessage.MessageType type) { }
+            @Override public void update(GameLobbyData state, int slot) {
+                localLobby.setData(state);
+                localLobby.setLocalPlayer(slot);
+                if (slot >= 0) { localSeated.countDown(); }
+            }
+            @Override public void close() { }
+            @Override public ClientGameLobby getLobby() { return localLobby; }
+        });
+        local.connect();
+        FGameClient tunnel = new FGameClient("Tunnel Player", gui,
+                WebSocketTunnel.of(web.inviteUrl("127.0.0.1")));
+        tunnel.setDispatchExecutor(gui.dispatchExecutor());
+        tunnel.addLobbyListener(new ILobbyListener() {
+            @Override public void message(String source, String message, ChatMessage.MessageType type) { }
+            @Override public void update(GameLobbyData state, int slot) {
+                clientLobby.setData(state);
+                clientLobby.setLocalPlayer(slot);
+                if (slot >= 0) { seat[0] = slot; seated.countDown(); }
+            }
+            @Override public void close() { }
+            @Override public ClientGameLobby getLobby() { return clientLobby; }
+        });
+        tunnel.connect();
+        Channel tcp = null;
+        try {
+            Assert.assertTrue(localSeated.await(20, TimeUnit.SECONDS), "the in-JVM loopback client did not receive a dedicated lobby seat");
+            Assert.assertTrue(seated.await(20, TimeUnit.SECONDS), "the WebSocket tunnel client did not receive a dedicated lobby seat");
+            tcp = connect("TCP Player", BuildInfo.getVersionString());
+            await(() -> server.connectedPlayers().size() == 3
+                    && server.connectedPlayers().stream().anyMatch(c -> "TCP Player".equals(c.getUsername()))
+                    && server.connectedPlayers().stream().anyMatch(c -> "Tunnel Player".equals(c.getUsername()))
+                    && server.connectedPlayers().stream().anyMatch(c -> "Loopback Player".equals(c.getUsername())));
+            Assert.assertEquals(lobby.getSlot(seat[0]).getName(), "Tunnel Player");
+            Assert.assertTrue(lobby.getNumberOfSlots() >= 2);
+            Assert.assertTrue(tcp.isActive());
+        } finally {
+            if (tcp != null) { tcp.close(); }
+            local.close();
+            tunnel.close();
+            localGui.close();
+            gui.close();
+            web.close();
+            await(() -> server.connectedPlayers().isEmpty());
         }
     }
 

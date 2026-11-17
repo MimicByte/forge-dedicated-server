@@ -57,6 +57,14 @@ import java.util.stream.Collectors;
 
 /** Forge's interface to the program it runs in, implemented for the web. One "WebUI" thread takes the place of Swing's event thread. */
 public final class WebGuiBase implements IGuiBase, IHasForgeLog {
+    private final boolean dispatchThroughGuiBase;
+
+    public WebGuiBase() { this(false); }
+
+    WebGuiBase(final boolean dispatchThroughGuiBase) {
+        this.dispatchThroughGuiBase = dispatchThroughGuiBase;
+    }
+
     private volatile Thread uiThread;
     private final ExecutorService ui = Executors.newSingleThreadExecutor(r -> {
         // Must not start with "Game": ThreadUtil.isGameThread is a name-prefix test
@@ -132,10 +140,11 @@ public final class WebGuiBase implements IGuiBase, IHasForgeLog {
     @Override public String getUserAgent() { return "Forge/" + getCurrentVersion() + " (gui-web)"; }
     @Override public String getAssetsDir() { return assetsDir; }
     @Override public ImageFetcher getImageFetcher() { return imageFetcher; }
-    @Override public boolean isGuiThread() { return Thread.currentThread() == uiThread; }
+    @Override public boolean isGuiThread() { return dispatchThroughGuiBase ? forge.gui.FThreads.isGuiThread() : Thread.currentThread() == uiThread; }
 
     @Override
     public void invokeInEdtNow(final Runnable runnable) {
+        if (dispatchThroughGuiBase) { forge.gui.GuiBase.getInterface().invokeInEdtNow(runnable); return; }
         if (isGuiThread()) {
             runnable.run();
         } else {
@@ -145,11 +154,13 @@ public final class WebGuiBase implements IGuiBase, IHasForgeLog {
 
     @Override
     public void invokeInEdtLater(final Runnable runnable) {
+        if (dispatchThroughGuiBase) { forge.gui.FThreads.invokeInEdtLater(runnable); return; }
         ui.execute(guarded(runnable));
     }
 
     @Override
     public void invokeInEdtAndWait(final Runnable proc) {
+        if (dispatchThroughGuiBase) { forge.gui.FThreads.invokeInEdtAndWait(proc); return; }
         if (isGuiThread()) {
             proc.run();
             return;
