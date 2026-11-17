@@ -371,6 +371,11 @@ public final class WebSession implements IHasForgeLog {
             ui.hostQuestions().replay(channel::send);
         }
         decks.reconnected(channel);
+        if (now instanceof Playing p && sessions.dedicatedMode() && !local.hasClient()) {
+            reconnectDedicatedSeat(p.gui());
+        } else if (now instanceof Setup s && sessions.dedicatedMode() && !local.hasClient()) {
+            reconnectDedicatedSeat(s.gui());
+        }
         if (now instanceof Playing p) {
             p.gui().attach(channel);
             limited.resendResult(channel);
@@ -558,7 +563,7 @@ public final class WebSession implements IHasForgeLog {
             gui.whenOpened(() -> guestMatchOpened(gui));
             eventSeat.newTable(gui);
             try {
-                local.openGuest(seatName, gui, this::lobbyChanged, this::chatted, this::gameGone);
+                local.openGuest(seatName, gui, this::lobbyChanged, this::chatted, this::guestClientClosed);
             } catch (final RuntimeException e) {
                 netLog.error(e, "Could not take a seat");
                 gui.close();
@@ -589,6 +594,51 @@ public final class WebSession implements IHasForgeLog {
         final Stage now = stage;
         if (now instanceof Setup s && s.gui() == gui && move(now, new Playing(gui, true, false, null))) {
             attach(gui);
+        }
+    }
+
+    private void reconnectDedicatedSeat(final WebGuiGame gui) {
+        final String seatName = name;
+        if (seatName == null) { return; }
+        ui.runBackgroundTask("Rejoining dedicated seat", () -> {
+            try {
+                local.reconnectGuest(seatName, gui, this::lobbyChanged, this::chatted, this::guestClientClosed);
+                attach(gui);
+                final BrowserChannel b = browser;
+                if (b != null && stage instanceof Setup) {
+                    lobby.queueDecks(b, decks::inTurn);
+                    lobby.sendState(b);
+                }
+            } catch (final RuntimeException e) {
+                netLog.error(e, "Could not reclaim dedicated seat");
+            }
+        });
+    }
+
+    private void guestClientClosed() {
+        // Dedicated reset/disconnect is managed by DedicatedServerSession; keep this web seat and its name for lobby return/reconnect.
+        if (!sessions.dedicatedMode()) { gameGone(); }
+    }
+
+    /** Called after the browser has been absent for the reload grace. */
+    void browserGraceExpired() {
+        if (sessions.dedicatedMode() && !attached()) {
+            local.disconnectClient();
+        }
+    }
+
+    void dedicatedLobbyReset() {
+        final Stage now = stage;
+        if (sessions.dedicatedMode() && now instanceof Playing p && !sessions.hostPlaying()) {
+            // The dedicated server keeps connected clients across its postgame reset; only the web page stage was host-driven.
+            // Keep the netplay client (and its seat/name) and show the lobby's latest state.
+            if (move(now, new Setup(p.gui(), true))) {
+                final BrowserChannel b = browser;
+                if (b != null) {
+                    lobby.queueDecks(b, decks::inTurn);
+                    lobby.sendState(b);
+                }
+            }
         }
     }
 

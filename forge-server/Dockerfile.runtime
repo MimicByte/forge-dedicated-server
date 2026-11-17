@@ -11,6 +11,7 @@ COPY forge-server-bin/ /opt/forge/
 # and bundled precon catalogs for server-managed AI opponents.
 RUN mv /opt/forge/res/quest/commanderprecons /tmp/commanderprecons \
     && mv /opt/forge/res/quest/precons /tmp/precons \
+    && mv /opt/forge/res/quest/themes /tmp/themes \
     && rm -rf \
     /opt/forge/res/adventure \
     /opt/forge/res/conquest \
@@ -20,7 +21,8 @@ RUN mv /opt/forge/res/quest/commanderprecons /tmp/commanderprecons \
     /opt/forge/res/defaults/gauntlet \
     && mkdir -p /opt/forge/res/quest \
     && mv /tmp/commanderprecons /opt/forge/res/quest/commanderprecons \
-    && mv /tmp/precons /opt/forge/res/quest/precons
+    && mv /tmp/precons /opt/forge/res/quest/precons \
+    && mv /tmp/themes /opt/forge/res/quest/themes
 
 USER 10001:10001
 WORKDIR /opt/forge

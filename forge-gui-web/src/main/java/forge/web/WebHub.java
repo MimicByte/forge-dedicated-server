@@ -218,7 +218,10 @@ final class WebHub implements WebServer.Endpoint, IHasForgeLog {
         }
         letGo();
         // A seat held by a browser that never comes back would leave nobody able to set up the table
-        ThreadUtil.delay(HOST_GRACE_MILLIS, this::releaseHostIfAbandoned);
+        ThreadUtil.delay(HOST_GRACE_MILLIS, () -> {
+            session.browserGraceExpired();
+            releaseHostIfAbandoned();
+        });
     }
 
     @Override
@@ -305,8 +308,14 @@ final class WebHub implements WebServer.Endpoint, IHasForgeLog {
     }
 
     /** Sends the table to every browser again, after a change that no lobby update carries. */
+    boolean dedicatedMode() { return dedicatedLobby != null; }
+
+    /** Dedicated seats remain open in the UI while their netplay client is parked or reset. */
     void lobbyChanged() {
         byId.values().forEach(WebSession::lobbyChanged);
+        if (dedicatedLobby != null && !dedicatedLobby.isMatchActive()) {
+            byId.values().forEach(WebSession::dedicatedLobbyReset);
+        }
     }
 
     /** Redraws every seat's dial after a pod player left or came back. */

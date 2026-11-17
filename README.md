@@ -61,7 +61,7 @@ volumes:
   forge-images:
 ```
 
-Start it with `docker compose up -d`, then join `server-hostname:36743` from desktop Forge or open the browser invite URL printed in the container logs. The web panel listens on `FORGE_SERVER_WEB_PORT` (default `36744`); `0` disables it. The server needs reachable inbound TCP; clients do not need port forwarding. The first start loads the card database and can take several minutes. The image runs as UID/GID 10001. Do not publish the private API port; use a private Docker network or trusted local proxy if it is enabled.
+Start it with `docker compose up -d`, then join `server-hostname:36743` from desktop Forge or open the browser invite URL printed in the container logs. The web panel listens on `FORGE_SERVER_WEB_PORT` (default `36744`); `0` disables it. If the link printed by Docker uses an unreachable container address, set `FORGE_SERVER_PUBLIC_URL` (for example `http://192.168.1.10:36744` or `https://forge.example.com`) to choose the origin printed in the invite URL. The server needs reachable inbound TCP; clients do not need port forwarding. The first start loads the card database and can take several minutes. The image runs as UID/GID 10001. Do not publish the private API port; use a private Docker network or trusted local proxy if it is enabled.
 
 `FORGE_SERVER_IMAGE_CACHE` selects the directory for downloaded card and other picture caches; the compose example mounts the shared `forge-images` volume at `/images`. Reuse that volume across room containers to avoid downloading the same pictures again. Give a bind-mounted directory write access to UID/GID 10001.
 

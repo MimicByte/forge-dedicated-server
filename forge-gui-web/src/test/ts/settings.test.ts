@@ -1,8 +1,35 @@
-import { describe, expect, it } from 'vitest';
-import { PLAYMATS, SETTINGS, stored, type SettingDef } from '../../main/ts/settings';
+import { describe, expect, it, vi } from 'vitest';
+import { initSettings, onServerSettings, PLAYMATS, set, setGuest, setting, SETTINGS, stored, type SettingDef } from '../../main/ts/settings';
 
 const def = (key: string): SettingDef => SETTINGS.find(d => d.key === key)!;
 const ofType = (type: SettingDef['type']): SettingDef => SETTINGS.find(d => d.type === type)!;
+
+describe('guest settings', () => {
+  it('keeps browser audio values when the server echoes its defaults again', () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
+    vi.stubGlobal('document', {
+      documentElement: { style: { setProperty: () => {} }, dataset: {} },
+      getElementById: () => null,
+      createElement: () => ({ id: '', textContent: '' }),
+      head: { append: () => {} },
+    });
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => { values.set(key, value); },
+      removeItem: (key: string) => { values.delete(key); },
+    });
+    setGuest(true);
+    initSettings(() => {}, () => {});
+    set('soundVolume', 0);
+    set('musicVolume', 0);
+    onServerSettings({ soundVolume: 100, musicVolume: 100 } as never);
+    expect(setting('soundVolume')).toBe(0);
+    expect(setting('musicVolume')).toBe(0);
+    vi.unstubAllGlobals();
+    setGuest(false);
+  });
+});
 
 describe('a stored setting', () => {
   // Fails if a playmat that was removed, or a choice value outside the current options, is used

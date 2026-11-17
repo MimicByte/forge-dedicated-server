@@ -11,6 +11,7 @@ public class ServerConfigTest {
         Assert.assertEquals(c.mode(), ServerConfig.Mode.COMMANDER);
         Assert.assertEquals(c.maxPlayers(), 4);
         Assert.assertEquals(c.webPort(), 36744);
+        Assert.assertEquals(c.publicUrl(), "");
         Assert.assertEquals(c.startDelaySeconds(), 10);
         Assert.assertEquals(c.reconnectSeconds(), 300);
         Assert.assertEquals(c.afkTimeoutMinutes(), 5);
@@ -26,6 +27,10 @@ public class ServerConfigTest {
         Assert.assertEquals(c.loginBlockSeconds(), 900);
         Assert.assertEquals(c.crashReportMaxFiles(), 10);
         Assert.assertEquals(c.mulliganRule(), MulliganDefs.MulliganRule.London);
+    }
+    @Test public void printsConfiguredPublicInviteOrigin() {
+        ServerConfig c = ServerConfig.from(Map.of("FORGE_SERVER_PUBLIC_URL", "https://forge.example.com/"));
+        Assert.assertEquals(c.publicUrl(), "https://forge.example.com/");
     }
     @Test public void constructedUsesNormalRoomCapacity() {
         Assert.assertEquals(ServerConfig.from(Map.of("FORGE_SERVER_MODE", "CONSTRUCTED")).maxPlayers(), 4);

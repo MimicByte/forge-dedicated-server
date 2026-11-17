@@ -217,6 +217,21 @@ public final class NetplaySeat implements IHasForgeLog {
         }
     }
 
+    /** Closes this browser's server connection after its reload grace, leaving dedicated reconnect policy to park the seat. */
+    public void disconnectClient() {
+        final FGameClient old = client;
+        client = null;
+        if (old != null) { old.close(); }
+    }
+
+    public boolean hasClient() { return client != null; }
+
+    /** Rejoins a dedicated seat by its unchanged display name after a browser returns beyond the web reload grace. */
+    public void reconnectGuest(final String playerName, final WebGuiGame gui, final Runnable onUpdate,
+            final BiConsumer<String, String> onChat, final Runnable onClosed) {
+        openGuest(playerName, gui, onUpdate, onChat, onClosed);
+    }
+
     /** Prepares the match and returns the task that starts it, or null when it cannot start. Only the host can do this. */
     public Runnable prepare() {
         if (hosted == null) {

@@ -13,6 +13,7 @@ RUN version_arg='' revision_arg='' \
 # precon catalogs for server-managed AI opponents.
 RUN mv forge-server/target/forge-server-bin/res/quest/commanderprecons /tmp/commanderprecons \
     && mv forge-server/target/forge-server-bin/res/quest/precons /tmp/precons \
+    && mv forge-server/target/forge-server-bin/res/quest/themes /tmp/themes \
     && rm -rf \
     forge-server/target/forge-server-bin/res/adventure \
     forge-server/target/forge-server-bin/res/conquest \
@@ -22,7 +23,8 @@ RUN mv forge-server/target/forge-server-bin/res/quest/commanderprecons /tmp/comm
     forge-server/target/forge-server-bin/res/defaults/gauntlet \
     && mkdir -p forge-server/target/forge-server-bin/res/quest \
     && mv /tmp/commanderprecons forge-server/target/forge-server-bin/res/quest/commanderprecons \
-    && mv /tmp/precons forge-server/target/forge-server-bin/res/quest/precons
+    && mv /tmp/precons forge-server/target/forge-server-bin/res/quest/precons \
+    && mv /tmp/themes forge-server/target/forge-server-bin/res/quest/themes
 
 FROM eclipse-temurin:17-jre-jammy
 RUN groupadd --gid 10001 forge && useradd --uid 10001 --gid forge --create-home forge \

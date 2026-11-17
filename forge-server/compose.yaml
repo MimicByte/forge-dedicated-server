@@ -13,6 +13,8 @@ services:
     environment:
       FORGE_SERVER_MODE: COMMANDER
       FORGE_SERVER_WEB_PORT: "36744"
+      # Optional public invite origin, e.g. https://forge.example.com
+      FORGE_SERVER_PUBLIC_URL: ""
       FORGE_SERVER_IMAGE_CACHE: "/images"
       # Optional: PLANECHASE,VANGUARD,ARCHENEMY,ARCHENEMY_RUMBLE
       FORGE_SERVER_VARIANTS: ""

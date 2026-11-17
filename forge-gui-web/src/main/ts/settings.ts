@@ -247,7 +247,16 @@ export function stored(def: SettingDef, value: SettingValue | undefined): Settin
 
 // The server sends its preference values on connecting and with the rest of the turn controls
 export function onServerSettings(values: ServerSettings | undefined): void {
-  server = values ?? {};
+  server = { ...(values ?? {}) };
+  // A guest's audio/settings are stored per browser. A later hello or controls echo can carry the server's defaults
+  // (not this browser's settings), so keep the browser's saved values as the effective guest copy.
+  if (guest) {
+    for (const [key, value] of Object.entries(guestSettings())) {
+      if (byKey.get(key)?.server) {
+        (server as Record<string, SettingValue>)[key] = value;
+      }
+    }
+  }
   apply();
 }
 

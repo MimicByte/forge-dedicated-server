@@ -30,6 +30,11 @@ public final class EmbeddedWebServer implements AutoCloseable {
 
     public String inviteUrl(final String host) { return server.inviteUrl(host); }
 
+    /** The link through a public address such as https://forge.example.com. */
+    public String inviteUrlThrough(final String origin) { return server.inviteUrlThrough(origin.replaceAll("/+$", "")); }
+
+    public void lobbyChanged() { hub.lobbyChanged(); }
+
     @Override public void close() {
         hub.shutdown();
         server.close();

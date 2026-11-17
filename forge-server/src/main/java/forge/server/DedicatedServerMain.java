@@ -72,6 +72,7 @@ public final class DedicatedServerMain {
         FServerManager server = FServerManager.getInstance();
         AtomicReference<DedicatedLobbyController> controllerRef = new AtomicReference<>();
         AtomicReference<ServerGameLobby> lobbyRef = new AtomicReference<>();
+        AtomicReference<EmbeddedWebServer> webRef = new AtomicReference<>();
         SwingUtilities.invokeAndWait(() -> {
             ServerGameLobby lobby = new ServerGameLobby(config.maxPlayers());
             DedicatedLobbyController.applyRules(lobby, config.rules());
@@ -83,7 +84,12 @@ public final class DedicatedServerMain {
             server.setLobby(lobby);
             server.setDedicatedPolicy(controller);
             lobby.setListener(new IUpdateable() {
-                @Override public void update(boolean full) { server.updateLobbyState(); controller.lobbyChanged(); }
+                @Override public void update(boolean full) {
+                    server.updateLobbyState();
+                    controller.lobbyChanged();
+                    EmbeddedWebServer embedded = webRef.get();
+                    if (embedded != null) { embedded.lobbyChanged(); }
+                }
                 @Override public void update(int slot, LobbySlotType type) { }
             });
             server.setLobbyListener(new ILobbyListener() {
@@ -101,7 +107,13 @@ public final class DedicatedServerMain {
         if (config.webPort() != 0) {
             server.startLoopbackServer();
             web = EmbeddedWebServer.start(lobbyRef.get(), config.webPort());
-            System.out.println("[server] Browser invite link: " + web.inviteUrl(FServerManager.getLocalAddress()));
+            webRef.set(web);
+            String invite = config.publicUrl().isBlank() ? web.inviteUrl(FServerManager.getLocalAddress())
+                    : web.inviteUrlThrough(config.publicUrl());
+            System.out.println("[server] Browser invite link: " + invite);
+            if (config.publicUrl().isBlank()) {
+                System.out.println("[server] Set FORGE_SERVER_PUBLIC_URL to print a browser-reachable invite address.");
+            }
         }
         final EmbeddedWebServer embeddedWeb = web;
         DedicatedAdminServer admin = config.adminEnabled() ? new DedicatedAdminServer(config, controller) : null;
