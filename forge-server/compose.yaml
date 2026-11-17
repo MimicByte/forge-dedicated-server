@@ -1,0 +1,45 @@
+services:
+  forge:
+    build:
+      context: ..
+      dockerfile: forge-server/Dockerfile
+    platform: linux/amd64
+    image: forge-dedicated:8980637-1
+    restart: on-failure
+    stop_grace_period: 30s
+    ports:
+      - "36743:36743/tcp"
+    environment:
+      FORGE_SERVER_MODE: COMMANDER
+      # Optional: PLANECHASE,VANGUARD,ARCHENEMY,ARCHENEMY_RUMBLE
+      FORGE_SERVER_VARIANTS: ""
+      FORGE_SERVER_MAX_PLAYERS: "4"
+      FORGE_SERVER_GAMES_PER_MATCH: "3"
+      FORGE_SERVER_COMMANDER_BRACKET: "5"
+      FORGE_SERVER_ENFORCE_DECK_LEGALITY: "true"
+      FORGE_SERVER_MANA_BURN: "false"
+      FORGE_SERVER_LEGACY_ORDER_COMBATANTS: "false"
+      FORGE_SERVER_FILTERED_HANDS: "false"
+      FORGE_SERVER_AI_TIMEOUT_SECONDS: "5"
+      # Set a secret to enable the private API on TCP 8080. Do not publish this port.
+      FORGE_SERVER_ADMIN_TOKEN: ""
+      FORGE_SERVER_ADMIN_PORT: "8080"
+      FORGE_SERVER_START_DELAY_SECONDS: "10"
+      FORGE_SERVER_RECONNECT_SECONDS: "300"
+      FORGE_SERVER_POSTGAME_SECONDS: "120"
+      # Minutes before an inactive player is auto-passed; 0 disables this.
+      FORGE_SERVER_AFK_TIMEOUT: "5"
+      # Leave empty for public rooms; otherwise list the permitted display names.
+      FORGE_SERVER_ALLOWED_PLAYERS: ""
+      FORGE_SERVER_LOGIN_FAILURE_LIMIT: "5"
+      FORGE_SERVER_LOGIN_FAILURE_WINDOW_SECONDS: "60"
+      FORGE_SERVER_LOGIN_BLOCK_SECONDS: "900"
+      # Text crash reports are always kept in /config/crash-reports (newest 10 by default).
+      # Heap dumps can contain game data and require disk space up to the Java heap size.
+      FORGE_SERVER_HEAP_DUMPS: "false"
+      FORGE_SERVER_CRASH_REPORT_MAX_FILES: "10"
+      JAVA_TOOL_OPTIONS: "-Xmx4g"
+    volumes:
+      - forge-config:/config
+volumes:
+  forge-config:

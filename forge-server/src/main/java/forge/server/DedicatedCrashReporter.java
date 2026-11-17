@@ -1,0 +1,130 @@
+package forge.server;
+
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
+
+/** Writes server failures to the persistent configuration volume. */
+public final class DedicatedCrashReporter {
+    private static final DateTimeFormatter FILE_TIMESTAMP = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS")
+            .withZone(ZoneOffset.UTC);
+    private static final AtomicBoolean REPORTING_UNCAUGHT_EXCEPTION = new AtomicBoolean();
+    private static Path reportDirectory;
+    private static int maxReports;
+    private static Supplier<String> context = () -> "";
+
+    private DedicatedCrashReporter() { }
+
+    static void install(Path configDirectory, int maximumReports, Supplier<String> reportContext) {
+        reportDirectory = configDirectory.resolve("crash-reports");
+        maxReports = maximumReports;
+        context = reportContext;
+        try { Files.createDirectories(reportDirectory); }
+        catch (Exception error) { System.err.println("[server] Could not create crash report directory: " + error); }
+
+        Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {
+            if (REPORTING_UNCAUGHT_EXCEPTION.compareAndSet(false, true)) {
+                try { report(error, "Uncaught exception on thread " + thread.getName()); }
+                finally { REPORTING_UNCAUGHT_EXCEPTION.set(false); }
+            }
+            if (previous != null) { previous.uncaughtException(thread, error); }
+            else { error.printStackTrace(); }
+        });
+    }
+
+    static void report(Throwable error, String reason) {
+        if (reportDirectory == null) { return; }
+        try {
+            Path report = writeReport(reportDirectory, maxReports, safeContext(), error, reason);
+            System.err.println("[server] Crash report written to " + report);
+        } catch (Throwable writeFailure) {
+            System.err.println("[server] Could not write crash report: " + writeFailure);
+        }
+    }
+
+    /**
+     * Persist an error that Forge has already rendered into its headless crash
+     * dialog. Game-worker failures reach that dialog after being caught by the
+     * base game, so they are not necessarily uncaught exceptions.
+     */
+    static void reportText(String reason, String detail) {
+        logDetailToStderr(reason, detail);
+        if (reportDirectory == null) { return; }
+        try {
+            Path report = writeTextReport(reportDirectory, maxReports, safeContext(), reason, detail);
+            System.err.println("[server] Crash report written to " + report);
+        } catch (Throwable writeFailure) {
+            System.err.println("[server] Could not write crash report: " + writeFailure);
+        }
+    }
+
+    /** Keep caught game-worker failures visible in container logs as well as /config. */
+    private static void logDetailToStderr(String reason, String detail) {
+        System.err.println("[server] ===== " + reason + " =====");
+        if (detail == null || detail.isBlank()) {
+            System.err.println("[server] No error detail was supplied by Forge.");
+        } else {
+            System.err.print(detail);
+            if (!detail.endsWith("\n") && !detail.endsWith("\r")) {
+                System.err.println();
+            }
+        }
+        System.err.println("[server] ===== end " + reason + " =====");
+    }
+
+    static Path writeReport(Path directory, int maximumReports, String reportContext, Throwable error, String reason)
+            throws java.io.IOException {
+        StringWriter trace = new StringWriter();
+        error.printStackTrace(new PrintWriter(trace));
+        return writeTextReport(directory, maximumReports, reportContext, reason, trace.toString());
+    }
+
+    private static Path writeTextReport(Path directory, int maximumReports, String reportContext, String reason,
+            String detail) throws java.io.IOException {
+        Files.createDirectories(directory);
+        Path report = nextReportPath(directory);
+        String content = "Forge Dedicated Server crash report\n"
+                + "timestamp_utc=" + Instant.now() + "\n"
+                + "reason=" + reason + "\n"
+                + "thread=" + Thread.currentThread().getName() + "\n"
+                + reportContext + "\n\n" + (detail == null ? "" : detail);
+        Files.writeString(report, content, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+        pruneReports(directory, maximumReports);
+        return report;
+    }
+
+    private static Path nextReportPath(Path directory) {
+        String stem = "dedicated-crash-" + FILE_TIMESTAMP.format(Instant.now());
+        for (int suffix = 0; ; suffix++) {
+            Path candidate = directory.resolve(stem + (suffix == 0 ? "" : "-" + suffix) + ".log");
+            if (!Files.exists(candidate)) { return candidate; }
+        }
+    }
+
+    private static String safeContext() {
+        try { return context.get(); }
+        catch (Throwable ignored) { return "context=unavailable"; }
+    }
+
+    private static void pruneReports(Path directory, int maximumReports) {
+        try (var reports = Files.list(directory)) {
+            Path[] oldReports = reports.filter(path -> path.getFileName().toString().startsWith("dedicated-crash-")
+                            && path.getFileName().toString().endsWith(".log"))
+                    .sorted(Comparator.comparingLong(path -> path.toFile().lastModified()))
+                    .toArray(Path[]::new);
+            for (int index = 0; index < oldReports.length - maximumReports; index++) { Files.deleteIfExists(oldReports[index]); }
+        } catch (Exception ignored) {
+            // Reporting must not fail because cleanup did.
+        }
+    }
+}
