@@ -151,6 +151,14 @@ public final class RemoteClient implements IToClient, IHasForgeLog {
         return replies.get(event.getId());
     }
 
+    public boolean isConnected() { return channel.isActive(); }
+    public void close() { channel.close(); }
+    public void resetGameTransport() {
+        replies.cancelAll();
+        setCodecTracker(null, -1);
+        gui = null;
+    }
+
     public String getUsername() {
         return username;
     }
@@ -198,7 +206,7 @@ public final class RemoteClient implements IToClient, IHasForgeLog {
     }
 
     private void applyCodecTracker(Channel ch) {
-        if (codecTracker == null || ch == null) {
+        if (ch == null) {
             return;
         }
         // Swap on the event loop so it lands between decoded frames: a message the

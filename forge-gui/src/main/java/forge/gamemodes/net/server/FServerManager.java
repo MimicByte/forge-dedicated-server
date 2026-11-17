@@ -153,6 +153,57 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
     private EventLoopGroup workerGroup;
     private PortForward portForward;
     private ServerGameLobby localLobby;
+    private DedicatedServerPolicy dedicatedPolicy;
+    private DedicatedServerSession dedicatedSession;
+    private volatile boolean finalShutdown;
+    private io.netty.channel.Channel listeningChannel;
+
+    public void setDedicatedPolicy(DedicatedServerPolicy policy) {
+        dedicatedPolicy = policy;
+        dedicatedSession = policy == null ? null : new DedicatedServerSession(this, policy);
+    }
+
+    public java.util.List<RemoteClient> connectedPlayers() {
+        return clients.values().stream().filter(c -> c.hasValidSlot() && c.isConnected()).toList();
+    }
+
+    public void forgetDisconnected(RemoteClient client) {
+        disconnectedClients.remove(client.getUsername(), client);
+    }
+
+    public void resetDedicatedConnections() {
+        disconnectedClients.values().forEach(c -> c.getReplyPool().cancelAll());
+        disconnectedClients.clear();
+        reconnectTimers.values().forEach(Timer::cancel);
+        reconnectTimers.clear();
+        afkSlots.clear();
+        clients.values().forEach(RemoteClient::resetGameTransport);
+    }
+
+    /** Release protocol calls blocked waiting for a remote GUI reply. */
+    public void cancelDedicatedReplies() {
+        clients.values().forEach(client -> client.getReplyPool().cancelAll());
+        disconnectedClients.values().forEach(client -> client.getReplyPool().cancelAll());
+    }
+
+    public void shutdownDedicated() {
+        finalShutdown = true;
+        if (listeningChannel != null) { listeningChannel.close(); }
+        clients.values().forEach(RemoteClient::close);
+        stopServer(false);
+    }
+
+    ServerGameLobby getLocalLobby() { return localLobby; }
+    int maxDedicatedNameLength() { return maxNameLength(); }
+    boolean isDedicatedShuttingDown() { return finalShutdown; }
+    RemoteClient takeParkedDedicatedClient(String name) { return disconnectedClients.remove(name); }
+    void parkDisconnectedClient(RemoteClient client) { disconnectedClients.put(client.getUsername(), client); }
+    void replaceClientChannel(ChannelHandlerContext context, RemoteClient client) {
+        clients.remove(context.channel());
+        client.swapChannel(context.channel());
+        clients.put(context.channel(), client);
+    }
+
     private ILobbyListener lobbyListener;
     private IDraftEventHandler draftHandler;
     private int port;
@@ -185,6 +236,14 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
         return null;
     }
 
+    /** Disconnects a currently connected dedicated-server player by zero-based lobby slot. */
+    public boolean disconnectDedicatedPlayer(int slotIndex) {
+        RemoteClient client = getClientBySlotIndex(slotIndex);
+        if (client == null || !client.isConnected()) { return false; }
+        client.close();
+        return true;
+    }
+
     /**
      * Send an event to the given slot. If the slot is a remote client, sends
      * the NetEvent over the wire; otherwise dispatches it to the local lobby
@@ -200,6 +259,9 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
     }
 
     IGameController getController(final int index) {
+        if (dedicatedPolicy != null && !dedicatedPolicy.acceptsGameActions()) {
+            return null;
+        }
         return localLobby.getController(index);
     }
 
@@ -287,20 +349,21 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
             }
 
             // Bind and start to accept incoming connections.
-            final ChannelFuture ch = b.bind(address).sync().channel().closeFuture();
+            listeningChannel = b.bind(address).sync().channel();
+            final ChannelFuture ch = listeningChannel.closeFuture();
             new Thread(() -> {
                 try {
                     ch.sync();
                 } catch (final InterruptedException e) {
                     netLog.error(e, "Server channel error");
                 } finally {
-                    stopServer();
+                    if (!finalShutdown) { stopServer(); }
                 }
             }).start();
             if (startUPnP) {
                 mapNatPort();
             }
-            Runtime.getRuntime().addShutdownHook(shutdownHook);
+            if (dedicatedPolicy == null) { Runtime.getRuntime().addShutdownHook(shutdownHook); }
             HostingServer.set(this);
         } catch (final InterruptedException e) {
             netLog.error(e, "Server start interrupted");
@@ -357,7 +420,7 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
             portForward.close();
             portForward = null;
         }
-        if (removeShutdownHook) {
+        if (removeShutdownHook && dedicatedPolicy == null) {
             Runtime.getRuntime().removeShutdownHook(shutdownHook);
         }
         HostingServer.set(null);
@@ -512,7 +575,7 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
     }
 
     public void unsetReady() {
-        if (this.localLobby != null && this.localLobby.getSlot(0) != null) {
+        if (dedicatedPolicy == null && this.localLobby != null && this.localLobby.getSlot(0) != null) {
             this.localLobby.getSlot(0).setIsReady(false);
             updateLobbyState();
         }
@@ -873,14 +936,14 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
         return null;
     }
 
-    private void pauseRemoteClientGuiGame(final RemoteClient client) {
+    void pauseRemoteClientGuiGame(final RemoteClient client) {
         final RemoteClientGuiGame gui = client.getGui();
         if (gui == null) { return; }
         gui.pause();
         netLog.info("[Reconnect] Paused RemoteClientGuiGame for slot {} ({})", client.getIndex(), client.getUsername());
     }
 
-    private void resumeAndResync(final RemoteClient client) {
+    void resumeAndResync(final RemoteClient client) {
         final int slotIndex = client.getIndex();
         final RemoteClientGuiGame netGui = client.getGui();
         if (netGui == null) { return; }
@@ -991,7 +1054,7 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
                 final String text = LogSafe.forDisplay(raw);
                 String username = client.getUsername();
                 // Append (Host) indicator for the host player
-                if (client.getIndex() == 0) {
+                if (dedicatedPolicy == null && client.getIndex() == 0) {
                     username = username + " (Host)";
                 }
                 broadcast(new MessageEvent(username, text));
@@ -1042,6 +1105,20 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
         @Override
         public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
             final RemoteClient client = clients.get(ctx.channel());
+            if (dedicatedSession != null) {
+                if (msg instanceof LoginEvent event) {
+                    dedicatedSession.handleLogin(ctx, client, event);
+                    return;
+                }
+                if (msg instanceof UpdateLobbyPlayerEvent event) {
+                    dedicatedSession.handleLobbyUpdate(client, event);
+                    return;
+                }
+                if (msg instanceof DraftPickEvent event) {
+                    dedicatedSession.handleDraftPick(client, event);
+                    return;
+                }
+            }
             if (msg instanceof LoginEvent event) {
                 // Sanitise once, here, and use the result everywhere. The name
                 // is echoed into chat and into log lines, so a newline in it
@@ -1202,6 +1279,11 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
             netLog.info("[Disconnect] Canceling pending replies for disconnected client");
             client.getReplyPool().cancelAll();
 
+            if (dedicatedSession != null) {
+                dedicatedSession.handleDisconnect(client);
+                super.channelInactive(ctx);
+                return;
+            }
             final String username = client.getUsername();
             final int playerIndex = client.getIndex();
 

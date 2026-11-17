@@ -154,6 +154,26 @@ public final class UpdateLobbyPlayerEvent implements NetEvent {
         return true;
     }
 
+    /**
+     * Restrict an event to the two fields used while a network Limited pool is
+     * being built. The room is otherwise locked during this phase.
+     */
+    public void clearFieldsExceptDeckAndReady() {
+        type = null;
+        name = null;
+        avatarIndex = -1;
+        sleeveIndex = -1;
+        team = -1;
+        isArchenemy = null;
+        isDevMode = null;
+        aiOptions = null;
+        AvatarVanguard = null;
+        SchemeDeckName = null;
+        PlanarDeckName = null;
+        DeckName = null;
+        aiProfile = null;
+    }
+
     public LobbySlotType getType() {
         return type;
     }
@@ -195,6 +215,13 @@ public final class UpdateLobbyPlayerEvent implements NetEvent {
     /** Lets the server replace a client-supplied name with a sanitised one. */
     public void setName(String name) {
         this.name = name;
+    }
+    /** Lets the server discard an invalid or inapplicable team selection. */
+    public void setTeam(int team) {
+        this.team = team;
+    }
+    public void setArchenemy(Boolean isArchenemy) {
+        this.isArchenemy = isArchenemy;
     }
 
     public Set<AIOption> getAiOptions() {

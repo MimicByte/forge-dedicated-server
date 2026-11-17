@@ -27,8 +27,27 @@ public abstract class GameProtocolHandler<T> extends ChannelInboundHandlerAdapte
     protected abstract T getToInvoke(ChannelHandlerContext ctx);
     protected abstract void beforeCall(ChannelHandlerContext ctx, ProtocolMethod protocolMethod, Object[] args);
 
+    /**
+     * Gives a transport a chance to retain an initialization message while its
+     * controller is being installed. Returning {@code true} consumes it.
+     */
+    protected boolean deferWhenTargetUnavailable(final ChannelHandlerContext ctx,
+            final ProtocolMethod protocolMethod, final Object[] args) {
+        return false;
+    }
+
     protected boolean shouldDispatchToGuiThread(final ProtocolMethod protocolMethod) {
         return runInEdt;
+    }
+
+    /**
+     * Dispatch lightweight state updates on the channel event loop when their
+     * wire order is significant. The default background dispatch is retained
+     * for interactive protocol calls, which may block while awaiting game
+     * input.
+     */
+    protected boolean shouldDispatchOnChannelEventLoop(final ProtocolMethod protocolMethod) {
+        return false;
     }
 
     /** Resolves encoded args against every message received before this one. Only the host encodes args. */
@@ -51,9 +70,16 @@ public abstract class GameProtocolHandler<T> extends ChannelInboundHandlerAdapte
 
             final Method method = protocolMethod.getMethod();
             if (method == null) {
-                //throw new IllegalStateException(String.format("Method %s not found", protocolMethod.name()));
-                catchedError[0] += String.format("IllegalStateException: Method %s not found (GameProtocolHandler.java Line 43)\n", protocolMethod.name());
                 netLog.error("Method {} not found", protocolMethod.name());
+                // A bad or mismatched protocol event must not bring down the
+                // dispatcher. Reply so synchronous callers are not left waiting.
+                if (!protocolMethod.getReturnType().equals(Void.TYPE)) {
+                    final IRemote remote = getRemote(ctx);
+                    if (remote != null) {
+                        remote.send(new ReplyEvent(event.getId(), null));
+                    }
+                }
+                return;
             }
 
             final Object[] args = event.getObjects();
@@ -61,6 +87,9 @@ public abstract class GameProtocolHandler<T> extends ChannelInboundHandlerAdapte
 
             final Object toInvoke = getToInvoke(ctx);
             if (toInvoke == null) {
+                if (deferWhenTargetUnavailable(ctx, protocolMethod, args)) {
+                    return;
+                }
                 netLog.info("Ignoring {} — controller no longer available (game ended)", methodName);
                 // For methods expecting a reply, send null so the client doesn't hang
                 final Class<?> earlyReturnType = protocolMethod.getReturnType();
@@ -123,7 +152,13 @@ public abstract class GameProtocolHandler<T> extends ChannelInboundHandlerAdapte
                 }
             };
 
-            dispatch(protocolMethod, toRun);
+            if (shouldDispatchOnChannelEventLoop(protocolMethod)) {
+                // Queue instead of invoking inline: this keeps the event loop
+                // responsive while preserving the inbound order for this channel.
+                ctx.executor().execute(toRun);
+            } else {
+                dispatch(protocolMethod, toRun);
+            }
         }
     }
 

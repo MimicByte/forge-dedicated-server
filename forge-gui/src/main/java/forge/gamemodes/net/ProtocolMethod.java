@@ -143,6 +143,11 @@ public enum ProtocolMethod implements IHasForgeLog {
         }
     }
 
+    /** Interface on which this protocol method is dispatched. */
+    Class<?> getTargetInterface() {
+        return mode.toInvoke;
+    }
+
     private Method getMethodNoArgs() {
         try {
             return mode.toInvoke.getMethod(name(), (Class<?>[]) null);

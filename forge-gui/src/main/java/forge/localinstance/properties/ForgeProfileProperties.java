@@ -67,6 +67,12 @@ public class ForgeProfileProperties {
             System.err.println("error while reading from profile properties file");
         }
 
+        String serverProfile = System.getProperty("forge.server.profile");
+        if (serverProfile != null) {
+            props.clear();
+            props.setProperty(USER_DIR_KEY, serverProfile + "/data");
+            props.setProperty(CACHE_DIR_KEY, serverProfile + "/cache");
+        }
         final Pair<String, String> defaults = getDefaultDirs();
         userDir     = getDir(props, USER_DIR_KEY,      defaults.getLeft());
         cacheDir    = getDir(props, CACHE_DIR_KEY,     defaults.getRight());

@@ -33,10 +33,13 @@ public class ReplyPool {
         synchronized (pool) {
             future = pool.get(index);
         }
+        if (future == null) { return null; }
         try {
             return future.get();
         } catch (final InterruptedException | ExecutionException e) {
             throw new RuntimeException(e);
+        } finally {
+            synchronized (pool) { pool.remove(index, future); }
         }
     }
 
