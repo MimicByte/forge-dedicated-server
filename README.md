@@ -1,191 +1,139 @@
-# Forge Web GUI
+# Forge Dedicated Server
 
-> **This is a development branch.** The web GUI is being built on the `forge-gui-web` branch of the
-> [MostCromulent/forge](https://github.com/MostCromulent/forge) fork, with the ultimate aim of merging it into
-> [Card-Forge/forge](https://github.com/Card-Forge/forge) as a new module beside the desktop and mobile clients.
-> Until then it is not part of a Card-Forge release, and it changes often.
+> **Branch `dedicated-web`:** the dedicated server rebased onto MostCromulent's `forge-gui-web` branch ([Card-Forge/forge#12906](https://github.com/Card-Forge/forge/pull/12906)), for hosting the web GUI. It is temporary: once the PR merges upstream, rebuild it from `dedicated-server` and re-apply only the web-specific commits. CI and image publishing are not wired to this branch.
 
-**[Download the current pre-release build](https://github.com/MostCromulent/forge/releases/tag/web-snapshot)**
+Headless [Forge](https://github.com/Card-Forge/forge) multiplayer rooms for **Magic: The Gathering**, using unmodified desktop Forge clients. Forge is open source and not affiliated with Wizards of the Coast.
 
-Forge in a web browser, with a modern interface that is intuitive for new players and easy to learn. Getting a
-game going takes little setup. The host runs Forge on their computer, and other players join from a link in
-their browser with nothing to install. You can also play alone against the computer.
+The server supports Constructed, Commander, Oathbreaker, Tiny Leaders, Brawl, Momir Basic, and MoJhoSto, with optional Planechase, Vanguard, and Archenemy variants where compatible. One container owns one room with two to eight seats. Disconnected players can reconnect during a grace period; after it expires, AI takes over for the rest of the match.
 
-It supports cross-platform play, so players can join from any browser. It is designed for a mouse and keyboard.
-Mobile support is a work in progress, and not all features work on a phone yet.
+Clients and server should use matching Forge builds whenever possible. The `stable` image tag tracks the latest dedicated-server build from an official upstream release; `latest` tracks the rolling daily snapshot.
 
-<p>
-  <img src="forge-gui-web/docs/table.webp" width="49%" alt="Setting up a game against two AI opponents">
-  <img src="forge-gui-web/docs/conquest.webp" width="49%" alt="The map of a Planar Conquest">
-</p>
-<p>
-  <img src="forge-gui-web/docs/cast.webp" width="49%" alt="A spell cast from the hand at two creatures">
-  <img src="forge-gui-web/docs/attack.webp" width="49%" alt="Three creatures attacking">
-</p>
-<p>
-  <img src="forge-gui-web/docs/victory.webp" width="49%" alt="A winning spell and the end of a game">
-</p>
+## Publishing a stable server release
 
-## For players
+Snapshots continue on `dedicated-server` and publish `:latest`. A stable release is prepared separately on an immutable branch named `dedicated-release/<upstream-tag>`, created from the exact official upstream tag. Cherry-pick only the dedicated-server commits explicitly approved for that release; do not merge or automatically backport later snapshot work. Resolve and test any conflicts on that branch, push it, then dispatch **Build dedicated server from upstream release** with the same upstream tag. The workflow verifies that branch is based on the tag, publishes its tarball and versioned image, and moves `:stable`.
 
-### What you can play
+## Run from the published image
 
-- Constructed, Commander, Brawl, Oathbreaker, Tiny Leaders, Momir Basic and MoJhoSto, for up to four players.
-- Vanguard, Planechase, Archenemy and Archenemy Rumble.
-- Draft and Sealed for up to eight. The computer fills any empty seats.
-- Planar Conquest.
-- Quest, which is still being built.
+The repository's [`forge-server/compose.yaml`](forge-server/compose.yaml) builds an image from source. For a deployed room, save the following as `compose.yaml` and pull the published image instead:
 
-Not yet: Adventure, puzzles, constructed gauntlets and Winston draft.
+```yaml
+services:
+  forge:
+    image: ghcr.io/mimicbyte/forge-dedicated-server:stable
+    restart: on-failure
+    stop_grace_period: 30s
+    ports:
+      - "36743:36743/tcp"
+    environment:
+      FORGE_SERVER_MODE: COMMANDER
+      FORGE_SERVER_MAX_PLAYERS: "4"
+      FORGE_SERVER_GAMES_PER_MATCH: "3"
+      FORGE_SERVER_COMMANDER_BRACKET: "5"
+      FORGE_SERVER_ENFORCE_DECK_LEGALITY: "true"
+      FORGE_SERVER_MANA_BURN: "false"
+      FORGE_SERVER_LEGACY_ORDER_COMBATANTS: "false"
+      FORGE_SERVER_FILTERED_HANDS: "false"
+      FORGE_SERVER_AI_TIMEOUT_SECONDS: "5"
+      FORGE_SERVER_START_DELAY_SECONDS: "10"
+      FORGE_SERVER_RECONNECT_SECONDS: "300"
+      FORGE_SERVER_POSTGAME_SECONDS: "120"
+      FORGE_SERVER_AFK_TIMEOUT: "5"
+      # Empty permits public joins. Otherwise list permitted display names.
+      FORGE_SERVER_ALLOWED_PLAYERS: ""
+      # Leave empty to disable the private management API.
+      FORGE_SERVER_ADMIN_TOKEN: ""
+      FORGE_SERVER_ADMIN_PORT: "8080"
+      FORGE_SERVER_LOGIN_FAILURE_LIMIT: "5"
+      FORGE_SERVER_LOGIN_FAILURE_WINDOW_SECONDS: "60"
+      FORGE_SERVER_LOGIN_BLOCK_SECONDS: "900"
+      FORGE_SERVER_CRASH_REPORT_MAX_FILES: "10"
+      FORGE_SERVER_HEAP_DUMPS: "false"
+      JAVA_TOOL_OPTIONS: "-Xmx4g"
+    volumes:
+      - forge-config:/config
 
-### Starting it
-
-1. Install Java 17 or newer.
-2. Download `forge-web.zip` from the [pre-release](https://github.com/MostCromulent/forge/releases/tag/web-snapshot)
-   and unzip it anywhere.
-3. Run `forge-web.exe` on Windows, `forge-web.command` on macOS or `forge-web.sh` on Linux.
-
-The game opens in your browser and a server window opens beside it. Closing that window quits Forge. Forge also
-quits when the last browser leaves, unless you untick **Close Forge when everyone has left, including you** or
-start it with `-Dforge.web.keepOpen=true`. To update, replace the folder with the new zip.
-
-Forge downloads each card image from Scryfall the first time it is shown. By default this uses Scryfall's
-rate-limited API. The first time it runs, the server window offers to download the image index (around 75 MB),
-which tells Forge where each image is on Scryfall's servers so they can be downloaded directly with no rate
-limit.
-
-<img src="forge-gui-web/docs/server.webp" width="49%" alt="The server window">
-
-### Playing with friends
-
-Click **Invite** at the top of the table, or **Copy link** in the server window. There are two links. One is for
-people on your home network. The other is for people on the internet, and the server window offers two ways to
-make it work:
-
-- **Through your router.** The router has to forward Forge's port to your computer. **Forward the port
-  automatically** asks it to (UPnP). If your router won't, the
-  [network setup guide](https://github.com/Card-Forge/forge/wiki/Network-Play#network-configuration) explains how
-  to do it by hand.
-- **Through Cloudflare.** Nothing to set up on the router, and your internet address stays hidden. It needs
-  Cloudflare's free [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
-  program, installed once. The link is new each time Forge starts.
-
-Anyone with a link can join, so only send links to the people you're playing with. A link through your router
-isn't encrypted. A link through Cloudflare is encrypted as far as Cloudflare, which passes it on to you. Don't
-share the host's own link. It controls the table and the server. The links change each time Forge
-starts. A player who reloads the page or loses their connection gets their seat back.
-
-### Decks, saves and settings
-
-Build decks in the deck editor or import them from a pasted list, a deck file, or a Moxfield, Archidekt,
-TappedOut or MTGGoldfish link.
-
-The host's decks, settings and Conquest and Quest saves are kept in the Forge user folder. Desktop Forge uses
-the same folder, so a change in one shows in the other. If you already play desktop Forge, back that folder up
-first. It is `%APPDATA%\Forge` on Windows, `~/Library/Application Support/Forge` on macOS and `~/.forge` on Linux.
-
-A guest's decks are kept in their own browser, for the link they joined with. A private window keeps none.
-Display settings, keyboard shortcuts and custom CSS are kept in each browser, including the host's.
-
----
-
-## For developers
-
-The web GUI is the `forge-gui-web` module. The paths below are inside that folder.
-
-The Java side (`src/main/java`) runs the engine and serves the page. The browser side (`src/main/ts`) is
-TypeScript and Preact, bundled by the build into `src/main/resources/web/js/`, which git ignores. Each folder holds
-one part of the page (`match`, `lobby`, `deck`, `limited`, `campaign`, `conquest`, `quest`), and the modules they share
-sit at the top.
-
-### Building
-
-    mvn -Pweb -pl forge-gui-web -am install -DskipTests
-    java -jar forge-gui-web/target/forge-gui-web-<version>-jar-with-dependencies.jar
-
-Forge's default build leaves this module out, so `-Pweb` is needed. Maven downloads its own copy of Node. The build
-also writes the `forge-web` launchers beside the jar. The jar looks for Forge's `res` folder in the folders above where it runs. If it can't
-find it, pass `-Dforge.assets.dir=<folder containing res>`.
-
-| Option | Effect |
-|---|---|
-| `-Dforge.web.port=<n>` | Port to serve on. The default, 36743, is desktop Forge's network port too. |
-| `-Dforge.web.noBrowser=true` | Don't open the game in a browser. |
-| `-Dforge.web.noConsole=true` | Don't open the server window. The host's link is printed instead. |
-| `-Dforge.web.keepOpen=true` | Keep Forge running with no browser connected, for a server left on between games. |
-| `-Dforge.web.pageDir=forge-gui-web/src/main/resources/web` | Serve the page from source, so a change needs only a reload. |
-
-With `pageDir` set, `npm run watch` in `forge-gui-web` rebuilds the TypeScript on save.
-
-### How it fits together
-
-One Java process runs Forge and serves the page on a single port. Each browser is one player, connected over a
-WebSocket.
-
-```
-browser (src/main/ts)                server (src/main/java/forge/web)              Forge
-─────────────────────                ────────────────────────────────              ─────
-main.ts ◀── WebSocket /ws ──▶ WebServer ─▶ WebSessions ─▶ WebSession   (one per browser)
-  │                                                           │
-  ├─ model.ts   ◀─ state, prompt,  ── WebGuiGame (IGuiGame) ◀─┤─ LocalGame: a netplay client ◀─┐
-  ├─ board.ts      questions                                  │                                 │ loopback
-  ├─ screens.tsx                                              ├─ Lobby  (ServerGameLobby)       │ netplay
-  └─ actions.ts ── what the player did ──────────────────────▶└─ DeckSession, OnlineDraft …     │
-                                                                  FServerManager ◀── the game ──┘
+volumes:
+  forge-config:
 ```
 
-Every seat is a netplay client, including the host's. The host's `LocalGame` starts Forge's netplay server
-(`FServerManager`) on loopback and joins it. Each guest's session joins the same server. The lobby, drafts, delta
-packets and `IGuiGame` calls are the same ones desktop netplay uses. Only the web port is reachable from outside.
+Start it with `docker compose up -d`, then join `server-hostname:36743` from desktop Forge. The server needs reachable inbound TCP; clients do not need port forwarding. The first start loads the card database and can take several minutes. The image runs as UID/GID 10001. Do not publish the private API port; use a private Docker network or trusted local proxy if it is enabled.
 
-`WebServer` (Netty) serves the page, card images, sounds and the socket. It refuses any request without one of
-the two link tokens. Only the host's token can take the host's seat. There is one `WebSession` per browser. It
-knows which screen the browser is on and passes its messages to `Lobby`, `DeckSession`, the draft classes,
-`ConquestGame` and `QuestGame`, or `WebGuiGame` during a match.
+The image removes unused campaign and presentation resources, while retaining card rules, token rules, format data, AI data, and localization. Card artwork is not bundled; clients download and cache it locally. For an Unraid bind mount, make the mapped `/config` directory writable by UID/GID 10001. A configuration volume preserves logs and preferences, not an in-progress match. The image contains no desktop, web panel, Docker socket, or owner-command interface.
 
-`WebGuiGame` is the web's `IGuiGame`. It sends the browser what changed as JSON. When the game needs an answer,
-the call becomes a request and `PendingRequests` holds the game's thread until the reply comes. A browser that
-reloads is sent the whole table again and every question that is still open.
+## Server configuration
 
-In the page, `main.ts` is the only module that talks to the server. Incoming messages update `model.ts` and the
-page is redrawn from the model once a frame. The board is drawn by hand in `match/board.ts`. The rest uses Preact.
-Components never send messages themselves. They call `actions.ts`.
+| Environment | Default | Allowed |
+|---|---|---|
+| `FORGE_SERVER_PORT` | 36743 | 1–65535 |
+| `FORGE_SERVER_MODE` | COMMANDER | CONSTRUCTED, COMMANDER, OATHBREAKER, TINY_LEADERS, BRAWL, MOMIR_BASIC, MOJHOSTO |
+| `FORGE_SERVER_VARIANTS` | unset | Comma-separated PLANECHASE, VANGUARD, ARCHENEMY, ARCHENEMY_RUMBLE |
+| `FORGE_SERVER_MAX_PLAYERS` | 4 | 2–8 |
+| `FORGE_SERVER_GAMES_PER_MATCH` | 3 | 1, 3, or 5 |
+| `FORGE_SERVER_COMMANDER_BRACKET` | 5 | 1–5 |
+| `FORGE_SERVER_ENFORCE_DECK_LEGALITY` | true | true or false |
+| `FORGE_SERVER_MANA_BURN` | false | true or false; apply pre-Magic 2010 mana-burn rules |
+| `FORGE_SERVER_LEGACY_ORDER_COMBATANTS` | false | true or false; use legacy combat-damage ordering |
+| `FORGE_SERVER_FILTERED_HANDS` | false | true or false; each player chooses from two opening hands |
+| `FORGE_SERVER_AI_TIMEOUT_SECONDS` | 5 | 1–600 seconds per AI decision |
+| `FORGE_SERVER_START_DELAY_SECONDS` | 10 | 1–300; the final five seconds are announced in the lobby |
+| `FORGE_SERVER_RECONNECT_SECONDS` | 300 | 1–3600 |
+| `FORGE_SERVER_POSTGAME_SECONDS` | 120 | 1–3600 |
+| `FORGE_SERVER_AFK_TIMEOUT` | 5 | Minutes before auto-pass; 0 (off)–60 |
+| `FORGE_SERVER_ALLOWED_PLAYERS` | unset | Comma-separated invite-only display names; empty permits public joins |
+| `FORGE_SERVER_LOGIN_FAILURE_LIMIT` | 5 | 1–100 |
+| `FORGE_SERVER_LOGIN_FAILURE_WINDOW_SECONDS` | 60 | 1–3600 |
+| `FORGE_SERVER_LOGIN_BLOCK_SECONDS` | 900 | 1–86400 |
+| `FORGE_SERVER_CRASH_REPORT_MAX_FILES` | 10 | 1–100 retained text crash reports |
+| `FORGE_SERVER_HEAP_DUMPS` | false | true or false |
+| `FORGE_SERVER_ADMIN_TOKEN` | unset | Enables the private management API when non-empty |
+| `FORGE_SERVER_ADMIN_PORT` | 8080 | 1–65535, different from the game port |
 
-### The protocol
+`FORGE_SERVER_VARIANTS` can combine a base format with table variants, for example Commander with Planechase. `JAVA_TOOL_OPTIONS` controls JVM memory. `FORGE_SERVER_CONFIG_DIR` changes the profile/status location for a locally extracted distribution; it defaults to `/config` in the image.
 
-Messages are Java records in `ToBrowser` and `FromBrowser`. Each build generates `src/main/ts/protocol.gen.ts`
-from them and type-checks the TypeScript against it. Changing a record breaks the build wherever the browser
-uses it. A field may be null only if it is marked `@Nullable`.
+Set `FORGE_SERVER_ALLOWED_PLAYERS=Alice,Bob` for an invite-only room. Names match case-insensitively, but this is not authentication: anyone who knows an allowed display name can impersonate it. Rejected invite-only logins are rate-limited per source IP. Name-based reconnect has the same limitation.
 
-- To add a question the game asks, implement the `IGuiGame` method in `WebGuiGame` with `ask(request, check)`,
-  add a `@Request` record to `ToBrowser` and draw it in `match/dialogs.tsx`. `WebGuiGameTest` fails while any such
-  method is still left to Forge's default.
-- To add a message, write a `@Message` record in `ToBrowser` and handle it in `main.ts`, or a `@Command` record
-  in `FromBrowser` and handle it where `WebSession` routes it.
-- A new game property needs no work. It travels with the rest of `TrackableProperty`.
+## Private management API and AI seats
 
-### Text and languages
+Set `FORGE_SERVER_ADMIN_TOKEN` to enable the token-protected management API on TCP 8080 inside the container. Send `Authorization: Bearer <token>` with every request. Do not publish this port.
 
-All the text a player sees comes from Forge's language files (`forge-gui/res/languages`). The page's own keys
-are grouped at the end of `en-US.properties` under `#forge-gui-web`. In TypeScript, `t('lblWebSomething', arg…)`
-returns the text. `tNodes` does the same when a sentence has elements inside it. The build fails if
-`en-US.properties` lacks a `lblWeb…` key the page uses. On the Java side, text sent for display goes through
-`Localizer`.
+For the complete contract intended for service integrations, see [Dedicated Server Integration Reference](forge-server/INTEGRATION.md).
 
-The texts follow `java.text.MessageFormat`. `{0}` is an argument and an apostrophe is written twice (`can''t`).
-Write whole sentences with arguments in them rather than joining pieces together.
+`GET /v1/status` reports state, occupancy, and disconnected players with their one-based slot and reconnect deadline. `GET /v1/settings` reports mutable rules. While the lobby is waiting, `PUT /v1/settings` accepts:
 
-### Tests
+```json
+{"mode":"COMMANDER","variants":"PLANECHASE","gamesPerMatch":3,"commanderBracket":5,"enforceDeckLegality":true,"manaBurn":false,"legacyOrderCombatants":false,"filteredHands":false,"aiTimeoutSeconds":5}
+```
 
-The tests catch changes elsewhere in Forge that would break this module without anyone noticing. They cover the
-wire format, `IGuiGame` calls left unanswered, a web seat answering the engine's prompts, netplay between host
-and guest, and the server's tokens and paths.
+The API can add AI opponents while the lobby is waiting. AI seats persist after a match returns to the lobby, but at least two connected human players are still required to start. `GET /v1/ai/decks` lists the bundled deck IDs valid for the current format, `GET /v1/ai/profiles` lists profiles and simulation modes, and `GET /v1/slots` lists one-based seats.
 
-`mvn -Pweb -pl forge-gui-web -am test` runs the Java tests and Vitest. `npm test` runs Vitest alone. Adding
-`-Drun.stress.tests=true` also plays whole games and events over netplay, as the snapshot build does. The tests in
-`e2e/` drive the page in a real browser against a built jar. They only run locally:
+```sh
+curl -X PUT http://localhost:8080/v1/slots/3/ai \
+  -H 'Authorization: Bearer your-token' \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"AI Atraxa","deck":"commander:Veloci-Ramp-Tor [LCC] [2023]","profile":"Default","simulation":"NONE","team":1}'
+```
 
-    cd forge-gui-web/e2e
-    npm ci
-    npx playwright install chromium   # first time only
-    npx playwright test
+`simulation` is `NONE`, `HYBRID`, or `FULL`; remove an AI with `DELETE /v1/slots/3/ai`. Commander uses official Commander precons and Constructed uses Forge general precons. Other modes do not currently expose AI seats because no matching bundled catalog exists. Settings updates clear player readiness and are memory-only; restart the container to restore environment values.
+
+While the lobby is waiting, the same private API can set an occupied human or AI seat's team with `PUT /v1/slots/{slot}/team` and `{"team":2}`. Both numbers are one-based seat numbers; the change clears that seat's Ready state. Archenemy teams are derived from the nominated Archenemy seat and cannot be set manually.
+
+The private moderation endpoints are `POST /v1/messages` with `{"message":"text"}`, `POST /v1/match/abort`, `POST /v1/disconnected/{slot}/takeover`, and `POST /v1/disconnected/{slot}/wait-indefinitely`. They cannot start games or bypass player deck/ready requirements. An indefinite reconnect timeout still does not keep an entirely abandoned room alive; if every human disconnects, the normal room reset policy applies.
+
+Every connected player must choose a legal deck and ready up. With at least two ready players, the server starts a countdown. Joins, departures, and lobby changes cancel it. Players can choose their own teams while waiting, and the private API can manage any occupied seat's team. Dev mode, spectators, joining an active match, and replacing a human or disconnected seat with a configured AI are not supported. Planechase requires Planes, Vanguard requires an Avatar, and Archenemy requires the nominated player's Schemes. A reconnect must use exactly the prior display name during the grace period. After the grace period, AI controls the vacated seat for the remainder of the match, including later games. If all humans disconnect, the room resets after the final grace period. Connected players keep their decks after returning to the lobby but must ready again; vacated seats are cleared.
+
+## Crash reports, builds, and validation
+
+Unhandled failures write timestamped reports to `/config/crash-reports`. They contain build information, safe room configuration, thread name, and stack trace; secrets, allowed-player names, and game state are excluded. The newest configured number of text reports is retained. Fatal JVM error reports go there as well. Set `FORGE_SERVER_HEAP_DUMPS=true` only while diagnosing memory problems: a dump can be as large as `-Xmx` and may contain player/game data.
+
+To build from source, use Java 17+ and Maven 3.8.1+:
+
+```sh
+mvn -B -ntp -Pdedicated -pl forge-server -am -DskipTests -Dlaunch4j.skip=true package
+mvn -B -ntp -Pdedicated -pl forge-server -am \
+  -Dtest=ServerConfigTest,ReplyPoolTest,DedicatedNetworkTest \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+Extract `forge-server/target/forge-server-bin.tar.gz` and run `bin/forge-server` for a local distribution. `bin/forge-server health` checks dispatcher heartbeat freshness without opening a game connection. The daily sync workflow merges upstream snapshots into the fork without rewriting contributor commits, then publishes the rolling `dedicated-daily-snapshot` release and the `latest` container image.
+
+Before a release, test a two-player Constructed game; two-, four-, and eight-player rooms; each supported base format and variant combination; reconnect; AI takeover; Continue, New Match, QUIT, and postgame timeout decisions; return to the lobby for another match; full-room recovery after disconnection; and SIGTERM while waiting, counting down, playing, and waiting for reconnect. Health checks show that the room dispatcher is alive; they do not prove every card interaction. Keep the tested client version, server image ID, upstream revision, and logs with the release record.

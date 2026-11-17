@@ -36,6 +36,10 @@ bin
 gen
 *.log
 
+# The dedicated distribution launcher is a source file, not generated output.
+!forge-server/src/main/bin/
+!forge-server/src/main/bin/forge-server
+
 # Ignore macOS Spotlight rubbish
 .DS_Store
 

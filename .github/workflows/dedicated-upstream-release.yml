@@ -1,0 +1,218 @@
+name: Build dedicated server from upstream release
+
+on:
+  schedule:
+    # Check for a new Card-Forge release after the daily snapshot sync.
+    - cron: '0 21 * * *'
+  workflow_dispatch:
+    inputs:
+      upstream_release_tag:
+        description: Card-Forge release tag (blank = latest), for example forge-2.0.16
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  issues: write
+  packages: write
+
+concurrency:
+  group: dedicated-upstream-release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.check.outputs.tag }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_TAG: ${{ inputs.upstream_release_tag }}
+        run: |
+          set -euo pipefail
+          tag=${REQUESTED_TAG:-$(gh release view --repo Card-Forge/forge --json tagName --jq .tagName)}
+          if gh release view "dedicated-upstream-$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "dedicated-upstream-$tag is already published."
+          else
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-and-publish:
+    needs: check
+    if: needs.check.outputs.tag != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dedicated-server
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Select prepared stable-release source
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM_RELEASE_TAG: ${{ needs.check.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$UPSTREAM_RELEASE_TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+            echo '::error::The upstream release tag may only contain letters, numbers, dots, underscores, and hyphens.'
+            exit 1
+          fi
+          gh release view "$UPSTREAM_RELEASE_TAG" --repo Card-Forge/forge >/dev/null
+
+          git remote add upstream https://github.com/Card-Forge/forge.git 2>/dev/null || \
+            git remote set-url upstream https://github.com/Card-Forge/forge.git
+          git fetch --no-tags upstream "refs/tags/$UPSTREAM_RELEASE_TAG:refs/tags/upstream-release"
+          release_branch="dedicated-release/$UPSTREAM_RELEASE_TAG"
+          if ! git ls-remote --exit-code --heads origin "$release_branch" >/dev/null; then
+            # Prepare the branch: the upstream release tree plus the fork's
+            # dedicated changes (dedicated-server relative to synced master).
+            # dedicated-server is the first parent so the workflow files are
+            # unchanged, which GITHUB_TOKEN requires for pushing.
+            git fetch --no-tags origin master dedicated-server
+            git switch --detach refs/tags/upstream-release
+            if ! git diff --binary origin/master origin/dedicated-server -- . ':(exclude).github/workflows' \
+                | git apply --3way --index; then
+              issue_title="Dedicated server release $UPSTREAM_RELEASE_TAG needs attention"
+              if [ "$(gh issue list --state open --search "$issue_title in:title" --json number --jq 'length')" = 0 ]; then
+                gh issue create --title "$issue_title" --body "The dedicated changes did not apply cleanly to upstream $UPSTREAM_RELEASE_TAG. Prepare and push $release_branch locally, then rerun this workflow. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+              fi
+              exit 1
+            fi
+            git rm -rq .github/workflows
+            git checkout origin/dedicated-server -- .github/workflows
+            release_version=$(sed -n 's|.*<versionCode>\([^<]*\)</versionCode>.*|\1|p' pom.xml)
+            # Release poms have no ${revision}; pin the server module's parent.
+            sed -i "s|<version>\${revision}</version></parent>|<version>$release_version</version></parent>|" forge-server/pom.xml
+            git add forge-server/pom.xml
+            prepared=$(git commit-tree "$(git write-tree)" -p origin/dedicated-server -p HEAD \
+              -m "release: prepare dedicated server for $UPSTREAM_RELEASE_TAG")
+            git push origin "$prepared:refs/heads/$release_branch"
+          fi
+          git fetch --no-tags origin "refs/heads/$release_branch:refs/remotes/origin/$release_branch"
+
+          upstream_commit=$(git rev-parse 'refs/tags/upstream-release^{commit}')
+          git switch --detach "origin/$release_branch"
+          dedicated_commit=$(git rev-parse HEAD)
+          if ! git merge-base --is-ancestor "$upstream_commit" "$dedicated_commit"; then
+            echo "::error::$release_branch is not based on upstream tag $UPSTREAM_RELEASE_TAG."
+            exit 1
+          fi
+          release_version_code=$(git show "$upstream_commit:pom.xml" | sed -n 's|.*<versionCode>\([^<]*\)</versionCode>.*|\1|p')
+          if [ -z "$release_version_code" ]; then
+            echo '::error::Could not determine the Forge version from the upstream release tag.'
+            exit 1
+          fi
+          release_tag="dedicated-upstream-$UPSTREAM_RELEASE_TAG"
+          image_tag=$(printf '%s' "$UPSTREAM_RELEASE_TAG" | tr '[:upper:]' '[:lower:]')
+
+          remote_tag_commit=$(git ls-remote --refs origin "refs/tags/$release_tag" | awk '{print $1}')
+          if [ -n "$remote_tag_commit" ] && [ "$remote_tag_commit" != "$dedicated_commit" ]; then
+            echo "::error::The existing $release_tag tag points to a different commit."
+            exit 1
+          fi
+          if gh release view "$release_tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::The $release_tag release already exists."
+            exit 1
+          fi
+          tag_exists=false
+          if [ -n "$remote_tag_commit" ]; then
+            tag_exists=true
+          fi
+
+          {
+            echo "release_tag=$release_tag"
+            echo "image_tag=$image_tag"
+            echo "upstream_commit=$upstream_commit"
+            echo "dedicated_commit=$dedicated_commit"
+            echo "forge_client_version=$release_version_code"
+            echo "tag_exists=$tag_exists"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Run dedicated-server tests
+        run: >-
+          mvn -B -ntp -Pdedicated -pl forge-server -am test
+          -Dtest=ServerConfigTest,ReplyPoolTest,DedicatedNetworkTest
+          -Dsurefire.failIfNoSpecifiedTests=false
+          -Drevision=${{ steps.source.outputs.forge_client_version }}
+          -Dforge.client.version=${{ steps.source.outputs.forge_client_version }}
+
+      - name: Build dedicated distribution
+        run: >-
+          mvn -B -ntp -Pdedicated -pl forge-server -am
+          -DskipTests -Dlaunch4j.skip=true package
+          -Drevision=${{ steps.source.outputs.forge_client_version }}
+          -Dforge.client.version=${{ steps.source.outputs.forge_client_version }}
+
+      - name: Verify launcher is packaged
+        run: test -x forge-server/target/forge-server-bin/bin/forge-server
+
+      - name: Prepare container build context
+        run: |
+          mkdir -p image/forge-server-bin
+          cp -a forge-server/target/forge-server-bin/. image/forge-server-bin/
+          cp forge-server/Dockerfile.runtime image/Dockerfile
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Normalize image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push release image
+        uses: docker/build-push-action@v6
+        with:
+          context: image
+          file: image/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.image.outputs.name }}:upstream-${{ steps.source.outputs.image_tag }}
+            ${{ steps.image.outputs.name }}:stable
+          labels: org.opencontainers.image.revision=${{ steps.source.outputs.dedicated_commit }}
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.source.outputs.release_tag }}
+          TAG_EXISTS: ${{ steps.source.outputs.tag_exists }}
+          UPSTREAM_RELEASE_TAG: ${{ needs.check.outputs.tag }}
+          UPSTREAM_COMMIT: ${{ steps.source.outputs.upstream_commit }}
+          DEDICATED_COMMIT: ${{ steps.source.outputs.dedicated_commit }}
+        run: |
+          set -euo pipefail
+          if [ "$TAG_EXISTS" = false ]; then
+            git tag "$RELEASE_TAG" "$DEDICATED_COMMIT"
+            git push origin "refs/tags/$RELEASE_TAG"
+          fi
+
+          notes=$(cat <<EOF
+          Dedicated server build based on Card-Forge/forge release $UPSTREAM_RELEASE_TAG.
+
+          Upstream commit: $UPSTREAM_COMMIT
+          Dedicated-server commit: $DEDICATED_COMMIT
+          EOF
+          )
+          gh release create "$RELEASE_TAG" forge-server/target/forge-server-bin.tar.gz \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Dedicated server for $UPSTREAM_RELEASE_TAG" \
+            --notes "$notes"
