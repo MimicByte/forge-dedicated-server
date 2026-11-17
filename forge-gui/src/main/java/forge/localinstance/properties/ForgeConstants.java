@@ -302,7 +302,7 @@ public final class ForgeConstants {
     public static final FileLocation TOURNAMENT_DIR          = new FileLocation(_DEFAULTS_DIR, USER_DIR,       "tournament" + PATH_SEPARATOR);
 
     // data that is only in the cached dir
-    private static final String PICS_DIR                     = CACHE_DIR + "pics" + PATH_SEPARATOR;
+    private static final String PICS_DIR                     = System.getProperty("forge.server.image-cache", CACHE_DIR + "pics") + PATH_SEPARATOR;
     public static final String DB_DIR                        = CACHE_DIR + "db" + PATH_SEPARATOR;
     public static final String FONTS_DIR                     = CACHE_DIR + "fonts" + PATH_SEPARATOR;
     public static final String CACHE_SKINS_DIR               = CACHE_DIR + "skins" + PATH_SEPARATOR;

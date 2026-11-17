@@ -24,7 +24,10 @@ services:
     stop_grace_period: 30s
     ports:
       - "36743:36743/tcp"
+      - "36744:36744/tcp"
     environment:
+      FORGE_SERVER_WEB_PORT: "36744"
+      FORGE_SERVER_IMAGE_CACHE: "/images"
       FORGE_SERVER_MODE: COMMANDER
       FORGE_SERVER_MAX_PLAYERS: "4"
       FORGE_SERVER_GAMES_PER_MATCH: "3"
@@ -51,14 +54,18 @@ services:
       JAVA_TOOL_OPTIONS: "-Xmx4g"
     volumes:
       - forge-config:/config
+      - forge-images:/images
 
 volumes:
   forge-config:
+  forge-images:
 ```
 
-Start it with `docker compose up -d`, then join `server-hostname:36743` from desktop Forge. The server needs reachable inbound TCP; clients do not need port forwarding. The first start loads the card database and can take several minutes. The image runs as UID/GID 10001. Do not publish the private API port; use a private Docker network or trusted local proxy if it is enabled.
+Start it with `docker compose up -d`, then join `server-hostname:36743` from desktop Forge or open the browser invite URL printed in the container logs. The web panel listens on `FORGE_SERVER_WEB_PORT` (default `36744`); `0` disables it. The server needs reachable inbound TCP; clients do not need port forwarding. The first start loads the card database and can take several minutes. The image runs as UID/GID 10001. Do not publish the private API port; use a private Docker network or trusted local proxy if it is enabled.
 
-The image removes unused campaign and presentation resources, while retaining card rules, token rules, format data, AI data, and localization. Card artwork is not bundled; clients download and cache it locally. For an Unraid bind mount, make the mapped `/config` directory writable by UID/GID 10001. A configuration volume preserves logs and preferences, not an in-progress match. The image contains no desktop, web panel, Docker socket, or owner-command interface.
+`FORGE_SERVER_IMAGE_CACHE` selects the directory for downloaded card and other picture caches; the compose example mounts the shared `forge-images` volume at `/images`. Reuse that volume across room containers to avoid downloading the same pictures again. Give a bind-mounted directory write access to UID/GID 10001.
+
+The image removes unused campaign resources but keeps the skins, sounds, and music used by the web UI, as well as card rules, token rules, format data, AI data, and localization. Card artwork is downloaded on demand. A configuration volume preserves logs and preferences, not an in-progress match. The image contains no desktop, Docker socket, or owner-command interface.
 
 ## Server configuration
 

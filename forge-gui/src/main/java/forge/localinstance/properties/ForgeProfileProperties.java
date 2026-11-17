@@ -73,6 +73,10 @@ public class ForgeProfileProperties {
             props.setProperty(USER_DIR_KEY, serverProfile + "/data");
             props.setProperty(CACHE_DIR_KEY, serverProfile + "/cache");
         }
+        final String imageCacheDir = System.getProperty("forge.server.image-cache");
+        if (imageCacheDir != null && !imageCacheDir.isEmpty()) {
+            props.setProperty(CARD_PICS_DIR_KEY, imageCacheDir + File.separator + "cards" + File.separator);
+        }
         final Pair<String, String> defaults = getDefaultDirs();
         userDir     = getDir(props, USER_DIR_KEY,      defaults.getLeft());
         cacheDir    = getDir(props, CACHE_DIR_KEY,     defaults.getRight());

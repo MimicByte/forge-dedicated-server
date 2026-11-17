@@ -18,12 +18,13 @@ The container listens on these TCP ports:
 |---|---|---|
 | `FORGE_SERVER_PORT` (default `36743`) | Forge desktop-client game protocol | Publish this port for players. |
 | `FORGE_SERVER_ADMIN_PORT` (default `8080`) | Private HTTP management API, only when an admin token is set | Keep private to the container network. Never publish it to untrusted clients. |
+| `FORGE_SERVER_WEB_PORT` (default `36744`) | Browser UI and WebSocket tunnel | Publish this port for browser invite links; `0` disables the web UI. |
 
 The image runs as UID/GID `10001`. Mount `/config` with write access for that identity. It contains logs, Forge preferences, `server.status`, and crash reports, but never an in-progress game that can be resumed after restart.
 
 Docker health is implemented by `bin/forge-server health`. It checks the server's dispatcher heartbeat; it does not prove that a game is playable. The image health check runs every 10 seconds, has a five-minute start period, and retries three times. A graceful stop can take up to 20 seconds; allow at least a 30-second container stop grace period.
 
-The first start may take several minutes while the card database loads. The container does not need a desktop, browser panel, Docker socket, or outbound card-art download. Clients obtain card artwork themselves.
+The first start may take several minutes while the card database loads. The web page uses the bundled skins, sound, and music resources, so those directories are retained. The browser invite link is printed in the startup logs. Set `FORGE_SERVER_IMAGE_CACHE` to the shared picture-cache directory; the image defaults it to `/images`, and compose mounts a named volume there. Multiple room containers may mount the same volume to reuse downloaded card and token artwork.
 
 ## Startup configuration
 
@@ -32,6 +33,8 @@ All configuration is read once from environment variables at container startup. 
 | Variable | Default | Valid values / meaning |
 |---|---:|---|
 | `FORGE_SERVER_PORT` | `36743` | `1`–`65535`; game TCP port |
+| `FORGE_SERVER_WEB_PORT` | `36744` | `0`–`65535`; browser UI and WebSocket tunnel, `0` disables it |
+| `FORGE_SERVER_IMAGE_CACHE` | `/images` in the container image | Directory for shared downloaded picture caches; mount a writable volume here when sharing images across containers |
 | `FORGE_SERVER_MODE` | `COMMANDER` | `CONSTRUCTED`, `COMMANDER`, `OATHBREAKER`, `TINY_LEADERS`, `BRAWL`, `MOMIR_BASIC`, `MOJHOSTO` |
 | `FORGE_SERVER_VARIANTS` | empty | Comma-separated `PLANECHASE`, `VANGUARD`, `ARCHENEMY`, `ARCHENEMY_RUMBLE` |
 | `FORGE_SERVER_MAX_PLAYERS` | `4` | `2`–`8` |

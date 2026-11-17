@@ -73,21 +73,37 @@ public final class WebImageFetcher extends ImageFetcher implements IHasForgeLog 
                 ScryfallRateLimiter.noteIfRateLimited(code, url, c.getHeaderField("Retry-After"));
                 return false;
             }
-            // Written to a temporary file first, so nothing reads a partial file
             final Path target = Paths.get(path);
-            final Path tmp = Paths.get(path + ".tmp");
             Files.createDirectories(target.getParent());
+            final boolean downloaded;
             try (InputStream in = c.getInputStream()) {
-                Files.copy(in, tmp, StandardCopyOption.REPLACE_EXISTING);
+                downloaded = atomicWrite(target, in);
             }
-            if (Files.size(tmp) == 0) {
-                Files.delete(tmp);
-                return false;
-            }
-            Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
-            return true;
+            return downloaded;
         } finally {
             c.disconnect();
+        }
+    }
+
+    static void atomicWrite(final Path target, final byte[] bytes) throws IOException {
+        atomicWrite(target, new java.io.ByteArrayInputStream(bytes));
+    }
+
+    private static boolean atomicWrite(final Path target, final InputStream in) throws IOException {
+        final Path tmp = Files.createTempFile(target.getParent(), target.getFileName().toString() + ".", ".tmp");
+        try {
+            Files.copy(in, tmp, StandardCopyOption.REPLACE_EXISTING);
+            if (Files.size(tmp) == 0) {
+                return false;
+            }
+            try {
+                Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (final java.nio.file.AtomicMoveNotSupportedException e) {
+                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+            return true;
+        } finally {
+            Files.deleteIfExists(tmp);
         }
     }
 

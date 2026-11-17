@@ -40,6 +40,10 @@ public final class DedicatedServerMain {
         Files.createDirectories(configDir);
         Files.deleteIfExists(status);
         System.setProperty("forge.server.profile", configDir.toString());
+        String imageCacheDir = System.getenv("FORGE_SERVER_IMAGE_CACHE");
+        if (imageCacheDir != null && !imageCacheDir.isBlank()) {
+            System.setProperty("forge.server.image-cache", Path.of(imageCacheDir).toAbsolutePath().normalize().toString());
+        }
         ServerConfig config = ServerConfig.from(System.getenv());
         DedicatedCrashReporter.install(configDir, config.crashReportMaxFiles(), () -> "build=" + BuildInfo.getVersionString()
                 + "\nupstream=" + UPSTREAM + "\nmode=" + config.mode() + "\nmax_players=" + config.maxPlayers());
