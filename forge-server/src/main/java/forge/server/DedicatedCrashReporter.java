@@ -99,7 +99,7 @@ public final class DedicatedCrashReporter {
                 + "thread=" + Thread.currentThread().getName() + "\n"
                 + reportContext + "\n\n" + (detail == null ? "" : detail);
         Files.writeString(report, content, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
-        pruneReports(directory, maximumReports);
+        pruneReports(directory, maximumReports, report);
         return report;
     }
 
@@ -116,13 +116,14 @@ public final class DedicatedCrashReporter {
         catch (Throwable ignored) { return "context=unavailable"; }
     }
 
-    private static void pruneReports(Path directory, int maximumReports) {
+    /** Keeps the report just written and the newest others. Reports written in the same instant tie on lastModified. */
+    private static void pruneReports(Path directory, int maximumReports, Path current) {
         try (var reports = Files.list(directory)) {
             Path[] oldReports = reports.filter(path -> path.getFileName().toString().startsWith("dedicated-crash-")
-                            && path.getFileName().toString().endsWith(".log"))
+                            && path.getFileName().toString().endsWith(".log") && !path.equals(current))
                     .sorted(Comparator.comparingLong(path -> path.toFile().lastModified()))
                     .toArray(Path[]::new);
-            for (int index = 0; index < oldReports.length - maximumReports; index++) { Files.deleteIfExists(oldReports[index]); }
+            for (int index = 0; index < oldReports.length - (maximumReports - 1); index++) { Files.deleteIfExists(oldReports[index]); }
         } catch (Exception ignored) {
             // Reporting must not fail because cleanup did.
         }
