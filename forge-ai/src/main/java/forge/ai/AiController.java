@@ -1019,10 +1019,28 @@ public class AiController {
             return canPlay;
         }
 
+        if (ActivationGuard.tooPainfulToPay(player, sa)) {
+            sa.resetTargets();
+            VetoLog.refused(player, sa, "tap-damage", "heuristic");
+            return AiPlayDecision.CantAfford; // Manabarbs: the lands that pay for it cost more life than the AI can spare
+        }
+
         if (ActivationGuard.givesMoreThanItTakes(player, sa)) {
             sa.resetTargets();
             VetoLog.refused(player, sa, "gift-exceeds-target", "heuristic");
             return AiPlayDecision.TargetingFailed; // Path to Exile on a mana dork only gives them a land
+        }
+
+        if (PlayRelevance.pointlessPump(player, sa) != null) {
+            sa.resetTargets();
+            VetoLog.refused(player, sa, "pump-outside-combat", "heuristic");
+            return AiPlayDecision.DoesntImpactCombat; // +X/+X for a creature that is tapped and not in the fight
+        }
+
+        if (ActivationGuard.badBounce(player, sa) != null) {
+            sa.resetTargets();
+            VetoLog.refused(player, sa, "bounce-feeds-opponent", "heuristic");
+            return AiPlayDecision.TargetingFailed; // Unsummon on a Vendilion Clique: they cast it again for another trigger
         }
 
         if (!ComputerUtilCost.canPayCost(sa, player, sa.isTrigger())) {
@@ -1315,6 +1333,10 @@ public class AiController {
             final CardCollection tideSafe = LoopRunner.withoutTideKeys(player, validCards);
             if (tideSafe.size() >= min && tideSafe.size() < validCards.size()) {
                 return chooseCardsToDiscard(min, max, tideSafe, sa);
+            }
+            final CardCollection alurenSafe = forge.ai.simulation.AlurenPlan.withoutKeys(player, validCards);
+            if (alurenSafe.size() >= min && alurenSafe.size() < validCards.size()) {
+                return chooseCardsToDiscard(min, max, alurenSafe, sa); // the pieces of the Aluren kill are kept
             }
             final ComboPlan combos = deckPlan(player).combos;
             // a deck that wants creatures in the graveyard throws away the right ones
