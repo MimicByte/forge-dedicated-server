@@ -82,9 +82,18 @@ jobs:
               exit 1
             fi
             if ! git merge --no-commit --no-ff -X theirs "$snapshot"; then
-              git merge --abort || true
-              report_issue "Fork master could not merge the updated upstream snapshot. Resolve it locally, then rerun. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-              exit 1
+              # -X theirs cannot settle modify/delete conflicts, which happen
+              # whenever upstream edits a workflow our policy drops. Those
+              # paths are replaced by the policy restore below, so only a
+              # conflict outside .github/workflows needs a person.
+              unmerged=$(git diff --name-only --diff-filter=U)
+              if [ -n "$unmerged" ] && ! printf '%s\n' "$unmerged" | grep -qv '^\.github/workflows/'; then
+                printf '%s\n' "$unmerged" | xargs git rm -q -f --
+              else
+                git merge --abort || true
+                report_issue "Fork master could not merge the updated upstream snapshot. Resolve it locally, then rerun. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+                exit 1
+              fi
             fi
           fi
 
