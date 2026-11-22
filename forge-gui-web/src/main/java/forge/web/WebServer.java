@@ -98,8 +98,9 @@ public final class WebServer implements AutoCloseable, IHasForgeLog {
     private final ServerTraffic traffic = new ServerTraffic();
     private final Endpoint endpoint;
     private final String token;
+    private final String basePath;
     private final Channel channel;
-    private final PageBundle bundle = new PageBundle();
+    private final PageBundle bundle;
     /** Every open page. A closed socket leaves the group by itself. */
     private final ChannelGroup browsers = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
 
@@ -119,8 +120,14 @@ public final class WebServer implements AutoCloseable, IHasForgeLog {
 
     /** A port of 0 uses any free port, which is what a test needs. */
     WebServer(final Endpoint endpoint, final String token, final int port) throws InterruptedException {
+        this(endpoint, token, port, "/");
+    }
+
+    WebServer(final Endpoint endpoint, final String token, final int port, final String basePath) throws InterruptedException {
         this.endpoint = endpoint;
         this.token = token;
+        this.basePath = basePath;
+        this.bundle = new PageBundle(basePath);
         final ServerBootstrap b = new ServerBootstrap()
                 .group(group)
                 .channel(NioServerSocketChannel.class)
@@ -150,12 +157,12 @@ public final class WebServer implements AutoCloseable, IHasForgeLog {
 
     /** The link at whichever address a player can reach this machine by. */
     public String inviteUrl(final String address) {
-        return "http://" + address + ":" + port() + "/?token=" + token;
+        return "http://" + address + ":" + port() + basePath + "?token=" + token;
     }
 
     /** The link through an address that leads to this machine, such as the one Cloudflare gives. */
     String inviteUrlThrough(final String origin) {
-        return origin + "/?token=" + token;
+        return origin + basePath + "?token=" + token;
     }
 
     @Override
@@ -243,15 +250,25 @@ public final class WebServer implements AutoCloseable, IHasForgeLog {
     /** Answers with the body, or with an empty 304 when the browser already holds the same body. */
     private static void respondUnlessUnchanged(final ChannelHandlerContext ctx, final byte[] body, final String type, final String cookieToken,
             final String cacheControl, final String ifNoneMatch) {
+        respondUnlessUnchanged(ctx, body, type, cookieToken, cacheControl, ifNoneMatch, "/");
+    }
+
+    private static void respondUnlessUnchanged(final ChannelHandlerContext ctx, final byte[] body, final String type, final String cookieToken,
+            final String cacheControl, final String ifNoneMatch, final String cookiePath) {
         final String etag = etag(body);
         final boolean unchanged = etag.equals(ifNoneMatch);
         respond(ctx, unchanged ? HttpResponseStatus.NOT_MODIFIED : HttpResponseStatus.OK, unchanged ? new byte[0] : body,
-                type, cookieToken, cacheControl, etag);
+                type, cookieToken, cacheControl, etag, cookiePath);
     }
 
     /** Answers a request. A cookie, when given, is the token that the page was loaded with. */
     static void respond(final ChannelHandlerContext ctx, final HttpResponseStatus status, final byte[] body, final String type,
             final String cookieToken, final String cacheControl, final String etag) {
+        respond(ctx, status, body, type, cookieToken, cacheControl, etag, "/");
+    }
+
+    static void respond(final ChannelHandlerContext ctx, final HttpResponseStatus status, final byte[] body, final String type,
+            final String cookieToken, final String cacheControl, final String etag, final String cookiePath) {
         final FullHttpResponse resp = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status, Unpooled.wrappedBuffer(body));
         resp.headers()
                 .set(HttpHeaderNames.CONTENT_TYPE, type)
@@ -265,7 +282,7 @@ public final class WebServer implements AutoCloseable, IHasForgeLog {
         }
         if (cookieToken != null) {
             final DefaultCookie cookie = new DefaultCookie(COOKIE, cookieToken);
-            cookie.setPath("/");
+            cookie.setPath(cookiePath);
             cookie.setHttpOnly(true);
             cookie.setSameSite(CookieHeaderNames.SameSite.Strict);
             resp.headers().set(HttpHeaderNames.SET_COOKIE, ServerCookieEncoder.STRICT.encode(cookie));
@@ -285,7 +302,8 @@ public final class WebServer implements AutoCloseable, IHasForgeLog {
     /** The connection stays open when the browser asked for that, because a board of forty pictures would otherwise need forty handshakes. */
     static void send(final ChannelHandlerContext ctx, final FullHttpResponse resp) {
         final boolean keepAlive = Boolean.TRUE.equals(ctx.channel().attr(KEEP_ALIVE).get());
-        resp.headers().set(HttpHeaderNames.CONNECTION, keepAlive ? HttpHeaderValues.KEEP_ALIVE : HttpHeaderValues.CLOSE);
+        resp.headers().set(HttpHeaderNames.CONNECTION, keepAlive ? HttpHeaderValues.KEEP_ALIVE : HttpHeaderValues.CLOSE)
+                .set("Referrer-Policy", "no-referrer");
         final ChannelFuture sent = ctx.writeAndFlush(resp);
         if (!keepAlive) {
             sent.addListener(ChannelFutureListener.CLOSE);
@@ -309,6 +327,22 @@ public final class WebServer implements AutoCloseable, IHasForgeLog {
         @Override
         public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
             if (msg instanceof FullHttpRequest req) {
+                final QueryStringDecoder original = new QueryStringDecoder(req.uri());
+                final String address = original.path();
+                final boolean rootNetplay = WebSocketTunnel.PATH.equals(address);
+                if (!rootNetplay && !basePath.equals("/")) {
+                    if (address.equals(basePath.substring(0, basePath.length() - 1))) {
+                        req.release();
+                        redirect(ctx, basePath + (original.rawQuery() == null ? "" : "?" + original.rawQuery()));
+                        return;
+                    }
+                    if (!address.startsWith(basePath)) {
+                        req.release();
+                        notFound(ctx);
+                        return;
+                    }
+                    req.setUri(address.substring(basePath.length() - 1) + (original.rawQuery() == null ? "" : "?" + original.rawQuery()));
+                }
                 final QueryStringDecoder q = new QueryStringDecoder(req.uri());
                 final boolean socket = "/ws".equals(q.path());
                 final boolean netplay = WebSocketTunnel.PATH.equals(q.path());
@@ -426,7 +460,7 @@ public final class WebServer implements AutoCloseable, IHasForgeLog {
                 return;
             }
             if ("/sound".equals(path) || "/music".equals(path)) {
-                AudioReplies.serve(ctx, "/sound".equals(path), param(q, "name"), param(q, "track"), req.headers().get(HttpHeaderNames.RANGE), ifNoneMatch);
+                AudioReplies.serve(ctx, "/sound".equals(path), param(q, "name"), param(q, "track"), req.headers().get(HttpHeaderNames.RANGE), ifNoneMatch, basePath);
                 return;
             }
             if ("/img".equals(path)) {
@@ -469,7 +503,7 @@ public final class WebServer implements AutoCloseable, IHasForgeLog {
             final String token = param(q, "token");
             // A chunk's name and the page's version parameter are file hashes, so a changed file gets a new address and the old one never goes stale
             final boolean hashed = resource.startsWith("js/chunks/") || q.parameters().containsKey("v");
-            respondUnlessUnchanged(ctx, body, type, admits(token) ? token : null, hashed ? KEEP_FOREVER : "no-cache", ifNoneMatch);
+            respondUnlessUnchanged(ctx, body, type, admits(token) ? token : null, hashed ? KEEP_FOREVER : "no-cache", ifNoneMatch, basePath);
         }
     }
 

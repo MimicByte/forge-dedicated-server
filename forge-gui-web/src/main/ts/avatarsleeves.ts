@@ -8,7 +8,7 @@ export const sleeveUrl = (index: number): string => `sleeve?i=${index}`;
 
 // A missing index means 0, because packets omit default values. -1 means none. A card-art avatar takes priority over the sprite
 export function playerAvatarUrl(player: PlayerView): string {
-  if (player.AvatarCardImageKey) return `/sleeveart?key=${encodeURIComponent(player.AvatarCardImageKey)}`;
+  if (player.AvatarCardImageKey) return `sleeveart?key=${encodeURIComponent(player.AvatarCardImageKey)}`;
   const index = player.AvatarIndex ?? 0;
   return index >= 0 ? avatarUrl(index) : '';
 }

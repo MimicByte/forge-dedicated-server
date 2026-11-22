@@ -65,6 +65,28 @@ Start it with `docker compose up -d`, then join `server-hostname:36743` from des
 
 `FORGE_SERVER_IMAGE_CACHE` selects the directory for downloaded card and other picture caches; the compose example mounts the shared `forge-images` volume at `/images`. Reuse that volume across room containers to avoid downloading the same pictures again. Give a bind-mounted directory write access to UID/GID 10001.
 
+### One hostname with room paths
+
+Set each room's `FORGE_SERVER_WEB_BASE_PATH` to `/r/<room UUID>/` and route the unchanged path to its container. For Nginx Proxy Manager, add this to the proxy host's **Advanced** configuration (with its normal `server` block):
+
+```nginx
+location ~ "^/r/(?<room>[0-9a-f-]{36})/" {
+    resolver 127.0.0.11 valid=10s;
+    proxy_pass http://laf-forge-$room:36744;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 1h;
+}
+```
+
+Name room containers `laf-forge-<uuid>` and attach them and NPM to the same Docker network. Browser invite links use `https://<hostname>/r/<uuid>/?token=...`. Desktop clients discard the link path when connecting their `/netplay` tunnel; root `/netplay` routing by room token prefix is a later integration phase and is not covered by this location.
+
+`FORGE_SERVER_WEB_BASE_PATH` defaults to `/` and must start and end with `/`; only letters, digits, `-`, `_`, `.`, and `/` are allowed, with no `..` or `//`. All browser routes and the `forge_token` cookie are scoped to that path. The root `/netplay` tunnel remains available for desktop clients.
+
 The image removes unused campaign resources but keeps the skins, sounds, and music used by the web UI, as well as card rules, token rules, format data, AI data, and localization. Card artwork is downloaded on demand. A configuration volume preserves logs and preferences, not an in-progress match. The image contains no desktop, Docker socket, or owner-command interface.
 
 ## Server configuration
@@ -72,6 +94,8 @@ The image removes unused campaign resources but keeps the skins, sounds, and mus
 | Environment | Default | Allowed |
 |---|---|---|
 | `FORGE_SERVER_PORT` | 36743 | 1–65535 |
+| `FORGE_SERVER_WEB_PORT` | 36744 | 0–65535; 0 disables the browser service |
+| `FORGE_SERVER_WEB_BASE_PATH` | `/` | Starts and ends with `/`; URL-safe path characters only; no `..` or `//` |
 | `FORGE_SERVER_MODE` | COMMANDER | CONSTRUCTED, COMMANDER, OATHBREAKER, TINY_LEADERS, BRAWL, MOMIR_BASIC, MOJHOSTO |
 | `FORGE_SERVER_VARIANTS` | unset | Comma-separated PLANECHASE, VANGUARD, ARCHENEMY, ARCHENEMY_RUMBLE |
 | `FORGE_SERVER_MAX_PLAYERS` | 4 | 2–8 |

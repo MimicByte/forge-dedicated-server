@@ -11,6 +11,7 @@ public class ServerConfigTest {
         Assert.assertEquals(c.mode(), ServerConfig.Mode.COMMANDER);
         Assert.assertEquals(c.maxPlayers(), 4);
         Assert.assertEquals(c.webPort(), 36744);
+        Assert.assertEquals(c.webBasePath(), "/");
         Assert.assertEquals(c.publicUrl(), "");
         Assert.assertEquals(c.startDelaySeconds(), 10);
         Assert.assertEquals(c.reconnectSeconds(), 300);
@@ -98,6 +99,15 @@ public class ServerConfigTest {
     }
     @Test(expectedExceptions = IllegalArgumentException.class) public void rejectsDuplicateVariant() {
         ServerConfig.from(Map.of("FORGE_SERVER_VARIANTS", "PLANECHASE,PLANECHASE"));
+    }
+    @Test public void acceptsValidatedWebBasePath() {
+        Assert.assertEquals(ServerConfig.from(Map.of("FORGE_SERVER_WEB_BASE_PATH", "/r/room_1-2./")).webBasePath(), "/r/room_1-2./");
+    }
+    @Test public void rejectsInvalidWebBasePaths() {
+        for (String path : new String[] {"r/room/", "/r/room", "/r//room/", "/r/../room/", "/r/a b/", "/r/a?b/", "//"}) {
+            Assert.expectThrows(path, IllegalArgumentException.class,
+                    () -> ServerConfig.from(Map.of("FORGE_SERVER_WEB_BASE_PATH", path)));
+        }
     }
     @Test public void disablesWebPortWhenConfiguredZero() {
         Assert.assertEquals(ServerConfig.from(Map.of("FORGE_SERVER_WEB_PORT", "0")).webPort(), 0);

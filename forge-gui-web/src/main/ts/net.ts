@@ -26,8 +26,9 @@ export function connect(onMessage: (msg: ServerMessage) => void, onStatus: (onli
   const id = clientId();
   const open = () => {
     // A page served over https can only open a secure socket, because the browser blocks ws:// there as mixed content
-    const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    socket = new WebSocket(`${scheme}//${location.host}/ws?client=${encodeURIComponent(id)}`);
+    const address = new URL(`ws?client=${encodeURIComponent(id)}`, document.baseURI);
+    address.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    socket = new WebSocket(address);
     socket.onopen = () => {
       retry = 250;
       everOpen = true;

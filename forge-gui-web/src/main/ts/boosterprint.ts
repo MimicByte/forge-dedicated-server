@@ -51,8 +51,8 @@ async function print(pack: PackPrint): Promise<string> {
   const pearl = !pack.art && !pack.mark;
   // The pearl artwork has its lettering printed in dark ink. Any other wrapper takes the same lettering in silver
   const [base, crinkle, lettering] = await Promise.all([
-    pack.art ? loadImage(pack.art) : pack.mark ? loadImage(`data:image/svg+xml,${encodeURIComponent(pack.mark)}`) : loadImage('/booster/generic.jpg'),
-    loadImage('/booster/crinkle.jpg'), pearl ? null : loadImage('/booster/lettering.png')]);
+    pack.art ? loadImage(pack.art) : pack.mark ? loadImage(`data:image/svg+xml,${encodeURIComponent(pack.mark)}`) : loadImage('booster/generic.jpg'),
+    loadImage('booster/crinkle.jpg'), pearl ? null : loadImage('booster/lettering.png')]);
   const canvas = document.createElement('canvas');
   canvas.width = W;
   canvas.height = H;

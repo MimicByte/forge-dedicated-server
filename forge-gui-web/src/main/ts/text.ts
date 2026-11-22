@@ -13,7 +13,7 @@ let numbers = new Intl.NumberFormat('en-US');
 
 /** Fetches the page's text from the server. Nothing may be drawn before it arrives. */
 export async function loadText(): Promise<void> {
-  const answer = await fetch('/text');
+  const answer = await fetch('text');
   const { lang, text } = await answer.json() as { lang: string; text: Record<string, string> };
   setText(lang, text);
   document.documentElement.lang = lang;

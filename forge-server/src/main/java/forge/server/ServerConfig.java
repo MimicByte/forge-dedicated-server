@@ -8,7 +8,7 @@ import forge.MulliganDefs;
 import forge.game.GameType;
 
 /** Immutable startup configuration. Lobby rules may be replaced in memory by the admin API. */
-public record ServerConfig(int port, int webPort, int adminPort, String adminToken, String publicUrl, int maxPlayers,
+public record ServerConfig(int port, int webPort, String webBasePath, int adminPort, String adminToken, String publicUrl, int maxPlayers,
                            int startDelaySeconds, int reconnectSeconds, int postgameSeconds,
                            int afkTimeoutMinutes,
                            Set<String> allowedPlayers, int loginFailureLimit,
@@ -66,6 +66,7 @@ public record ServerConfig(int port, int webPort, int adminPort, String adminTok
         Mode mode = mode(env.getOrDefault("FORGE_SERVER_MODE", "COMMANDER"));
         int port = number(env, "PORT", 36743, 1, 65535);
         int webPort = number(env, "WEB_PORT", 36744, 0, 65535);
+        String webBasePath = webBasePath(env.getOrDefault("FORGE_SERVER_WEB_BASE_PATH", "/"));
         String token = env.getOrDefault("FORGE_SERVER_ADMIN_TOKEN", "").trim();
         String publicUrl = env.getOrDefault("FORGE_SERVER_PUBLIC_URL", "").trim();
         int adminPort = number(env, "ADMIN_PORT", 8080, 1, 65535);
@@ -83,7 +84,7 @@ public record ServerConfig(int port, int webPort, int adminPort, String adminTok
                 number(env, "COMMANDER_BRACKET", 5, 1, 5), bool(env, "ENFORCE_DECK_LEGALITY", true),
                 bool(env, "MANA_BURN", false), bool(env, "LEGACY_ORDER_COMBATANTS", false),
                 bool(env, "FILTERED_HANDS", false), number(env, "AI_TIMEOUT_SECONDS", 5, 1, 600));
-        return new ServerConfig(port, webPort, adminPort, token, publicUrl, number(env, "MAX_PLAYERS", 4, 2, 8),
+        return new ServerConfig(port, webPort, webBasePath, adminPort, token, publicUrl, number(env, "MAX_PLAYERS", 4, 2, 8),
                 number(env, "START_DELAY_SECONDS", 10, 1, 300),
                 number(env, "RECONNECT_SECONDS", 300, 1, 3600),
                 number(env, "POSTGAME_SECONDS", 120, 1, 3600),
@@ -92,6 +93,14 @@ public record ServerConfig(int port, int webPort, int adminPort, String adminTok
                 number(env, "LOGIN_FAILURE_WINDOW_SECONDS", 60, 1, 3600),
                 number(env, "LOGIN_BLOCK_SECONDS", 900, 1, 86400),
                 number(env, "CRASH_REPORT_MAX_FILES", 10, 1, 100), mulliganRule(env), rules);
+    }
+
+    private static String webBasePath(String value) {
+        if ("/".equals(value)) { return value; }
+        if (!value.matches("/[A-Za-z0-9._/-]*/") || value.contains("..") || value.contains("//")) {
+            throw new IllegalArgumentException("FORGE_SERVER_WEB_BASE_PATH must start and end with / and contain only URL-safe path characters, without .. or //");
+        }
+        return value;
     }
 
     private static Mode mode(String value) {

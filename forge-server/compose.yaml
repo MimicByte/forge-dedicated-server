@@ -13,6 +13,8 @@ services:
     environment:
       FORGE_SERVER_MODE: COMMANDER
       FORGE_SERVER_WEB_PORT: "36744"
+      # Set to /r/<room UUID>/ behind a shared-host reverse proxy; keep / for standalone.
+      FORGE_SERVER_WEB_BASE_PATH: "/"
       # Optional public invite origin, e.g. https://forge.example.com
       FORGE_SERVER_PUBLIC_URL: ""
       FORGE_SERVER_IMAGE_CACHE: "/images"

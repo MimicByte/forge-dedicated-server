@@ -19,13 +19,34 @@ The container listens on these TCP ports:
 | `FORGE_SERVER_PORT` (default `36743`) | Forge desktop-client game protocol | Publish this port for players. |
 | `FORGE_SERVER_ADMIN_PORT` (default `8080`) | Private HTTP management API, only when an admin token is set | Keep private to the container network. Never publish it to untrusted clients. |
 | `FORGE_SERVER_WEB_PORT` (default `36744`) | Browser UI and WebSocket tunnel | Publish this port for browser invite links; `0` disables the web UI. |
-| `FORGE_SERVER_PUBLIC_URL` (optional) | Printed browser invite link | Set to the externally reachable origin, e.g. `https://forge.example.com`; the server appends `/?token=...`. |
+| `FORGE_SERVER_WEB_BASE_PATH` (default `/`) | Browser path prefix | Set `/r/<room UUID>/` when routing many room containers beneath one hostname. |
+| `FORGE_SERVER_PUBLIC_URL` (optional) | Printed browser invite link | Set to the externally reachable origin; the server appends the configured base path and `?token=...`. |
 
 The image runs as UID/GID `10001`. Mount `/config` with write access for that identity. It contains logs, Forge preferences, `server.status`, and crash reports, but never an in-progress game that can be resumed after restart.
 
 Docker health is implemented by `bin/forge-server health`. It checks the server's dispatcher heartbeat; it does not prove that a game is playable. The image health check runs every 10 seconds, has a five-minute start period, and retries three times. A graceful stop can take up to 20 seconds; allow at least a 30-second container stop grace period.
 
 The first start may take several minutes while the card database loads. The web page uses the bundled skins, sound, and music resources, so those directories are retained. The browser invite link is printed in the startup logs. If the printed container address is not reachable from players, set `FORGE_SERVER_PUBLIC_URL` to the public origin (for example `https://forge.example.com`); the server prints that origin with the room token. `FORGE_SERVER_IMAGE_CACHE` sets the shared picture-cache directory; the image defaults it to `/images`, and compose mounts a named volume there. Multiple room containers may mount the same volume to reuse downloaded card and token artwork.
+
+### Nginx Proxy Manager: one hostname, room paths
+
+Set each room's `FORGE_SERVER_WEB_BASE_PATH` to `/r/<room UUID>/`, then put the following in the proxy host's **Advanced** configuration. It forwards the path unchanged to containers named `laf-forge-<uuid>` on the shared Docker network:
+
+```nginx
+location ~ "^/r/(?<room>[0-9a-f-]{36})/" {
+    resolver 127.0.0.11 valid=10s;
+    proxy_pass http://laf-forge-$room:36744;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 1h;
+}
+```
+
+The browser URL is `https://<hostname>/r/<uuid>/?token=...`. Desktop clients drop that path and still use root `/netplay`; routing root `/netplay` to a room by token prefix is a later phase.
 
 ## Startup configuration
 
@@ -35,6 +56,7 @@ All configuration is read once from environment variables at container startup. 
 |---|---:|---|
 | `FORGE_SERVER_PORT` | `36743` | `1`–`65535`; game TCP port |
 | `FORGE_SERVER_WEB_PORT` | `36744` | `0`–`65535`; browser UI and WebSocket tunnel, `0` disables it |
+| `FORGE_SERVER_WEB_BASE_PATH` | `/` | Path prefix; starts and ends with `/`, only URL-safe characters, no `..` or `//` |
 | `FORGE_SERVER_IMAGE_CACHE` | `/images` in the container image | Directory for shared downloaded picture caches; mount a writable volume here when sharing images across containers |
 | `FORGE_SERVER_MODE` | `COMMANDER` | `CONSTRUCTED`, `COMMANDER`, `OATHBREAKER`, `TINY_LEADERS`, `BRAWL`, `MOMIR_BASIC`, `MOJHOSTO` |
 | `FORGE_SERVER_VARIANTS` | empty | Comma-separated `PLANECHASE`, `VANGUARD`, `ARCHENEMY`, `ARCHENEMY_RUMBLE` |

@@ -106,7 +106,7 @@ public final class DedicatedServerMain {
         EmbeddedWebServer web = null;
         if (config.webPort() != 0) {
             server.startLoopbackServer();
-            web = EmbeddedWebServer.start(lobbyRef.get(), config.webPort());
+            web = EmbeddedWebServer.start(lobbyRef.get(), config.webPort(), config.webBasePath());
             webRef.set(web);
             String invite = config.publicUrl().isBlank() ? web.inviteUrl(FServerManager.getLocalAddress())
                     : web.inviteUrlThrough(config.publicUrl());

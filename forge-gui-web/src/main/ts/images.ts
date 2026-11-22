@@ -14,7 +14,7 @@ const withArrivals = (src: string): string => {
 };
 
 const cardAddress = (key: string): string => `img?key=${encodeURIComponent(key)}`;
-const artAddress = (key: string): string => `/sleeveart?key=${encodeURIComponent(key)}`;
+const artAddress = (key: string): string => `sleeveart?key=${encodeURIComponent(key)}`;
 
 export const imageUrl = (key: string): string => withArrivals(cardAddress(key));
 

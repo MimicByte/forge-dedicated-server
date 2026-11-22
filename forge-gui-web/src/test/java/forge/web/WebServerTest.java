@@ -232,6 +232,35 @@ public class WebServerTest {
                 }).get(5, TimeUnit.SECONDS);
     }
 
+    @Test
+    public void basePathScopesRoutesAndCookieAndRootNetplayIsStillMatched() throws Exception {
+        final WebServer scoped = new WebServer(new WebServer.Endpoint() {
+            @Override public void connected(final BrowserChannel channel, final String clientId, final boolean local) { }
+            @Override public void disconnected(final BrowserChannel channel) { }
+            @Override public void onMessage(final BrowserChannel channel, final JsonObject message) { }
+        }, "secret", 0, "/r/room-1/");
+        try {
+            final String root = "http://127.0.0.1:" + scoped.port();
+            final HttpResponse<String> page = http.send(HttpRequest.newBuilder(URI.create(root + "/r/room-1/?token=secret&keep=yes")).build(),
+                    HttpResponse.BodyHandlers.ofString());
+            Assert.assertEquals(page.statusCode(), 200);
+            Assert.assertTrue(page.headers().firstValue("set-cookie").orElse("").contains("Path=/r/room-1/"));
+            Assert.assertEquals(page.headers().firstValue("referrer-policy").orElse(""), "no-referrer");
+            Assert.assertTrue(page.body().contains("<base href=\"/r/room-1/\">"));
+            Assert.assertTrue(page.body().contains("searchParams.delete('token')"));
+            Assert.assertEquals(http.send(HttpRequest.newBuilder(URI.create(root + "/text?token=secret")).build(),
+                    HttpResponse.BodyHandlers.ofString()).statusCode(), 404);
+            Assert.assertEquals(http.send(HttpRequest.newBuilder(URI.create(root + "/r/room-1/text?token=secret")).build(),
+                    HttpResponse.BodyHandlers.ofString()).statusCode(), 200);
+            final HttpResponse<Void> trailing = http.send(HttpRequest.newBuilder(URI.create(root + "/r/room-1?token=secret")).build(),
+                    HttpResponse.BodyHandlers.discarding());
+            Assert.assertEquals(trailing.statusCode(), 302);
+            Assert.assertEquals(trailing.headers().firstValue("location").orElse(""), "/r/room-1/?token=secret");
+        } finally {
+            scoped.close();
+        }
+    }
+
     // Fails if a socket message from the browser does not reach the endpoint, or one from the server does not reach the browser
     @Test
     public void socketCarriesMessagesBothWays() throws Exception {

@@ -365,7 +365,7 @@ public class DedicatedNetworkTest {
     @Test(dependsOnMethods = "admissionUpdatesAndCleanup", timeOut = 60000)
     public void websocketTunnelAndTcpJoinTheSameDedicatedLobby() throws Exception {
         server.startLoopbackServer();
-        EmbeddedWebServer web = EmbeddedWebServer.start(lobby, 0);
+        EmbeddedWebServer web = EmbeddedWebServer.start(lobby, 0, "/r/test-room/");
         HttpResponse<Void> wrongToken = HttpClient.newHttpClient().send(
                 HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + web.port() + "/netplay?token=wrong"))
                         .GET().build(), HttpResponse.BodyHandlers.discarding());

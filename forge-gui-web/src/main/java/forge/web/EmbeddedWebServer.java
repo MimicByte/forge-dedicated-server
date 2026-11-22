@@ -10,11 +10,11 @@ public final class EmbeddedWebServer implements AutoCloseable {
     private final WebHub hub;
     private final WebServer server;
 
-    private EmbeddedWebServer(final ServerGameLobby lobby, final int port) throws InterruptedException {
+    private EmbeddedWebServer(final ServerGameLobby lobby, final int port, final String basePath) throws InterruptedException {
         final WebGuiBase ui = new WebGuiBase(true);
         hub = new WebHub(ui, 0, () -> { }, lobby);
         try {
-            server = new WebServer(hub, newToken(), port);
+            server = new WebServer(hub, newToken(), port, basePath);
         } catch (RuntimeException | Error failure) {
             hub.shutdown();
             throw failure;
@@ -22,8 +22,8 @@ public final class EmbeddedWebServer implements AutoCloseable {
         hub.setServer(server);
     }
 
-    public static EmbeddedWebServer start(final ServerGameLobby lobby, final int port) throws InterruptedException {
-        return new EmbeddedWebServer(lobby, port);
+    public static EmbeddedWebServer start(final ServerGameLobby lobby, final int port, final String basePath) throws InterruptedException {
+        return new EmbeddedWebServer(lobby, port, basePath);
     }
 
     public int port() { return server.port(); }

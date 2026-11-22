@@ -39,7 +39,7 @@ final class AudioReplies {
 
     /** A playlist request gets a redirect to one of its tracks by name. The shuffle then stays on the server, and each track is downloaded once. */
     static void serve(final ChannelHandlerContext ctx, final boolean sound, final String name, final String track,
-            final String range, final String ifNoneMatch) throws IOException {
+            final String range, final String ifNoneMatch, final String basePath) throws IOException {
         if (sound) {
             respondAudio(ctx, isFileName(name) ? SoundSystem.instance.getSoundResource(name) : null, range, KEEP_A_DAY, ifNoneMatch);
             return;
@@ -51,7 +51,7 @@ final class AudioReplies {
             if (chosen == null) {
                 notFound(ctx);
             } else {
-                redirect(ctx, "/music?name=" + (menu ? "menu" : "match") + "&track="
+                redirect(ctx, basePath + "music?name=" + (menu ? "menu" : "match") + "&track="
                         + URLEncoder.encode(new File(chosen).getName(), StandardCharsets.UTF_8));
             }
             return;

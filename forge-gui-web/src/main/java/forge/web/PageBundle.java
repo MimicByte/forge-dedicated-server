@@ -21,6 +21,8 @@ final class PageBundle {
     private static final Pattern CHUNK = Pattern.compile("\\./(chunks/[^\"']+\\.js)");
     // -Dforge.web.pageDir=<the web resource folder> serves the page from disk, so an edit needs only a reload
     private static final String PAGE_DIR = System.getProperty("forge.web.pageDir");
+    private final String basePath;
+    PageBundle(final String basePath) { this.basePath = basePath; }
     /** The page as served. It is built once, unless the page is read from a folder that may change. */
     private volatile byte[] page;
     private volatile byte[] styles;
@@ -75,7 +77,7 @@ final class PageBundle {
         }
         final int head = out.indexOf("</head>");
         if (head >= 0) {
-            out.insert(head, preloads);
+            out.insert(head, "<base href=\"" + basePath + "\"><script>if(location.search.includes('token=')){const u=new URL(location.href);u.searchParams.delete('token');history.replaceState(null,'',u.pathname+u.search+u.hash)}</script>\n" + preloads);
         }
         return page = out.toString().getBytes(StandardCharsets.UTF_8);
     }
