@@ -4,7 +4,7 @@ This document is the contract for software that provisions and manages Forge Ded
 
 ## Scope and compatibility
 
-One container hosts exactly one room. The game protocol is Forge's desktop-client TCP protocol, not HTTP or WebSocket. Players join `hostname:port` from an unmodified desktop Forge client. A path, room identifier, or token cannot be included in that client connection address.
+One container hosts exactly one room. The game protocol is Forge's desktop-client TCP protocol, not HTTP or WebSocket. Players join `hostname:port` from an unmodified desktop or Android Forge client. A path, room identifier, or token cannot be included in that client connection address.
 
 Use the same Forge snapshot for clients and server whenever possible. A version mismatch is warned about but is not rejected, so compatibility is not guaranteed.
 
