@@ -68,6 +68,9 @@ public class DedicatedNetworkTest {
         SwingUtilities.invokeAndWait(pulse::start);
     }
     private Channel connect(String name, String version) throws Exception {
+        return connect(name, version, false);
+    }
+    private Channel connect(String name, String version, boolean mobile) throws Exception {
         Channel ch = new Bootstrap().group(group).channel(NioSocketChannel.class)
                 .handler(new ChannelInitializer<Channel>() {
                     @Override protected void initChannel(Channel ch) {
@@ -79,7 +82,7 @@ public class DedicatedNetworkTest {
                     }
                 }).connect("127.0.0.1", port).sync().channel();
         peers.add(ch);
-        ch.writeAndFlush(new LoginEvent(name, 0, 0, version, false)).sync();
+        ch.writeAndFlush(new LoginEvent(name, 0, 0, version, mobile)).sync();
         return ch;
     }
     private static void await(BooleanSupplier predicate) throws Exception {
@@ -130,6 +133,14 @@ public class DedicatedNetworkTest {
         });
         Assert.assertTrue(controller.kickPlayer(2).success());
         await(() -> !b.isActive() && server.connectedPlayers().isEmpty() && lobby.getSlot(1).getType() == LobbySlotType.OPEN);
+        await(() -> server.connectedPlayers().isEmpty());
+    }
+    @Test public void admitsMobileClients() throws Exception {
+        Channel phone = connect("Phone", BuildInfo.getVersionString(), true);
+        await(() -> server.connectedPlayers().size() == 1);
+        Assert.assertTrue(phone.isActive(), "Android and iOS clients should be admitted to the lobby");
+        Assert.assertTrue(server.connectedPlayers().get(0).isLibgdx(), "Mobile clients should get mobile prompt handling");
+        phone.close().sync();
         await(() -> server.connectedPlayers().isEmpty());
     }
     @Test public void validatesSpecialVariantRequirements() throws Exception {

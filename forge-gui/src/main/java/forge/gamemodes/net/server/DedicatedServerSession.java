@@ -70,10 +70,10 @@ final class DedicatedServerSession implements IHasForgeLog {
 
     private void login(ChannelHandlerContext context, RemoteClient client, LoginEvent event) {
         String name = LogSafe.forDisplay(event.getUsername(), server.maxDedicatedNameLength());
-        if (client == null || client.hasValidSlot() || name == null || name.isBlank() || event.isLibgdx()
+        if (client == null || client.hasValidSlot() || name == null || name.isBlank()
                 || server.connectedPlayers().stream().anyMatch(c -> name.equalsIgnoreCase(c.getUsername()))) {
             if (client != null) {
-                client.send(MessageEvent.warning("Login rejected: use a desktop Forge client and a unique name."));
+                client.send(MessageEvent.warning("Login rejected: choose a name that is not empty and not already in the lobby."));
             }
             context.close();
             return;
@@ -92,6 +92,7 @@ final class DedicatedServerSession implements IHasForgeLog {
         RemoteClient parked = server.takeParkedDedicatedClient(name);
         if (parked != null) {
             boolean draftInProgress = draftInProgress();
+            parked.setLibgdx(event.isLibgdx());
             server.replaceClientChannel(context, parked);
             server.updateLobbyState();
             policy.reconnected(parked);
@@ -114,7 +115,7 @@ final class DedicatedServerSession implements IHasForgeLog {
                 return;
             }
             client.setIndex(index);
-            client.setLibgdx(false);
+            client.setLibgdx(event.isLibgdx());
             server.broadcast(new MessageEvent(name + " joined the lobby."));
             server.updateLobbyState();
         }

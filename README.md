@@ -1,6 +1,6 @@
 # Forge Dedicated Server
 
-Headless [Forge](https://github.com/Card-Forge/forge) multiplayer rooms for **Magic: The Gathering**, using unmodified desktop Forge clients. Forge is open source and not affiliated with Wizards of the Coast.
+Headless [Forge](https://github.com/Card-Forge/forge) multiplayer rooms for **Magic: The Gathering**, using unmodified desktop and Android Forge clients. Forge is open source and not affiliated with Wizards of the Coast.
 
 The server supports Constructed, Commander, Oathbreaker, Tiny Leaders, Brawl, Momir Basic, and MoJhoSto, with optional Planechase, Vanguard, and Archenemy variants where compatible. One container owns one room with two to eight seats. Disconnected players can reconnect during a grace period; after it expires, AI takes over for the rest of the match.
 

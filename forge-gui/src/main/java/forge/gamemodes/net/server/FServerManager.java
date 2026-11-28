@@ -66,6 +66,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 public final class FServerManager implements IHasForgeLog, HostingServer.Server {
 
@@ -163,7 +164,7 @@ public final class FServerManager implements IHasForgeLog, HostingServer.Server 
     }
 
     public java.util.List<RemoteClient> connectedPlayers() {
-        return clients.values().stream().filter(c -> c.hasValidSlot() && c.isConnected()).toList();
+        return clients.values().stream().filter(c -> c.hasValidSlot() && c.isConnected()).collect(Collectors.toList());
     }
 
     public void forgetDisconnected(RemoteClient client) {
